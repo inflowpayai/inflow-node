@@ -30,7 +30,7 @@ The `release` workflow runs on every push to `main`. It uses the official `chang
 3. **Version Packages PR merges**: workflow runs again, detects the applied versions, and calls `pnpm release` which runs
    `changeset publish`. Each bumped package is published to npm with provenance attestations (OIDC-backed).
 
-The workflow's final step iterates `steps.changesets.outputs.publishedPackages` and queries `npm view <name>@<version> --json` for each just-published version, asserting `.dist.attestations` is non-null. Any package landing without a provenance attestation fails the run. (We do not use `npm audit signatures` for this — that command audits dependencies installed in `node_modules`, not the tarballs we just published, and it can't see this repo's workspaces because they're declared in `pnpm-workspace.yaml` rather than `package.json#workspaces`.)
+The workflow's final step iterates `steps.changesets.outputs.publishedPackages` and queries `npm view <name>@<version> --json` for each just-published version, asserting `.dist.attestations` is non-null. The query is retried with backoff (six attempts across ~165s) because `npm publish` returns when the tarball reaches the npm origin, but `npm view` reads through the registry CDN, which lags writes by a few seconds to a couple of minutes. Any package landing without a provenance attestation after the retries fails the run. (We do not use `npm audit signatures` for this — that command audits dependencies installed in `node_modules`, not the tarballs we just published, and it can't see this repo's workspaces because they're declared in `pnpm-workspace.yaml` rather than `package.json#workspaces`.)
 
 ## Publish-correctness gates
 

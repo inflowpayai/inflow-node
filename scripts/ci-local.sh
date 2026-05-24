@@ -26,6 +26,19 @@ case "$mode" in
     ;;
 esac
 
+# Restore any working-tree pollution from the `latest` leg's `pnpm -r update`,
+# which rewrites package.json specifiers and pnpm-lock.yaml. Without this, an
+# accidental `git add -A` after running the script can sweep those bumps into
+# an unrelated commit.
+cleanup() {
+  if [[ "$mode" == "latest" || "$mode" == "both" ]]; then
+    echo ""
+    echo ">>> Restoring working tree (packages/, examples/, pnpm-lock.yaml, package.json)"
+    git restore packages/ examples/ pnpm-lock.yaml package.json 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+
 # --- Node version guard -----------------------------------------------------
 node_version=$(node --version | sed 's/^v//')
 node_major=${node_version%%.*}
