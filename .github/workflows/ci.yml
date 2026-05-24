@@ -1,0 +1,87 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    strategy:
+      # `x402-foundation: locked` runs against the lockfile-pinned `@x402/*` packages (the versions we built and
+      # tested against). `x402-foundation: latest` overrides every `@x402/*` to the highest 2.x on npm before
+      # installing, so any drift between our peer range (`^2.12.0`) and what consumers actually resolve surfaces
+      # in CI before npm. Both runs are required.
+      #
+      # We test on Node 24, the active LTS (since 2025-10-28, EOL 2028-04-30). Node 20 went EOL on 2026-04-30
+      # and is no longer supported. Node 22 is in maintenance LTS until 2027-04-30 — the published packages
+      # still allow it via `engines.node: >=22.13.0`, but CI does not exercise it; Node 22 is an API subset
+      # of Node 24 for everything our packages touch (HTTP, AbortSignal.any, crypto).
+      fail-fast: false
+      matrix:
+        node: [24]
+        x402-foundation: [locked, latest]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # needed for Changesets to detect unreleased PRs
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Override @x402/* foundation packages to latest 2.x
+        if: matrix.x402-foundation == 'latest'
+        # Bump every `@x402/*` package together, not just `@x402/core`. Each foundation package carries its own
+        # peer-resolved `@x402/core`; updating only `@x402/core` leaves the others on their 2.12.x line and you
+        # end up with two copies of `@x402/core` in node_modules, which collide at the type level (e.g. an
+        # `x402Client` instance from 2.13 passed to a function from `@x402/svm@2.12` fails typecheck). The list
+        # tracks the union of `@x402/*` packages referenced anywhere under `packages/**` and `examples/**`.
+        run: |
+          pnpm -r update \
+            '@x402/core@latest' \
+            '@x402/evm@latest' \
+            '@x402/express@latest' \
+            '@x402/extensions@latest' \
+            '@x402/fastify@latest' \
+            '@x402/hono@latest' \
+            '@x402/next@latest' \
+            '@x402/paywall@latest' \
+            '@x402/svm@latest'
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+      - name: Check exports map
+        run: pnpm check-exports
+
+      - name: Verify publish tarballs
+        run: pnpm verify-publish
+
+      - name: Test
+        run: pnpm test
+
+      - name: Changeset check
+        if: github.event_name == 'pull_request'
+        run: pnpm changeset status --since=origin/main
+
+      - name: Upload coverage
+        if: matrix.x402-foundation == 'locked'
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-report
+          path: packages/*/coverage
+          retention-days: 7

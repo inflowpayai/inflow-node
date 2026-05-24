@@ -1,0 +1,11 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config/schema.json",
+  "access": "public",
+  "baseBranch": "main",
+  "changelog": ["@changesets/changelog-github", { "repo": "inflowpayai/inflow-node" }],
+  "commit": false,
+  "fixed": [],
+  "ignore": ["@inflowpayai/example-*"],
+  "linked": [],
+  "updateInternalDependencies": "patch"
+}
