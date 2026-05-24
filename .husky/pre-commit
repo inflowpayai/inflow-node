@@ -1,0 +1,2 @@
+node scripts/clean-vitest-artifacts.mjs
+node scripts/check-no-build-artifacts.mjs

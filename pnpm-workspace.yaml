@@ -1,0 +1,15 @@
+packages:
+  - 'packages/*'
+  - 'examples/*'
+
+engineStrict: true
+
+publicHoistPattern:
+  - '*eslint*'
+  - '*prettier*'
+  - '*types*'
+
+allowBuilds:
+  esbuild: true
+  msw: true
+  sharp: true

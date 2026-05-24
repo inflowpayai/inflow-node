@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Next.js dev/build output
+.next/
+
+# Turborepo
+.turbo/
+
+# Coverage
+coverage/
+
+# Generated API reference (typedoc output)
+docs/api/
+
+# Changesets transient state
+.changeset/.status.json
+
+# Test artifacts
+*.log
+*.lcov
+**/vitest.config.*.timestamp-*.mjs
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+*.swp
+*.swo

@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": ["packages/x402/src/**/*.ts", "packages/x402-seller/src/**/*.ts", "packages/x402-buyer/src/**/*.ts"]
+}

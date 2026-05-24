@@ -1,0 +1,31 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "packages/x402/src/index.ts",
+    "packages/x402/src/extensions/index.ts",
+    "packages/x402/src/extras/index.ts",
+    "packages/x402/src/security/index.ts",
+    "packages/x402-seller/src/index.ts",
+    "packages/x402-buyer/src/index.ts"
+  ],
+  "categorizeByGroup": true,
+  "excludeInternal": true,
+  "excludeNotDocumented": false,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "githubPages": false,
+  "logLevel": "Info",
+  "navigationLinks": {
+    "Architecture": "https://github.com/inflowpayai/inflow-node/blob/main/docs/x402/architecture.md",
+    "Protocol mapping": "https://github.com/inflowpayai/inflow-node/blob/main/docs/x402/protocol-mapping.md"
+  },
+  "out": "docs/api",
+  "readme": "none",
+  "treatWarningsAsErrors": false,
+  "tsconfig": "tsconfig.docs.json",
+  "validation": {
+    "invalidLink": true,
+    "notDocumented": false,
+    "notExported": true
+  }
+}
