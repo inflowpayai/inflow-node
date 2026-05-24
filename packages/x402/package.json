@@ -1,0 +1,97 @@
+{
+  "name": "@inflowpayai/x402",
+  "version": "0.5.0",
+  "description": "InFlow x402 SDK core: protocol types, HTTP client, scheme constants.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "node": {
+        "import": "./dist/index.js",
+        "require": "./dist/index.cjs"
+      },
+      "default": "./dist/index.js"
+    },
+    "./security": {
+      "types": "./dist/security/index.d.ts",
+      "node": {
+        "import": "./dist/security/index.js",
+        "require": "./dist/security/index.cjs"
+      },
+      "default": "./dist/security/index.js"
+    },
+    "./extensions": {
+      "types": "./dist/extensions/index.d.ts",
+      "node": {
+        "import": "./dist/extensions/index.js",
+        "require": "./dist/extensions/index.cjs"
+      },
+      "default": "./dist/extensions/index.js"
+    },
+    "./extras": {
+      "types": "./dist/extras/index.d.ts",
+      "node": {
+        "import": "./dist/extras/index.js",
+        "require": "./dist/extras/index.cjs"
+      },
+      "default": "./dist/extras/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "lint": "eslint src test --max-warnings 0",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "clean": "rm -rf dist .turbo"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@x402/core": "^2.12.0"
+  },
+  "peerDependenciesMeta": {
+    "@x402/core": {
+      "optional": false
+    }
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.0",
+    "@x402/core": "^2.12.0",
+    "msw": "^2.4.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/inflowpayai/inflow-node.git",
+    "directory": "packages/x402"
+  },
+  "bugs": {
+    "url": "https://github.com/inflowpayai/inflow-node/issues"
+  },
+  "homepage": "https://github.com/inflowpayai/inflow-node/tree/main/packages/x402#readme",
+  "keywords": [
+    "x402",
+    "payments",
+    "inflow",
+    "@inflowpayai",
+    "core",
+    "types"
+  ]
+}
