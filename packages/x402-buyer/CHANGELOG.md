@@ -1,5 +1,14 @@
 # @inflowpayai/x402-buyer
 
+## 0.5.3
+
+### Patch Changes
+
+- [#5](https://github.com/inflowpayai/inflow-node/pull/5) [`a61cdf6`](https://github.com/inflowpayai/inflow-node/commit/a61cdf69e6f1d839729977860879e0ccfce12ffe) Thanks [@nkavian](https://github.com/nkavian)! - Internal: exercise the release workflow's CDN-propagation retry in the verify step. No functional changes to the published API or runtime behavior.
+
+- Updated dependencies [[`a61cdf6`](https://github.com/inflowpayai/inflow-node/commit/a61cdf69e6f1d839729977860879e0ccfce12ffe)]:
+  - @inflowpayai/x402@0.5.3
+
 ## 0.5.2
 
 ### Patch Changes
