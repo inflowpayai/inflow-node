@@ -1,0 +1,78 @@
+{
+  "name": "@inflowpayai/x402-buyer",
+  "version": "0.5.0",
+  "description": "InFlow x402 SDK: buyer-side InflowClient (x402Client subclass) for InFlow MPC signing alongside foundation @x402/evm and @x402/svm scheme registrations.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "node": {
+        "import": "./dist/index.js",
+        "require": "./dist/index.cjs"
+      },
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "lint": "eslint src test --max-warnings 0",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "clean": "rm -rf dist .turbo"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@inflowpayai/x402": "workspace:^",
+    "bs58": "^6.0.0"
+  },
+  "peerDependencies": {
+    "@x402/core": "^2.12.0"
+  },
+  "peerDependenciesMeta": {
+    "@x402/core": {
+      "optional": false
+    }
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.0",
+    "@x402/core": "^2.12.0",
+    "fast-check": "^3.22.0",
+    "msw": "^2.4.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/inflowpayai/inflow-node.git",
+    "directory": "packages/x402-buyer"
+  },
+  "bugs": {
+    "url": "https://github.com/inflowpayai/inflow-node/issues"
+  },
+  "homepage": "https://github.com/inflowpayai/inflow-node/tree/main/packages/x402-buyer#readme",
+  "keywords": [
+    "x402",
+    "payments",
+    "inflow",
+    "@inflowpayai",
+    "buyer",
+    "signer"
+  ]
+}
