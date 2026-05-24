@@ -1,0 +1,26 @@
+{
+  "name": "@inflowpayai/example-x402-seller-express",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Example: accepting x402 payments via Express.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@inflowpayai/x402": "workspace:^",
+    "@inflowpayai/x402-seller": "workspace:^",
+    "@x402/core": "^2.12.0",
+    "@x402/express": "^2.12.0",
+    "dotenv": "^16.4.0",
+    "express": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.6.0"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@inflowpayai/example-x402-buyer-x402-svm",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Example: paying an InFlow-generated x402 402 with a foundation-only SVM buyer.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@solana/kit": "^5.1.0",
+    "@x402/core": "^2.12.0",
+    "@x402/svm": "^2.12.0",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.6.0"
+  }
+}

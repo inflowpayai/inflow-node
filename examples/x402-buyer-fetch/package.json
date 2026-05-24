@@ -1,0 +1,23 @@
+{
+  "name": "@inflowpayai/example-x402-buyer-fetch",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Example: paying via x402 using InflowClient + foundation x402HTTPClient over native fetch.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@inflowpayai/x402": "workspace:^",
+    "@inflowpayai/x402-buyer": "workspace:^",
+    "@x402/core": "^2.12.0",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.6.0"
+  }
+}
