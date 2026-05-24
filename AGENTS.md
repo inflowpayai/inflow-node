@@ -44,6 +44,7 @@ Rules the tooling can't enforce. Breaking them lands a regression.
 - **`@internal` for exported-but-not-public symbols.** If a source-file export isn't re-exported from the barrel, either add `@internal` or move it into the barrel. Don't leave the question ambiguous.
 - **No emoji** in code, commits, or PR descriptions unless the request explicitly calls for them.
 - **No "future work" / "phase 2" / "TODO: refactor later" comments.** Describe what the code does now, or delete the comment.
+- **Comments only for what the code can't say.** No restatement of behavior, no rationale-padding, no historical justification. If no non-obvious sentence comes to mind, no comment. Applies to every comment syntax — TSDoc, inline, YAML, shell, JSON-with-comments. The TSDoc rule under [Writing docs](#writing-docs) is this rule applied to one syntax.
 
 ## Adding a package or product
 
@@ -97,6 +98,7 @@ These rules apply to LLM agents picking up tasks in this repo. They aren't enfor
 - **Don't improvise patterns.** If a similar problem is already solved in this repo, follow the existing pattern — the canonical example is usually in a sibling package or under `examples/`. Adding a new helper, util, or dependency without justifying why the existing pattern doesn't cover the case is rejected on review.
 - **Research before writing.** For non-trivial work, read the relevant `docs/<product>/architecture.md` first. Then grep for the symbol in question to see how it's used elsewhere. Then write.
 - **Minimal diffs.** Change as little as possible to achieve the goal. Don't reformat unrelated lines, don't sweep style fixes across files outside your scope, don't bump dependencies unless the task is the bump.
+- **Comments are part of the diff.** A 14-line comment above a 9-line code change is not a minimal diff. See the comment rule under [Conventions](#conventions).
 
 ### Done
 

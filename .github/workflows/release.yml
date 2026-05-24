@@ -51,14 +51,23 @@ jobs:
 
       - name: Verify provenance attestations
         if: steps.changesets.outputs.published == 'true'
+        # Retry on npm CDN propagation: writes to the origin aren't immediately visible to `npm view`.
         run: |
           published='${{ steps.changesets.outputs.publishedPackages }}'
           echo "$published" | jq -c '.[]' | while read -r entry; do
             name=$(echo "$entry" | jq -r '.name')
             version=$(echo "$entry" | jq -r '.version')
-            attestations=$(npm view "$name@$version" --json | jq -r '.dist.attestations // empty')
+            attestations=""
+            for delay in 0 10 20 30 45 60; do
+              if [[ $delay -gt 0 ]]; then
+                echo "waiting ${delay}s for $name@$version to propagate to the read CDN..."
+                sleep "$delay"
+              fi
+              attestations=$(npm view "$name@$version" --json 2>/dev/null | jq -r '.dist.attestations // empty')
+              [[ -n "$attestations" ]] && break
+            done
             if [[ -z "$attestations" ]]; then
-              echo "::error::No provenance attestations on $name@$version"
+              echo "::error::No provenance attestations on $name@$version after retries"
               exit 1
             fi
             echo "ok: $name@$version has attestations"
