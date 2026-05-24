@@ -51,4 +51,15 @@ jobs:
 
       - name: Verify provenance attestations
         if: steps.changesets.outputs.published == 'true'
-        run: pnpm exec npm audit signatures --workspaces
+        run: |
+          published='${{ steps.changesets.outputs.publishedPackages }}'
+          echo "$published" | jq -c '.[]' | while read -r entry; do
+            name=$(echo "$entry" | jq -r '.name')
+            version=$(echo "$entry" | jq -r '.version')
+            attestations=$(npm view "$name@$version" --json | jq -r '.dist.attestations // empty')
+            if [[ -z "$attestations" ]]; then
+              echo "::error::No provenance attestations on $name@$version"
+              exit 1
+            fi
+            echo "ok: $name@$version has attestations"
+          done

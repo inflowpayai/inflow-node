@@ -30,7 +30,7 @@ The `release` workflow runs on every push to `main`. It uses the official `chang
 3. **Version Packages PR merges**: workflow runs again, detects the applied versions, and calls `pnpm release` which runs
    `changeset publish`. Each bumped package is published to npm with provenance attestations (OIDC-backed).
 
-The workflow's final step runs `pnpm exec npm audit signatures --workspaces` and fails if any package landed without a provenance attestation.
+The workflow's final step iterates `steps.changesets.outputs.publishedPackages` and queries `npm view <name>@<version> --json` for each just-published version, asserting `.dist.attestations` is non-null. Any package landing without a provenance attestation fails the run. (We do not use `npm audit signatures` for this — that command audits dependencies installed in `node_modules`, not the tarballs we just published, and it can't see this repo's workspaces because they're declared in `pnpm-workspace.yaml` rather than `package.json#workspaces`.)
 
 ## Publish-correctness gates
 
@@ -88,7 +88,7 @@ Source versions in `packages/*/package.json` are at `0.5.0`. The bootstrap publi
 6. **Restore the release trigger:** revert `release.yml` to `on: push: branches: [main]`, commit, and push. The release workflow re-runs with no pending changesets and source versions matching npm, so `changeset publish` is a no-op and the run goes green. The path is live for the next change.
 7. **Revoke the granular token** on npm and strip the `_authToken=` line from `~/.npmrc`. Confirm `Settings → Secrets and variables → Actions` on GitHub has no `NPM_TOKEN` — Trusted Publishing makes one structurally unnecessary.
 
-The first CI-driven publish with provenance happens on the next change. To prove the OIDC path end-to-end before relying on it, add a no-op patch changeset for all three packages, merge it, then merge the resulting Version Packages PR — the `release` workflow runs `changeset publish` under OIDC and each package page should show the **Provenance: Signed and verified** badge. The workflow's final `pnpm exec npm audit signatures --workspaces` step fails the run if any package lands without attestations.
+The first CI-driven publish with provenance happens on the next change. To prove the OIDC path end-to-end before relying on it, add a no-op patch changeset for all three packages, merge it, then merge the resulting Version Packages PR — the `release` workflow runs `changeset publish` under OIDC and each package page should show the **Provenance: Signed and verified** badge. The workflow's final verify step (registry query of `.dist.attestations` per published version) fails the run if any package lands without attestations.
 
 From `0.5.1` onward, every change flows through the normal Changesets flow.
 
