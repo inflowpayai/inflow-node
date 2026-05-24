@@ -1,5 +1,14 @@
 # @inflowpayai/x402-seller
 
+## 0.5.2
+
+### Patch Changes
+
+- [#3](https://github.com/inflowpayai/inflow-node/pull/3) [`2120084`](https://github.com/inflowpayai/inflow-node/commit/2120084f8723f40fd6f984915efa2d92fac4a94b) Thanks [@nkavian](https://github.com/nkavian)! - Internal: exercise the Trusted Publishing OIDC flow and the new provenance-attestation verify step end-to-end. No functional changes to the published API or runtime behavior.
+
+- Updated dependencies [[`2120084`](https://github.com/inflowpayai/inflow-node/commit/2120084f8723f40fd6f984915efa2d92fac4a94b)]:
+  - @inflowpayai/x402@0.5.2
+
 ## 0.5.1
 
 ### Patch Changes
