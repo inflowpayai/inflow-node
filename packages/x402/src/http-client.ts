@@ -59,6 +59,34 @@ export interface InflowAnonymousClientOptions {
   fetch?: typeof fetch;
 }
 
+/**
+ * Options for the HTTP client when authenticating with a Bearer token instead of an API key. Used by callers that hold
+ * OAuth-issued access tokens (for example the InFlow CLI's device-flow client). Sends `Authorization: Bearer <token>`
+ * on every request; `X-API-KEY` is never sent in this mode.
+ */
+export interface InflowBearerClientOptions {
+  /** Marker field — must be omitted or `undefined`. Mutually exclusive with `getAccessToken`. */
+  apiKey?: undefined;
+  /**
+   * Invoked once per HTTP attempt (a 5xx retry re-invokes it, picking up a freshly-refreshed token). Must return the
+   * access token to send as `Authorization: Bearer <token>`. The callback's return value is not cached by the SDK;
+   * callers that refresh proactively (60s expiry buffer is the recommended pattern) should do so inside this callback.
+   *
+   * Errors thrown by `getAccessToken` propagate to the caller of `get` / `post` / `request` verbatim — they are not
+   * wrapped in `InflowApiError`, and they bypass the transient-error retry loop. Auth failures are not API errors; the
+   * SDK is just a transport.
+   */
+  getAccessToken: () => Promise<string>;
+  /** Selects one of the public environments. Defaults to `'production'`. */
+  environment?: Environment;
+  /** Override the environment-derived URL. Takes precedence over `environment`. */
+  baseUrl?: string;
+  /** Per-request timeout, milliseconds. Defaults to 30 000. */
+  timeoutMs?: number;
+  /** Optional `fetch` implementation. Defaults to `globalThis.fetch`. */
+  fetch?: typeof fetch;
+}
+
 /** Per-call overrides accepted by {@link InflowHttpClient}'s request methods. */
 export interface RequestOptions {
   /**
@@ -84,27 +112,40 @@ interface ParsedResponse {
 }
 
 /**
- * HTTP client used by every other package in this monorepo to talk to `api.inflowpay.ai`. Carries `apiKey` injection,
- * retry on transient statuses (429, 502, 503, 504) with exponential backoff capped at three attempts, request timeout,
- * JSON parsing, and error mapping into {@link InflowApiError}.
+ * HTTP client used by every other package in this monorepo to talk to `api.inflowpay.ai`. Carries auth-header injection
+ * (`X-API-KEY` from {@link InflowClientOptions}, `Authorization: Bearer` from {@link InflowBearerClientOptions}'s
+ * `getAccessToken` callback invoked once per attempt, or no auth header in anonymous mode), retry on transient statuses
+ * (429, 502, 503, 504) with exponential backoff capped at three attempts, request timeout, JSON parsing, and error
+ * mapping into {@link InflowApiError}.
  *
- * Construct one instance per `(apiKey, environment)` pair and share it across requests.
+ * Construct one instance per `(auth, environment)` pair and share it across requests.
  */
 export class InflowHttpClient {
   /** Resolved base URL (no trailing slash). */
   readonly baseUrl: string;
   private readonly apiKey: string | undefined;
+  private readonly getAccessToken: (() => Promise<string>) | undefined;
   private readonly defaultTimeoutMs: number;
   private readonly fetchImpl: typeof fetch;
 
   /**
-   * @param options - {@link InflowClientOptions} or {@link InflowAnonymousClientOptions}. The authed form requires
-   *   `apiKey` to be a non-empty string; the anonymous form omits it entirely and sends no `X-API-KEY` header.
-   *   Anonymous mode is used only by `createUnauthenticatedInflowFacilitator` in `@inflowpayai/x402-seller`.
-   * @throws {Error} When `apiKey` is present but empty. (Server-side codes are mapped to {@link InflowApiError}; this is
-   *   a local precondition failure.)
+   * @param options - {@link InflowClientOptions}, {@link InflowAnonymousClientOptions}, or
+   *   {@link InflowBearerClientOptions}. The authed form requires `apiKey` to be a non-empty string; the anonymous form
+   *   omits it entirely and sends no `X-API-KEY` header; the bearer form supplies an async `getAccessToken` callback
+   *   invoked once per HTTP attempt. Anonymous mode is used only by `createUnauthenticatedInflowFacilitator` in
+   *   `@inflowpayai/x402-seller`.
+   * @throws {Error} When `apiKey` is present but empty, when `apiKey` and `getAccessToken` are both set, or when
+   *   `getAccessToken` is set but not a function. (Server-side codes are mapped to {@link InflowApiError}; these are
+   *   local precondition failures.)
    */
-  constructor(options: InflowClientOptions | InflowAnonymousClientOptions) {
+  constructor(options: InflowClientOptions);
+  constructor(options: InflowAnonymousClientOptions);
+  constructor(options: InflowBearerClientOptions);
+  // TS overload resolution can't pick a specific arm from a union argument; this catch-all lets callers that already
+  // hold a `InflowClientOptions | InflowAnonymousClientOptions | InflowBearerClientOptions`-typed value (notably
+  // `createInflowSigner` in `@inflowpayai/x402-buyer`) construct without narrowing at the call site.
+  constructor(options: InflowClientOptions | InflowAnonymousClientOptions | InflowBearerClientOptions);
+  constructor(options: InflowClientOptions | InflowAnonymousClientOptions | InflowBearerClientOptions) {
     if (options.apiKey !== undefined) {
       if (typeof options.apiKey !== 'string') {
         throw new Error('InflowHttpClient: `apiKey` must be a non-empty string when provided.');
@@ -117,6 +158,21 @@ export class InflowHttpClient {
     } else {
       this.apiKey = undefined;
     }
+
+    // boundary cast — runtime narrows the discriminated union
+    const bearerProvider = (options as InflowBearerClientOptions).getAccessToken;
+    if (bearerProvider !== undefined) {
+      if (this.apiKey !== undefined) {
+        throw new Error('InflowHttpClient: `apiKey` and `getAccessToken` are mutually exclusive.');
+      }
+      if (typeof bearerProvider !== 'function') {
+        throw new Error('InflowHttpClient: `getAccessToken` must be a function when provided.');
+      }
+      this.getAccessToken = bearerProvider;
+    } else {
+      this.getAccessToken = undefined;
+    }
+
     this.baseUrl = resolveBaseUrl({
       ...(options.environment !== undefined ? { environment: options.environment } : {}),
       ...(options.baseUrl !== undefined ? { baseUrl: options.baseUrl } : {}),
@@ -175,8 +231,21 @@ export class InflowHttpClient {
     // the final throw, so there's no unreachable "fallback" throw
     // after the loop.
     for (let attempt = 0; ; attempt += 1) {
+      // Build the per-attempt auth headers OUTSIDE the network try/catch:
+      // a rejected `getAccessToken` propagates verbatim, never enters the
+      // retry path, and is never wrapped in InflowApiError. Re-invoked per
+      // attempt so a 5xx retry picks up a freshly-refreshed bearer token.
+      const authHeaders = await this.buildAuthHeaders();
       try {
-        const response = await this.sendOnce(method, url, body, options.headers, options.signal, timeoutMs);
+        const response = await this.sendOnce(
+          method,
+          url,
+          body,
+          options.headers,
+          options.signal,
+          timeoutMs,
+          authHeaders,
+        );
         if (response.status >= 200 && response.status < 300) {
           return response.body as T;
         }
@@ -197,6 +266,20 @@ export class InflowHttpClient {
     }
   }
 
+  private async buildAuthHeaders(): Promise<Record<string, string>> {
+    if (this.apiKey !== undefined) {
+      return { 'X-API-KEY': this.apiKey };
+    }
+    if (this.getAccessToken !== undefined) {
+      const token = await this.getAccessToken();
+      if (typeof token !== 'string' || token.length === 0) {
+        throw new Error('InflowHttpClient: `getAccessToken` resolved to a non-string or empty value.');
+      }
+      return { Authorization: `Bearer ${token}` };
+    }
+    return {};
+  }
+
   private async sendOnce(
     method: string,
     url: string,
@@ -204,6 +287,7 @@ export class InflowHttpClient {
     extraHeaders: Record<string, string> | undefined,
     callerSignal: AbortSignal | undefined,
     timeoutMs: number,
+    authHeaders: Record<string, string>,
   ): Promise<ParsedResponse> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(TIMEOUT_REASON), timeoutMs);
@@ -214,7 +298,7 @@ export class InflowHttpClient {
     }
     try {
       const headers: Record<string, string> = {
-        ...(this.apiKey !== undefined ? { 'X-API-KEY': this.apiKey } : {}),
+        ...authHeaders,
         Accept: 'application/json',
         'User-Agent': SDK_USER_AGENT,
         ...(extraHeaders ?? {}),

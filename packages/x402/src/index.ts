@@ -18,7 +18,12 @@ export { InflowApiError, X402VersionMismatchError } from './errors.js';
 export type { InflowApiErrorInit } from './errors.js';
 
 export { InflowHttpClient } from './http-client.js';
-export type { InflowAnonymousClientOptions, InflowClientOptions, RequestOptions } from './http-client.js';
+export type {
+  InflowAnonymousClientOptions,
+  InflowBearerClientOptions,
+  InflowClientOptions,
+  RequestOptions,
+} from './http-client.js';
 
 export { generatePaymentId, validatePaymentId } from './extensions/payment-identifier.js';
 
