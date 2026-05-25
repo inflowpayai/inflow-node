@@ -1,4 +1,6 @@
 import type {
+  InflowAnonymousClientOptions,
+  InflowBearerClientOptions,
   InflowClientOptions,
   InflowPaymentPayload,
   InstrumentType,
@@ -99,8 +101,13 @@ export interface SignOptions {
   paymentId?: string;
 }
 
-/** Constructor options for {@link createInflowClient}. */
-export interface SignerOptions extends InflowClientOptions {
+/**
+ * Constructor options for {@link createInflowClient}. Inherits the three options shapes accepted by `InflowHttpClient`'s
+ * overloaded constructor — pass any one of `InflowClientOptions` (API key), `InflowAnonymousClientOptions` (no auth
+ * header), or `InflowBearerClientOptions` (OAuth Bearer via `getAccessToken` callback) — plus the buyer-specific
+ * `prefer` / `instrument` / `signDefaults` fields.
+ */
+export type SignerOptions = (InflowClientOptions | InflowAnonymousClientOptions | InflowBearerClientOptions) & {
   /**
    * Ordered scheme preference used when picking among multiple InFlow-acceptable requirements inside
    * {@link InflowClient.createPaymentPayload}. Default `['balance', 'exact']`.
@@ -113,7 +120,7 @@ export interface SignerOptions extends InflowClientOptions {
   };
   /** Default poll / timeout / paymentId values applied to every signing call. */
   signDefaults?: SignOptions;
-}
+};
 
 /**
  * Handle returned by {@link InflowClient.prepareInflowPayment}. The transaction + approval have already been created

@@ -1,6 +1,7 @@
 export { InflowClient, createInflowClient } from './inflow-client.js';
 export { parseEvmPrivateKey } from './decode-evm-key.js';
 export { decodeSolanaSecret } from './decode-solana-key.js';
+export type { InflowBearerClientOptions } from '@inflowpayai/x402';
 export type {
   ApprovalStatus,
   EncodedPayment,

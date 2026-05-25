@@ -85,6 +85,22 @@ describe('createInflowClient — construction', () => {
     expect(calls).toBe(1);
     expect(client).toBeInstanceOf(InflowClient);
   });
+
+  it('accepts InflowBearerClientOptions and threads the token into the prime call', async () => {
+    let captured: Headers | undefined;
+    server.use(
+      http.get(`${PROD_BASE}/v1/transactions/x402-supported`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json(SUPPORTED);
+      }),
+    );
+    const getAccessToken = vi.fn(() => Promise.resolve('bearer-prime-token'));
+    const client = await createInflowClient({ getAccessToken });
+    expect(client).toBeInstanceOf(InflowClient);
+    expect(getAccessToken).toHaveBeenCalledTimes(1);
+    expect(captured?.get('authorization')).toBe('Bearer bearer-prime-token');
+    expect(captured?.get('x-api-key')).toBeNull();
+  });
 });
 
 describe('InflowClient.createPaymentPayload — InFlow branch', () => {

@@ -3,7 +3,7 @@ import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { InflowApiError } from '../../src/errors.js';
-import { InflowHttpClient } from '../../src/http-client.js';
+import { InflowHttpClient, type InflowClientOptions } from '../../src/http-client.js';
 
 const PROD_BASE = 'https://api.inflowpay.ai';
 const server = setupServer();
@@ -12,7 +12,7 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-function makeClient(overrides: Partial<ConstructorParameters<typeof InflowHttpClient>[0]> = {}) {
+function makeClient(overrides: Partial<InflowClientOptions> = {}) {
   return new InflowHttpClient({ apiKey: 'sk_test', ...overrides });
 }
 
@@ -316,10 +316,148 @@ describe('InflowHttpClient fetch override', () => {
     );
     const client = new InflowHttpClient({
       apiKey: 'sk_test',
-      fetch: fakeFetch as unknown as typeof fetch,
+      fetch: fakeFetch,
     });
     const out = await client.get<{ ok: boolean }>('/_x');
     expect(out).toEqual({ ok: true });
     expect(fakeFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('InflowHttpClient bearer token — construction', () => {
+  it('accepts a bearer-only options shape', () => {
+    expect(() => new InflowHttpClient({ getAccessToken: () => Promise.resolve('tok') })).not.toThrow();
+  });
+
+  it('throws when both apiKey and getAccessToken are set', () => {
+    expect(
+      () =>
+        new InflowHttpClient({
+          // Caller error path: both fields present. The runtime narrowing rejects this even though the TS overloads
+          // also reject it at compile time.
+          apiKey: 'sk_test',
+          getAccessToken: () => Promise.resolve('tok'),
+        } as unknown as ConstructorParameters<typeof InflowHttpClient>[0]),
+    ).toThrow(/mutually exclusive/u);
+  });
+
+  it('throws when getAccessToken is not a function', () => {
+    expect(
+      () =>
+        new InflowHttpClient({
+          getAccessToken: 5,
+        } as unknown as ConstructorParameters<typeof InflowHttpClient>[0]),
+    ).toThrow(/must be a function/u);
+  });
+});
+
+describe('InflowHttpClient bearer token — request headers', () => {
+  it('invokes getAccessToken and sends Authorization: Bearer <token>', async () => {
+    const getAccessToken = vi.fn(() => Promise.resolve('access-1'));
+    let captured: Headers | undefined;
+    server.use(
+      http.get(`${PROD_BASE}/_bearer`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    const client = new InflowHttpClient({ getAccessToken });
+    await client.get('/_bearer');
+    expect(captured?.get('authorization')).toBe('Bearer access-1');
+    expect(captured?.get('x-api-key')).toBeNull();
+    expect(getAccessToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not send X-API-KEY when bearer mode is active', async () => {
+    let captured: Headers | undefined;
+    server.use(
+      http.get(`${PROD_BASE}/_bearer`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json({});
+      }),
+    );
+    const client = new InflowHttpClient({ getAccessToken: () => Promise.resolve('tok') });
+    await client.get('/_bearer');
+    expect(captured?.get('x-api-key')).toBeNull();
+    expect(captured?.get('authorization')).toBe('Bearer tok');
+  });
+
+  it('throws verbatim when getAccessToken resolves to an empty string', async () => {
+    let handlerCalls = 0;
+    server.use(
+      http.get(`${PROD_BASE}/_bearer`, () => {
+        handlerCalls += 1;
+        return HttpResponse.json({});
+      }),
+    );
+    const client = new InflowHttpClient({ getAccessToken: () => Promise.resolve('') });
+    await expect(client.get('/_bearer')).rejects.toThrow(/non-string or empty/u);
+    // The bad token short-circuits before any fetch, so the handler is never hit.
+    expect(handlerCalls).toBe(0);
+  });
+});
+
+describe('InflowHttpClient bearer token — error propagation', () => {
+  it('propagates getAccessToken rejection verbatim (not wrapped in InflowApiError)', async () => {
+    class CallerAuthError extends Error {
+      constructor() {
+        super('caller-owned auth failure');
+        this.name = 'CallerAuthError';
+      }
+    }
+    const getAccessToken = vi.fn(() => Promise.reject(new CallerAuthError()));
+    let handlerCalls = 0;
+    server.use(
+      http.get(`${PROD_BASE}/_bearer`, () => {
+        handlerCalls += 1;
+        return new HttpResponse('boom', { status: 503 });
+      }),
+    );
+    const client = new InflowHttpClient({ getAccessToken });
+    await expect(client.get('/_bearer')).rejects.toBeInstanceOf(CallerAuthError);
+    // No retry: the rejection happens before any fetch, so the would-be-retried 503 handler is never invoked.
+    expect(getAccessToken).toHaveBeenCalledTimes(1);
+    expect(handlerCalls).toBe(0);
+  });
+
+  it('does not wrap getAccessToken rejection as an InflowApiError', async () => {
+    const err = new Error('upstream auth provider down');
+    server.use(http.get(`${PROD_BASE}/_bearer`, () => HttpResponse.json({})));
+    const client = new InflowHttpClient({ getAccessToken: () => Promise.reject(err) });
+    await expect(client.get('/_bearer')).rejects.toBe(err);
+    await expect(client.get('/_bearer')).rejects.not.toBeInstanceOf(InflowApiError);
+  });
+});
+
+describe('InflowHttpClient bearer token — per-attempt invocation on 5xx retry', () => {
+  beforeAll(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+  });
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
+  it('re-invokes getAccessToken on each retry so a refreshed token can be picked up', async () => {
+    let attempt = 0;
+    const tokens: Headers[] = [];
+    server.use(
+      http.get(`${PROD_BASE}/_bearer-flaky`, ({ request }) => {
+        tokens.push(request.headers);
+        attempt += 1;
+        if (attempt === 1) return new HttpResponse('boom', { status: 503 });
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    let issued = 0;
+    const getAccessToken = vi.fn(() => {
+      issued += 1;
+      return Promise.resolve(`tok-${issued}`);
+    });
+    const client = new InflowHttpClient({ getAccessToken });
+    const out = await settleFakeBackoff(client.get<{ ok: boolean }>('/_bearer-flaky'));
+    expect(out).toEqual({ ok: true });
+    expect(getAccessToken).toHaveBeenCalledTimes(2);
+    expect(tokens[0]?.get('authorization')).toBe('Bearer tok-1');
+    expect(tokens[1]?.get('authorization')).toBe('Bearer tok-2');
   });
 });
