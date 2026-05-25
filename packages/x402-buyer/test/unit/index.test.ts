@@ -19,6 +19,24 @@ describe('@inflowpayai/x402-buyer — public surface', () => {
     expect(typeof buyer.decodeSolanaSecret).toBe('function');
   });
 
+  it('exposes the foundation→InFlow requirements bridge', () => {
+    expect(typeof buyer.fromFoundationRequirements).toBe('function');
+    const sample = [
+      {
+        scheme: 'balance',
+        network: 'inflow:1',
+        asset: '',
+        amount: '0',
+        payTo: '',
+        maxTimeoutSeconds: 0,
+        extra: {},
+      },
+    ] as const;
+    const result = buyer.fromFoundationRequirements(sample);
+    expect(result).toBe(sample);
+    expect(result[0]?.network).toBe('inflow:1');
+  });
+
   it('exposes every typed error class', () => {
     expect(typeof buyer.X402AdapterRoutingError).toBe('function');
     expect(typeof buyer.X402ApprovalCancelledError).toBe('function');

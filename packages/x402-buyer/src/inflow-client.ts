@@ -9,13 +9,25 @@ import type {
 } from '@x402/core/client';
 import type { Network, PaymentPayload, PaymentRequired, SchemeNetworkClient } from '@x402/core/types';
 
-import type { InflowPaymentPayload, PaymentRequirements, PaymentScheme } from '@inflowpayai/x402';
+import type {
+  InflowPaymentPayload,
+  PaymentRequirements,
+  PaymentScheme,
+  X402BuyerSupportedResponse,
+} from '@inflowpayai/x402';
 import { EXTENSION_REGISTRY, getExtension, setExtension, type SignContext } from '@inflowpayai/x402/extensions';
 
 import { X402AdapterRoutingError } from './errors.js';
 import { fromFoundationRequirements, toFoundationPayload } from './_foundation-bridge.js';
 import { createInflowSigner } from './signer.js';
-import type { InflowSigner, PreparedPayment, SignerOptions, SignOptions, SigningContext } from './types.js';
+import type {
+  InflowSigner,
+  PreparedPayment,
+  SignerOptions,
+  SignOptions,
+  SigningContext,
+  X402PayloadResponse,
+} from './types.js';
 
 /**
  * Subclass of `@x402/core`'s `x402Client` that adds the InFlow MPC signing branch and the two-phase
@@ -99,6 +111,47 @@ export class InflowClient extends x402Client {
       throw new X402AdapterRoutingError(requirement.scheme, requirement.network);
     }
     return this.inflowSigner.prepare(requirement, context, options);
+  }
+
+  /**
+   * Snapshot of the buyer-side capability cache — the `(scheme, network)` pairs this account can sign for. Honors
+   * `@inflowpayai/x402-buyer`'s 60-min cache TTL. Use {@link InflowClient.selectInflowRequirement} to translate this
+   * into a routing decision against a seller's `accepts[]`.
+   */
+  async getSupported(): Promise<X402BuyerSupportedResponse> {
+    return this.inflowSigner.getSupported();
+  }
+
+  /**
+   * Pick the buyer's preferred `accepts[]` entry the InFlow signer can sign, returned as an InFlow
+   * `PaymentRequirements` (re-exported from `@inflowpayai/x402`). Walks {@link createInflowClient}'s configured `prefer`
+   * order against the decoded `PaymentRequired`. Returns `null` when no entry matches — caller should fall back to the
+   * foundation flow via {@link InflowClient.createPaymentPayload} or surface a "no InFlow match" error.
+   *
+   * Synchronous against the supported cache primed by {@link createInflowClient}. Callers holding a long-lived client
+   * should call `getSupported()` first if cache freshness matters.
+   */
+  selectInflowRequirement(paymentRequired: PaymentRequired): PaymentRequirements | null {
+    return this.pickInflowMatch(fromFoundationRequirements(paymentRequired.accepts));
+  }
+
+  /**
+   * One-shot poll of `GET /v1/transactions/{transactionId}/x402`. Use when the caller does not own the originating
+   * {@link PreparedPayment} (e.g. a CLI resumption in a new process). For in-process polling, prefer
+   * `PreparedPayment.awaitPayload`.
+   */
+  async getX402Payload(transactionId: string): Promise<X402PayloadResponse> {
+    return this.inflowSigner.getX402Payload(transactionId);
+  }
+
+  /**
+   * Fire-and-forget cancel of `POST /v1/approvals/{approvalId}/cancel`. Always resolves on server-side outcomes; the
+   * cancel may succeed, no-op (the approval already terminated), or fail — callers do not observe the difference. Use
+   * when the caller does not own the originating {@link PreparedPayment}. For in-process cancels, prefer
+   * `PreparedPayment.cancel`.
+   */
+  async cancelApproval(approvalId: string): Promise<void> {
+    return this.inflowSigner.cancelApproval(approvalId);
   }
 
   // The eight overrides below preserve foundation `x402Client` behavior
