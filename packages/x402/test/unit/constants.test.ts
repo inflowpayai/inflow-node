@@ -39,6 +39,7 @@ describe('constants', () => {
   });
 
   it('exposes well-known extra-map and payload-map keys', () => {
+    expect(EXTRA_KEYS.ASSET_NAME).toBe('assetName');
     expect(EXTRA_KEYS.ASSET_TRANSFER_METHOD).toBe('assetTransferMethod');
     expect(EXTRA_KEYS.NAME).toBe('name');
     expect(EXTRA_KEYS.VERSION).toBe('version');

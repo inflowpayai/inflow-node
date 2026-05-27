@@ -28,6 +28,7 @@ export const SAMPLE_CONFIG: X402ConfigResponse = {
     {
       assetTransferMethod: 'eip3009',
       assetId: '0xUSDC_Base_address_000000000000000000000a',
+      assetName: 'USDC',
       blockchain: 'BASE',
       currency: 'USDC',
       decimals: 6,
@@ -38,6 +39,7 @@ export const SAMPLE_CONFIG: X402ConfigResponse = {
     {
       assetTransferMethod: 'permit2',
       assetId: '0xUSDT_Base_address_000000000000000000000c',
+      assetName: 'USDT',
       blockchain: 'BASE',
       currency: 'USDT',
       decimals: 6,
@@ -50,6 +52,7 @@ export const SAMPLE_CONFIG: X402ConfigResponse = {
       // Non-EVM: server publishes `solana` transfer method and omits EIP-712 fields.
       assetTransferMethod: 'solana',
       assetId: 'SoLaNaUSDCMint00000000000000000000000000d',
+      assetName: 'USDC',
       blockchain: 'SOLANA',
       currency: 'USDC',
       decimals: 6,

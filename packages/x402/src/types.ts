@@ -249,6 +249,12 @@ export interface X402AssetInfo {
   assetTransferMethod?: 'eip3009' | 'permit2' | 'solana' | (string & {});
   /** Contract address (EVM) or mint (Solana). */
   assetId: string;
+  /**
+   * Human-readable asset name. Published into `accepts[].extra.assetName` so callers can render the currency without
+   * parsing `assetId`. Equal in value to {@link X402AssetInfo.currency} for InFlow-supplied configs; separate field for
+   * callers that may want a display name distinct from the currency code.
+   */
+  assetName: string;
   /** Blockchain enum name as serialized in the config response. Opaque to the SDK. */
   blockchain: string;
   /** Currency code — e.g. `'USDC'`, `'USDT'`, `'PYUSD'`. */
