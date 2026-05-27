@@ -64,7 +64,7 @@ Start a seller, then run a buyer against it.
 
 ## Supported runtimes
 
-Node 22.13 LTS or newer at runtime; the packages ship `engines.node: >=22.13.0`. CI exercises Node 24, the current active LTS (April 2028 EOL). Node 22 is in maintenance LTS until April 2027 and remains an API subset of Node 24 for everything the packages touch, so consumer installs on Node 22 are allowed even though CI does not run there. Node 20 went EOL on 2026-04-30 and is no longer supported.
+Node 22 LTS or newer at runtime; the packages ship `engines.node: >=22.0.0`. CI exercises Node 22 (maintenance LTS until April 2027) and Node 24 (active LTS, April 2028 EOL). Node 20 went EOL on 2026-04-30 and is no longer supported.
 
 ## Monorepo
 

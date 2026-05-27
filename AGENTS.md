@@ -46,6 +46,16 @@ Rules the tooling can't enforce. Breaking them lands a regression.
 - **No "future work" / "phase 2" / "TODO: refactor later" comments.** Describe what the code does now, or delete the comment.
 - **Comments only for what the code can't say.** No restatement of behavior, no rationale-padding, no historical justification. If no non-obvious sentence comes to mind, no comment. Applies to every comment syntax — TSDoc, inline, YAML, shell, JSON-with-comments. The TSDoc rule under [Writing docs](#writing-docs) is this rule applied to one syntax.
 
+## Node version management
+
+Three knobs, three audiences. Don't conflate them.
+
+- **`package.json` `engines.node`** — the floor users of the published packages need. Currently `>=22.0.0` in the root and every `packages/*/package.json`. Users see install errors when they're below this; don't bump without a real reason.
+- **`.github/workflows/ci.yml` `matrix.node`** — what CI tests against. Currently `[22, 24]`. Must be a superset of `engines.node`; catches forward-compat drift one LTS cycle ahead. `release.yml` pins a single version (the active LTS, currently `24`) for publish reproducibility — that's separate from the test matrix.
+- **`.nvmrc`** — what contributors use locally. Currently `22`. Read by `nvm`, `fnm`, and `volta` on directory entry. Pinned to the floor so contributors test the floor by default.
+
+These are independent decisions. Bumping CI to test Node 26 does not bump `engines.node`. Bumping `engines.node` to drop Node 22 does not bump `.nvmrc`.
+
 ## Adding a package or product
 
 For a new package inside an existing product: follow the template in `docs/monorepo/contributing.md` — `packages/<product>-<name>/{src,test/unit}`, `package.json` with the standard fields (`peerDependencies`, `publishConfig.access: public`, `publishConfig.provenance: true`), `tsconfig.json` + `tsconfig.test.json`, `tsup.config.ts`, `vitest.config.ts`, `README.md`. Then `pnpm install` to refresh the lockfile.

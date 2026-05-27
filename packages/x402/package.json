@@ -57,7 +57,7 @@
     "clean": "rm -rf dist .turbo"
   },
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=22.0.0"
   },
   "license": "MIT",
   "peerDependencies": {
