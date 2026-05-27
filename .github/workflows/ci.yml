@@ -73,7 +73,7 @@ jobs:
         run: pnpm test
 
       - name: Changeset check
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main' && matrix.x402-foundation == 'locked'
         run: pnpm changeset status --since=origin/main
 
       - name: Upload coverage
