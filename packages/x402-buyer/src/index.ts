@@ -1,4 +1,5 @@
 export { InflowClient, createInflowClient } from './inflow-client.js';
+export { fromFoundationRequirements } from './_foundation-bridge.js';
 export { parseEvmPrivateKey } from './decode-evm-key.js';
 export { decodeSolanaSecret } from './decode-solana-key.js';
 export type { InflowBearerClientOptions } from '@inflowpayai/x402';

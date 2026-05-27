@@ -7,6 +7,8 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { InflowApiError } from '@inflowpayai/x402';
+
 import { X402AdapterRoutingError, X402ApprovalFailedError } from '../../src/errors.js';
 import { createInflowClient, InflowClient } from '../../src/inflow-client.js';
 
@@ -351,5 +353,198 @@ describe('InflowClient — chainable foundation methods', () => {
 
     expect(chained).toBe(client);
     expect(chained).toBeInstanceOf(InflowClient);
+  });
+});
+
+describe('InflowClient.getSupported', () => {
+  it('serves the second call from cache within the 60-min TTL — exactly one underlying HTTP call', async () => {
+    let calls = 0;
+    server.use(
+      http.get(`${PROD_BASE}/v1/transactions/x402-supported`, () => {
+        calls += 1;
+        return HttpResponse.json(SUPPORTED);
+      }),
+    );
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    const a = await client.getSupported();
+    const b = await client.getSupported();
+    // The prime in createInflowClient is the single network call; both getSupported() calls observe the cached value.
+    expect(calls).toBe(1);
+    expect(a).toEqual(SUPPORTED);
+    expect(b).toEqual(SUPPORTED);
+  });
+});
+
+describe('InflowClient.selectInflowRequirement', () => {
+  it('returns the first balance entry under default prefer ["balance","exact"]', async () => {
+    installSupported();
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    const exactReq: PaymentRequirements = {
+      scheme: 'exact',
+      network: 'eip155:8453',
+      asset: '0xUSDC',
+      amount: '10000',
+      payTo: '0xseller',
+      maxTimeoutSeconds: 300,
+      extra: {},
+    };
+    const match = client.selectInflowRequirement(paymentRequired([INFLOW_REQ, exactReq]));
+    expect(match).toEqual(INFLOW_REQ);
+  });
+
+  it('returns null when no accepts entry is in the buyer capability cache', async () => {
+    installSupported();
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    // EVM_REQ.network is 'eip155:1'; the buyer cache covers 'eip155:8453'. Same scheme, different network.
+    const match = client.selectInflowRequirement(paymentRequired([EVM_REQ]));
+    expect(match).toBeNull();
+  });
+
+  it('returns null on an empty accepts[] without making an extra HTTP call', async () => {
+    let calls = 0;
+    server.use(
+      http.get(`${PROD_BASE}/v1/transactions/x402-supported`, () => {
+        calls += 1;
+        return HttpResponse.json(SUPPORTED);
+      }),
+    );
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    const match = client.selectInflowRequirement(paymentRequired([]));
+    expect(match).toBeNull();
+    // Only the construction-time prime; selectInflowRequirement is synchronous against the cache.
+    expect(calls).toBe(1);
+  });
+
+  it('honors a caller-configured prefer order — "exact" wins over "balance" when prefer leads with "exact"', async () => {
+    installSupported();
+    const client = await createInflowClient({ apiKey: 'sk_test', prefer: ['exact', 'balance'] });
+    const exactReq: PaymentRequirements = {
+      scheme: 'exact',
+      network: 'eip155:8453',
+      asset: '0xUSDC',
+      amount: '10000',
+      payTo: '0xseller',
+      maxTimeoutSeconds: 300,
+      extra: {},
+    };
+    // Both entries are in the buyer capability cache; prefer order picks the exact one even though balance appears first
+    // in the accepts array.
+    const match = client.selectInflowRequirement(paymentRequired([INFLOW_REQ, exactReq]));
+    expect(match).toEqual(exactReq);
+  });
+});
+
+describe('InflowClient.getX402Payload', () => {
+  it('returns the INITIATED shape with no encodedPayload', async () => {
+    installSupported();
+    server.use(
+      http.get(`${PROD_BASE}/v1/transactions/tx_pending/x402`, () => HttpResponse.json({ status: 'INITIATED' })),
+    );
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    const payload = await client.getX402Payload('tx_pending');
+    expect(payload).toEqual({ status: 'INITIATED' });
+  });
+
+  it('returns the APPROVED shape with encodedPayload and paymentPayload', async () => {
+    installSupported();
+    const inflowPayload = makeInflowPayload();
+    server.use(
+      http.get(`${PROD_BASE}/v1/transactions/tx_signed/x402`, () =>
+        HttpResponse.json({
+          status: 'SETTLED',
+          encodedPayload: encodedFor(inflowPayload),
+          paymentPayload: inflowPayload,
+        }),
+      ),
+    );
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    const payload = await client.getX402Payload('tx_signed');
+    expect(payload.status).toBe('SETTLED');
+    expect(payload.encodedPayload).toBe(encodedFor(inflowPayload));
+    expect(payload.paymentPayload).toEqual(inflowPayload);
+  });
+
+  it('honors retries: 0 — a single 503 throws InflowApiError without retry', async () => {
+    installSupported();
+    let calls = 0;
+    server.use(
+      http.get(`${PROD_BASE}/v1/transactions/tx_5xx/x402`, () => {
+        calls += 1;
+        return HttpResponse.json({ code: 'UNEXPECTED' }, { status: 503 });
+      }),
+    );
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    await expect(client.getX402Payload('tx_5xx')).rejects.toBeInstanceOf(InflowApiError);
+    expect(calls).toBe(1);
+  });
+});
+
+describe('InflowClient.cancelApproval', () => {
+  it('resolves on a server 200 — single network call', async () => {
+    installSupported();
+    let calls = 0;
+    server.use(
+      http.post(`${PROD_BASE}/v1/approvals/apr_ok/cancel`, () => {
+        calls += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    await expect(client.cancelApproval('apr_ok')).resolves.toBeUndefined();
+    expect(calls).toBe(1);
+  });
+
+  it('swallows a server 5xx without retry — single network call', async () => {
+    installSupported();
+    let calls = 0;
+    server.use(
+      http.post(`${PROD_BASE}/v1/approvals/apr_5xx/cancel`, () => {
+        calls += 1;
+        return HttpResponse.json({}, { status: 500 });
+      }),
+    );
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    await expect(client.cancelApproval('apr_5xx')).resolves.toBeUndefined();
+    expect(calls).toBe(1);
+  });
+
+  it('swallows a server 4xx — single network call', async () => {
+    installSupported();
+    let calls = 0;
+    server.use(
+      http.post(`${PROD_BASE}/v1/approvals/apr_4xx/cancel`, () => {
+        calls += 1;
+        return HttpResponse.json({ code: 'INVALID_APPROVAL_STATE' }, { status: 400 });
+      }),
+    );
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    await expect(client.cancelApproval('apr_4xx')).resolves.toBeUndefined();
+    expect(calls).toBe(1);
+  });
+
+  it('swallows a mid-request network error', async () => {
+    installSupported();
+    let calls = 0;
+    server.use(
+      http.post(`${PROD_BASE}/v1/approvals/apr_net/cancel`, () => {
+        calls += 1;
+        return HttpResponse.error();
+      }),
+    );
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    await expect(client.cancelApproval('apr_net')).resolves.toBeUndefined();
+    expect(calls).toBe(1);
+  });
+
+  it('rethrows an auth-callback rejection verbatim in bearer mode', async () => {
+    installSupported();
+    // The prime fetch in createInflowClient consumes the first token; the second token request — fired by cancelApproval
+    // — rejects with the raw auth error and the InflowHttpClient propagates it without wrapping in InflowApiError.
+    const getAccessToken = vi
+      .fn<() => Promise<string>>()
+      .mockResolvedValueOnce('prime-token')
+      .mockRejectedValueOnce(new Error('auth-fail'));
+    const client = await createInflowClient({ getAccessToken });
+    await expect(client.cancelApproval('apr_auth')).rejects.toThrow('auth-fail');
   });
 });

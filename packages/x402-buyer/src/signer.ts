@@ -1,4 +1,4 @@
-import { InflowHttpClient } from '@inflowpayai/x402';
+import { InflowApiError, InflowHttpClient } from '@inflowpayai/x402';
 import type {
   InflowPaymentPayload,
   PaymentRequirements,
@@ -140,6 +140,19 @@ export async function createInflowSigner(options: SignerOptions): Promise<Inflow
     }
   }
 
+  async function getX402Payload(transactionId: string): Promise<X402PayloadResponse> {
+    return http.get<X402PayloadResponse>(TRANSACTION_X402_PATH(transactionId), { retries: 0 });
+  }
+
+  async function cancelApproval(approvalId: string): Promise<void> {
+    try {
+      await http.post(APPROVAL_CANCEL_PATH(approvalId), undefined, { retries: 0 });
+    } catch (err) {
+      if (err instanceof InflowApiError) return;
+      throw err;
+    }
+  }
+
   // Prime the supported cache before returning so `supports()` is honest.
   await fetchSupported();
 
@@ -152,6 +165,8 @@ export async function createInflowSigner(options: SignerOptions): Promise<Inflow
     ready: () => Promise.resolve(),
     getSupported,
     refreshSupported,
+    getX402Payload,
+    cancelApproval,
   };
   return signer;
 }

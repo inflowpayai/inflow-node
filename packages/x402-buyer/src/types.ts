@@ -218,6 +218,18 @@ export interface InflowSigner extends Signer {
    */
   refreshSupported(): Promise<X402BuyerSupportedResponse>;
   /**
+   * Callers loop at their own cadence.
+   *
+   * @internal
+   */
+  getX402Payload(transactionId: string): Promise<X402PayloadResponse>;
+  /**
+   * Swallows server-side errors; rethrows auth-callback rejections verbatim.
+   *
+   * @internal
+   */
+  cancelApproval(approvalId: string): Promise<void>;
+  /**
    * Kick off the buyer's transaction and Approval and return a handle the caller can await independently.
    *
    * @param requirement - The chosen {@link PaymentRequirements}.
