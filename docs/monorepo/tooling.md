@@ -10,7 +10,7 @@ get the exact version automatically on first `pnpm` invocation.
 Key configuration lives in `pnpm-workspace.yaml`:
 
 - `packages` — workspace globs (`packages/*`, `examples/*`).
-- `engineStrict` — fails install when Node is below the `engines.node` floor declared in each `package.json` (currently `>=22.13.0`).
+- `engineStrict` — fails install when Node is below the `engines.node` floor declared in each `package.json` (currently `>=22.0.0`).
 - `publicHoistPattern` — hoists `*types*`, `*eslint*`, `*prettier*` to the workspace root so editor tooling resolves them.
 - `allowBuilds` — opt-in list for postinstall scripts (`esbuild`, `msw`, `sharp`). pnpm 10+ blocks every postinstall by default.
 
@@ -143,10 +143,10 @@ husky because they require a fresh build (slow at commit time).
 
 Two workflows:
 
-- `.github/workflows/ci.yml` — runs on every PR and push to `main`. Matrix: Node 24 × `x402-foundation: [locked, latest]`. Steps: install,
-  lint, typecheck, build, check-exports, verify-publish, test, changeset-check (on PRs), upload coverage artifact. Node 24 is the active
-  LTS (since 2025-10-28, EOL 2028-04-30); Node 22 maintenance LTS is still allowed at consumer install via `engines.node: >=22.13.0` but
-  not exercised in CI — see `ci.yml`'s strategy comment for the full reasoning.
+- `.github/workflows/ci.yml` — runs on every PR and push to `main`. Matrix: Node `[22, 24]` × `x402-foundation: [locked, latest]`. Steps:
+  install, lint, typecheck, build, check-exports, verify-publish, test, changeset-check (on PRs), upload coverage artifact. The matrix
+  is a superset of `engines.node: >=22.0.0` — 22 is the floor users see, 24 is the active LTS. See "Node version management" in
+  [AGENTS.md](../../AGENTS.md) for the three-knob model.
 - `.github/workflows/release.yml` — runs on push to `main`. Uses `changesets/action@v1` to open the version PR or publish.
 
 See [publishing.md](./publishing.md) for the release-side detail and [contributing.md](./contributing.md) for the contributor side.

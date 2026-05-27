@@ -9,10 +9,10 @@
 #   scripts/ci-local.sh latest    # @x402/* overridden to latest 2.x
 #   scripts/ci-local.sh both      # run `locked` then `latest`
 #
-# Requires Node >= 24 to match what CI runs (the active LTS). pnpm@11.1.3
-# itself needs Node >= 22.13 for `node:sqlite`, but we pin the dev floor to
-# 24 so local runs exercise the same runtime as CI. Published packages still
-# allow Node 22.13+ at consumer install time via `engines.node`.
+# Requires Node >= 22 to match the `engines.node` floor of the published
+# packages. CI runs the matrix [22, 24] (see `.github/workflows/ci.yml`);
+# this script covers the lower bound. See "Node version management" in
+# AGENTS.md for the three-knob model.
 
 set -euo pipefail
 

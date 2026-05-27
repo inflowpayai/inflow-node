@@ -14,7 +14,7 @@
   "homepage": "https://github.com/inflowpayai/inflow-node#readme",
   "license": "MIT",
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=22.0.0"
   },
   "packageManager": "pnpm@11.1.3",
   "scripts": {

@@ -4,7 +4,7 @@ How to land changes in this monorepo.
 
 ## Prerequisites
 
-- Node 24 (active LTS) for development. The `.nvmrc` pins 24. CI runs on the same. pnpm 11.1.3 (pinned in `packageManager`) imports `node:sqlite` and will not start on Node < 22.13, so older Node is a non-starter regardless. The published packages declare `engines.node: >=22.13.0` and target Node 22 at the tsup build level — that's a consumer claim, separate from this contributor tooling requirement.
+- Node 22 LTS or newer for development. The `.nvmrc` pins `22` (resolves to the latest 22.x on `nvm`/`fnm`/`volta`) so contributors test the published floor by default. CI runs `[22, 24]`. The published packages declare `engines.node: >=22.0.0`. See "Node version management" in [AGENTS.md](../../AGENTS.md) for the three-knob model.
 - pnpm 11.x. Corepack will install the exact version pinned in the root `package.json#packageManager` field — you don't need to install pnpm globally.
 
 ## Setup
