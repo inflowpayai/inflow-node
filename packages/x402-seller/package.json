@@ -1,6 +1,6 @@
 {
   "name": "@inflowpayai/x402-seller",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "InFlow x402 SDK: facilitator client, seller client, and inflowAccepts helper for the foundation V2 middleware.",
   "type": "module",
   "main": "./dist/index.cjs",

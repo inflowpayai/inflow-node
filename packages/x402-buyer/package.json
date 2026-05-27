@@ -1,6 +1,6 @@
 {
   "name": "@inflowpayai/x402-buyer",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "description": "InFlow x402 SDK: buyer-side InflowClient (x402Client subclass) for InFlow MPC signing alongside foundation @x402/evm and @x402/svm scheme registrations.",
   "type": "module",
   "main": "./dist/index.cjs",
