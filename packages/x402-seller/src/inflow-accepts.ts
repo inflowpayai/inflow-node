@@ -147,16 +147,15 @@ interface OnChainOptionArgs {
 function buildOnChainOption(args: OnChainOptionArgs): PaymentOption {
   const { wallet, asset, method, amount, maxTimeoutSeconds } = args;
   const extra: Record<string, unknown> = {};
+  // Human-readable currency name. Emitted on every entry regardless of network so callers can render the currency without parsing `assetId`.
+  extra[EXTRA_KEYS.ASSET_NAME] = asset.assetName;
   // EIP-712 domain fields are only published by the server for EVM assets.
   if (asset.tokenName !== undefined) extra[EXTRA_KEYS.NAME] = asset.tokenName;
   if (asset.tokenVersion !== undefined) extra[EXTRA_KEYS.VERSION] = asset.tokenVersion;
   if (method !== undefined) extra[EXTRA_KEYS.ASSET_TRANSFER_METHOD] = method;
-  // For Permit2 entries we advertise the proxy address the facilitator
-  // expects as the EIP-712 `spender`. The address is canonical
-  // (`CONTRACTS.PERMIT2_PROXY`) on every supported EVM chain, but
-  // publishing it explicitly lets third-party buyers verify it without
-  // hardcoding our SDK constant — and the value is part of the signed
-  // typed-data, so the buyer needs it before signing either way.
+  // For Permit2 entries we advertise the proxy address the facilitator expects as the EIP-712 `spender`. The address is canonical
+  // (`CONTRACTS.PERMIT2_PROXY`) on every supported EVM chain, but publishing it explicitly lets third-party buyers verify it without
+  // hardcoding our SDK constant — and the value is part of the signed typed-data, so the buyer needs it before signing either way.
   if (method === ASSET_TRANSFER_METHODS.PERMIT2 && asset.permit2Proxy !== undefined) {
     extra[EXTRA_KEYS.PERMIT2_PROXY] = asset.permit2Proxy;
   }
@@ -194,9 +193,12 @@ function buildPaymentMethodOption(args: PaymentMethodOptionArgs): PaymentOption 
     price: { asset: currency, amount },
     maxTimeoutSeconds,
   };
-  if (method.extra !== undefined && Object.keys(method.extra).length > 0) {
-    base.extra = { ...method.extra };
-  }
+  // Carry the row's currency as `extra.assetName` uniformly. Any server-published method.extra is merged in first; `assetName`
+  // is set last so the row's resolved currency wins on conflict.
+  base.extra = {
+    ...(method.extra ?? {}),
+    [EXTRA_KEYS.ASSET_NAME]: currency,
+  };
   return base;
 }
 

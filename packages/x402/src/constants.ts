@@ -46,6 +46,7 @@ export const NETWORKS = {
 
 /** Well-known keys read from `PaymentRequirements.extra` and `PaymentMethodInfo.extra`. */
 export const EXTRA_KEYS = {
+  ASSET_NAME: 'assetName',
   ASSET_TRANSFER_METHOD: 'assetTransferMethod',
   FEE_PAYER: 'feePayer',
   NAME: 'name',

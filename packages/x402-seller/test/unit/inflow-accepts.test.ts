@@ -134,21 +134,21 @@ describe('inflowAccepts', () => {
     }
   });
 
-  it('omits the `extra` key on balance entries when the server published no method extras', async () => {
+  it('balance entries carry extra.assetName even when the server published no method extras', async () => {
     const client = await makeClient();
     const out = await inflowAccepts(client, { price: '$0.01' });
     const balanceEntries = out.filter((o) => o.scheme === 'balance');
     expect(balanceEntries.length).toBeGreaterThan(0);
     for (const balance of balanceEntries) {
-      // The seller's `paymentMethods[0].extra` is undefined in SAMPLE_CONFIG
-      // (post-`requiresInflowAccount` removal), so the emitted entry must
-      // not include the `extra` key at all. The server's `@JsonInclude(NON_NULL)`
-      // mirrors this on the sign-time wire — both sides match for deepEqual.
-      expect(Object.prototype.hasOwnProperty.call(balance, 'extra')).toBe(false);
+      // `extra.assetName` is emitted uniformly across schemes so callers can
+      // render the row's currency without branching on scheme. SAMPLE_CONFIG
+      // does not publish any `paymentMethods[0].extra`, so `assetName` is
+      // the only key.
+      expect(balance.extra).toEqual({ assetName: (balance.price as { asset: string }).asset });
     }
   });
 
-  it('emits the verbatim method.extra when the server publishes one', async () => {
+  it('balance entries merge method.extra with extra.assetName when the server publishes one', async () => {
     const override = {
       ...SAMPLE_CONFIG,
       paymentMethods: [
@@ -165,8 +165,41 @@ describe('inflowAccepts', () => {
     const out = await inflowAccepts(client, { price: '$0.01' });
     const balanceEntries = out.filter((o) => o.scheme === 'balance');
     for (const balance of balanceEntries) {
-      expect(balance.extra).toEqual({ customFlag: true, region: 'us-east' });
+      expect(balance.extra).toEqual({
+        customFlag: true,
+        region: 'us-east',
+        assetName: (balance.price as { asset: string }).asset,
+      });
     }
+  });
+
+  it('every entry carries extra.assetName regardless of network', async () => {
+    const client = await makeClient();
+    const out = await inflowAccepts(client, { price: '$0.01' });
+    expect(out.length).toBeGreaterThan(0);
+    for (const entry of out) {
+      const extra = entry.extra as { assetName?: string } | undefined;
+      expect(extra).toBeDefined();
+      expect(typeof extra!.assetName).toBe('string');
+      expect(extra!.assetName!.length).toBeGreaterThan(0);
+    }
+    // Spot-check the three on-chain rows: USDC/Base, USDT/Base, USDC/Solana.
+    const usdcBase = out.find(
+      (o) =>
+        o.scheme === 'exact' &&
+        o.network === 'eip155:8453' &&
+        (o.price as { asset: string }).asset.startsWith('0xUSDC'),
+    );
+    const usdtBase = out.find(
+      (o) =>
+        o.scheme === 'exact' &&
+        o.network === 'eip155:8453' &&
+        (o.price as { asset: string }).asset.startsWith('0xUSDT'),
+    );
+    const usdcSol = out.find((o) => o.scheme === 'exact' && o.network === 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp');
+    expect((usdcBase!.extra as { assetName: string }).assetName).toBe('USDC');
+    expect((usdtBase!.extra as { assetName: string }).assetName).toBe('USDT');
+    expect((usdcSol!.extra as { assetName: string }).assetName).toBe('USDC');
   });
 
   it('balance entry honors an explicit PriceSpec currency', async () => {

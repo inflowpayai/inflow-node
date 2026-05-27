@@ -61,6 +61,7 @@ function evmAssetArb(blockchain: string, network: string): fc.Arbitrary<X402Asse
       const method = methodForCurrency(currency);
       const asset: X402AssetInfo = {
         assetId,
+        assetName: currency,
         blockchain,
         currency,
         decimals: 6,
@@ -94,6 +95,7 @@ const solanaAssetArb: fc.Arbitrary<X402AssetInfo> = fc
   })
   .map(({ assetId, currency }) => ({
     assetId,
+    assetName: currency,
     blockchain: 'SOLANA',
     currency,
     decimals: 6,
