@@ -1,5 +1,12 @@
 # @inflowpayai/x402-buyer
 
+## 0.6.1
+
+### Patch Changes
+
+- Updated dependencies [[`ef26298`](https://github.com/inflowpayai/inflow-node/commit/ef26298a969e19c018d6f1d8b106065f36dd2d3f)]:
+  - @inflowpayai/x402@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes

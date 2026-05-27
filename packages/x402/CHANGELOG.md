@@ -1,5 +1,11 @@
 # @inflowpayai/x402
 
+## 0.7.0
+
+### Minor Changes
+
+- [#12](https://github.com/inflowpayai/inflow-node/pull/12) [`ef26298`](https://github.com/inflowpayai/inflow-node/commit/ef26298a969e19c018d6f1d8b106065f36dd2d3f) Thanks [@nkavian](https://github.com/nkavian)! - Add uniform `extra.assetName` on every `accepts[]` entry emitted by `inflowAccepts`. The seller publishes the row's currency under a single well-known key (`EXTRA_KEYS.ASSET_NAME`) on EVM, Solana, and balance entries alike, so callers can render the currency without parsing `assetId` or branching on scheme. `X402AssetInfo` gains a required `assetName` field mirroring the server's new response field; `EXTRA_KEYS.ASSET_NAME = 'assetName'` is exported for typed access.
+
 ## 0.6.0
 
 ### Minor Changes
