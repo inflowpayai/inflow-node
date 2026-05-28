@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { createInflowClient } from '@inflowpayai/x402-buyer';
+import { sellerProbe } from '@inflowpayai/x402-buyer/probe';
 import { x402HTTPClient } from '@x402/core/client';
 
 const apiKey = process.env.INFLOW_API_KEY;
@@ -20,10 +21,15 @@ const core = await createInflowClient({ apiKey, environment: 'sandbox' });
 const http = new x402HTTPClient(core);
 
 console.log(`GET ${target}`);
-const initial = await fetch(target);
+// `sellerProbe` from the buyer's /probe subpath is a thin `fetch`
+// wrapper that captures status + headers + raw bytes without trying to
+// interpret the body. Convenient when the same response will be
+// inspected for a PAYMENT-REQUIRED header or replayed with a signed
+// payload — both branches need the same metadata.
+const initial = await sellerProbe(target, { method: 'GET', headers: {} });
 if (initial.status !== 402) {
   console.log(`  status: ${initial.status.toString()}`);
-  console.log(`  body: ${await initial.text()}`);
+  console.log(`  body: ${new TextDecoder().decode(initial.bytes)}`);
   process.exit(0);
 }
 

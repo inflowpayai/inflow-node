@@ -16,6 +16,14 @@
       },
       "default": "./dist/index.js"
     },
+    "./probe": {
+      "types": "./dist/probe/index.d.ts",
+      "node": {
+        "import": "./dist/probe/index.js",
+        "require": "./dist/probe/index.cjs"
+      },
+      "default": "./dist/probe/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -71,7 +79,6 @@
     "x402",
     "payments",
     "inflow",
-    "@inflowpayai",
     "buyer",
     "signer"
   ]
