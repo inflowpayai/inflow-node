@@ -1,8 +1,10 @@
 # @inflowpayai/x402
 
-Core types, HTTP client, and shared constants for the [InFlow x402 SDK](https://github.com/inflowpayai/inflow-node/tree/main/docs/x402).
+Core types, HTTP client, and shared constants for the
+[InFlow x402 SDK](https://github.com/inflowpayai/inflow-node/tree/main/docs/x402).
 
-This package is a transitive dependency of `@inflowpayai/x402-seller*` and `@inflowpayai/x402-buyer*`. Most integrations don't install it directly.
+This package is a transitive dependency of `@inflowpayai/x402-seller*` and `@inflowpayai/x402-buyer*`. Most integrations
+don't install it directly.
 
 ## Install
 
@@ -10,25 +12,29 @@ This package is a transitive dependency of `@inflowpayai/x402-seller*` and `@inf
 pnpm add @inflowpayai/x402 @x402/core
 ```
 
-`@x402/core` is a peer dependency. Co-install it on the consumer side so package managers can warn loudly when it's missing.
+`@x402/core` is a peer dependency. Co-install it on the consumer side so package managers can warn loudly when it's
+missing.
 
 ## What's exported
 
 ### Main entry — `@inflowpayai/x402`
 
-- `InflowHttpClient` — the shared HTTP client used by every other package in this monorepo. Carries `X-API-KEY` injection, JSON parsing,
-  per-request timeout, retry on transient statuses (`429`, `502`, `503`, `504`) with exponential backoff capped at three attempts, and error
-  mapping into `InflowApiError`.
-- `resolveBaseUrl(options)` — returns the API base URL for an `Environment` (`'production' | 'sandbox'`) or a `baseUrl` override.
+- `InflowHttpClient` — the shared HTTP client used by every other package in this monorepo. Carries `X-API-KEY`
+  injection, JSON parsing, per-request timeout, retry on transient statuses (`429`, `502`, `503`, `504`) with
+  exponential backoff capped at three attempts, and error mapping into `InflowApiError`.
+- `resolveBaseUrl(options)` — returns the API base URL for an `Environment` (`'production' | 'sandbox'`) or a `baseUrl`
+  override.
 - `InflowApiError`, `X402VersionMismatchError` — typed errors raised by the client.
-- Constants — `X402_VERSION`, `HEADERS`, `SCHEMES`, `NETWORKS`, `CONTRACTS`, `EXTRA_KEYS`, `PAYLOAD_KEYS`, `ASSET_TRANSFER_METHODS`.
-- Wire-shape types — `PaymentRequirements`, `PaymentRequired`, `SettleResponse`, `VerifyResponse`, `ResourceInfo`, `PaymentScheme`, `InstrumentType`.
+- Constants — `X402_VERSION`, `HEADERS`, `SCHEMES`, `NETWORKS`, `CONTRACTS`, `EXTRA_KEYS`, `PAYLOAD_KEYS`,
+  `ASSET_TRANSFER_METHODS`.
+- Wire-shape types — `PaymentRequirements`, `PaymentRequired`, `SettleResponse`, `VerifyResponse`, `ResourceInfo`,
+  `PaymentScheme`, `InstrumentType`.
 - InFlow-specific types — `X402ConfigResponse`, `X402AssetInfo`, `X402WalletInfo`, `PaymentMethodInfo`,
-  `X402FacilitatorSupportedResponse`, `X402BuyerSupportedResponse`, `X402SupportedKind`, `InflowPaymentPayload`, `BalancePayloadData`,
-  `ExactPayloadData`, `Permit2PayloadData`, `InstrumentPayloadData`.
+  `X402FacilitatorSupportedResponse`, `X402BuyerSupportedResponse`, `X402SupportedKind`, `InflowPaymentPayload`,
+  `BalancePayloadData`, `ExactPayloadData`, `Permit2PayloadData`, `InstrumentPayloadData`.
 - Narrowing helpers — `isBalancePayload`, `isExactPayload`, `isPermit2Payload`, `isInstrumentPayload`.
-- `readHeader(headers, name)` — case-insensitive header read for WHATWG `Headers`, Node `IncomingHttpHeaders`-style records, or plain
-  `Record<string, string | string[] | undefined>`.
+- `readHeader(headers, name)` — case-insensitive header read for WHATWG `Headers`, Node `IncomingHttpHeaders`-style
+  records, or plain `Record<string, string | string[] | undefined>`.
 
 ### `@inflowpayai/x402/extensions`
 
@@ -41,8 +47,8 @@ pnpm add @inflowpayai/x402 @x402/core
 
 ### `@inflowpayai/x402/extras`
 
-- `getExtra<T>(extra, key)` / `setExtra<T>(extra, key, value)` — open-key analogs of the extension helpers, for `PaymentRequirements.extra`,
-  `PaymentMethodInfo.extra`, and similar bag fields.
+- `getExtra<T>(extra, key)` / `setExtra<T>(extra, key, value)` — open-key analogs of the extension helpers, for
+  `PaymentRequirements.extra`, `PaymentMethodInfo.extra`, and similar bag fields.
 
 ### `@inflowpayai/x402/security`
 
@@ -75,7 +81,8 @@ try {
 - [@inflowpayai/x402-seller](../x402-seller) — framework-agnostic seller core
 - [@inflowpayai/x402-buyer](../x402-buyer) — framework-agnostic buyer core
 - [Product overview](../../docs/x402/README.md)
-- [Architecture](../../docs/x402/architecture.md) — InFlow vs. foundation responsibilities, request lifecycle, conflict precedence
+- [Architecture](../../docs/x402/architecture.md) — InFlow vs. foundation responsibilities, request lifecycle, conflict
+  precedence
 - [Wire-format mapping](../../docs/x402/protocol-mapping.md) — types, headers, network rules, decimals
 - [Extensions](../../docs/x402/extensions.md) — `payment-identifier` end-to-end
 

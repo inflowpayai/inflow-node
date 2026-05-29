@@ -1,8 +1,9 @@
 # Example — x402 seller on Fastify
 
-A minimal Fastify app that accepts x402 payments via InFlow. Uses the foundation V2 middleware (`paymentMiddlewareFromConfig` from
-`@x402/fastify`) with InFlow's facilitator client + seller client + `inflowAccepts` helper. `@x402/fastify` mutates the Fastify
-instance in place rather than returning a middleware function — that's the only shape difference from the Express and Hono variants.
+A minimal Fastify app that accepts x402 payments via InFlow. Uses the foundation V2 middleware
+(`paymentMiddlewareFromConfig` from `@x402/fastify`) with InFlow's facilitator client + seller client + `inflowAccepts`
+helper. `@x402/fastify` mutates the Fastify instance in place rather than returning a middleware function — that's the
+only shape difference from the Express and Hono variants.
 
 ## Run
 

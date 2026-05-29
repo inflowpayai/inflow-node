@@ -1,7 +1,8 @@
 # Example — x402 seller on Hono
 
-A minimal Hono app that accepts x402 payments via InFlow. Uses the foundation V2 middleware (`paymentMiddlewareFromConfig` from `@x402/hono`)
-with InFlow's facilitator client + seller client + `inflowAccepts` helper.
+A minimal Hono app that accepts x402 payments via InFlow. Uses the foundation V2 middleware
+(`paymentMiddlewareFromConfig` from `@x402/hono`) with InFlow's facilitator client + seller client + `inflowAccepts`
+helper.
 
 ## Run
 

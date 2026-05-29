@@ -4,8 +4,11 @@ How to land changes in this monorepo.
 
 ## Prerequisites
 
-- Node 22 LTS or newer for development. The `.nvmrc` pins `22` (resolves to the latest 22.x on `nvm`/`fnm`/`volta`) so contributors test the published floor by default. CI runs `[22, 24]`. The published packages declare `engines.node: >=22.0.0`. See "Node version management" in [AGENTS.md](../../AGENTS.md) for the three-knob model.
-- pnpm 11.x. Corepack will install the exact version pinned in the root `package.json#packageManager` field — you don't need to install pnpm globally.
+- Node 22 LTS or newer for development. The `.nvmrc` pins `22` (resolves to the latest 22.x on `nvm`/`fnm`/`volta`) so
+  contributors test the published floor by default. CI runs `[22, 24]`. The published packages declare
+  `engines.node: >=22.0.0`. See "Node version management" in [AGENTS.md](../../AGENTS.md) for the three-knob model.
+- pnpm 11.x. Corepack will install the exact version pinned in the root `package.json#packageManager` field — you don't
+  need to install pnpm globally.
 
 ## Setup
 
@@ -29,8 +32,8 @@ pnpm format       # prettier write — also reflows TSDoc bodies to printWidth v
 pnpm typedoc      # generate API reference into docs/api/ (gitignored)
 ```
 
-The first four run via Turborepo. Cache hits are reported on the right-hand side of each line; touch a file in one package and only that
-package plus its dependents rebuild. `format` runs prettier directly across the whole tree.
+The first four run via Turborepo. Cache hits are reported on the right-hand side of each line; touch a file in one
+package and only that package plus its dependents rebuild. `format` runs prettier directly across the whole tree.
 
 Pre-release / publish troubleshooting scripts:
 
@@ -40,8 +43,8 @@ pnpm verify-publish   # `pnpm pack --dry-run` per package; asserts dist/, README
 pnpm check-publish    # builds, then runs the two above — use before tagging a release
 ```
 
-These run automatically in `.github/workflows/ci.yml` (between Build and Test) and inside `pnpm release`, so the normal flow doesn't need
-them. See [publishing.md](./publishing.md) for the full release pipeline.
+These run automatically in `.github/workflows/ci.yml` (between Build and Test) and inside `pnpm release`, so the normal
+flow doesn't need them. See [publishing.md](./publishing.md) for the full release pipeline.
 
 To run a single package's tests:
 
@@ -79,7 +82,8 @@ See [publishing.md](./publishing.md) for the full release flow.
 
 ## Commit convention
 
-Conventional Commits. Pick one of `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `build`, `ci`. Scope by package:
+Conventional Commits. Pick one of `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `build`, `ci`. Scope by
+package:
 
 ```
 feat(x402-seller): add inflowAccepts permit2 emission
@@ -93,27 +97,30 @@ The release-PR generation step uses Conventional Commits to produce the `CHANGEL
 ## Code style
 
 - Strict TypeScript: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`. No `any`, no `!` assertions, no
-  `as unknown as` casts except at documented type boundaries (see `packages/x402-buyer/src/inflow-client.ts` for the canonical pattern —
-  the foundation `x402Client` doesn't accept InFlow's widened `network: string`).
-- Comments describe what the code does or why it exists right now. No references to phases, milestones, server-side internals, or
-  "future work."
-- Use the typed accessor helpers (`@inflowpayai/x402/extensions`, `@inflowpayai/x402/extras`) rather than direct bracket access on
-  open-ended `extra` / `extensions` maps.
+  `as unknown as` casts except at documented type boundaries (see `packages/x402-buyer/src/inflow-client.ts` for the
+  canonical pattern — the foundation `x402Client` doesn't accept InFlow's widened `network: string`).
+- Comments describe what the code does or why it exists right now. No references to phases, milestones, server-side
+  internals, or "future work."
+- Use the typed accessor helpers (`@inflowpayai/x402/extensions`, `@inflowpayai/x402/extras`) rather than direct bracket
+  access on open-ended `extra` / `extensions` maps.
 - Lint emoji-free unless the request explicitly calls for them.
 
 ## Tests
 
-- Vitest. Per-package `vitest.config.ts`. MSW for HTTP mocking (Node mode). `fast-check` for property tests where a unit invariant fits.
-- Coverage threshold ≥90% lines / functions / statements, ≥85% branches — enforced. `pnpm test` fails the build below the floor.
-- Defensive guards that can't be reached from external inputs should be marked `/* v8 ignore start/stop */` rather than hand-crafted tests
-  that exist purely to satisfy coverage.
+- Vitest. Per-package `vitest.config.ts`. MSW for HTTP mocking (Node mode). `fast-check` for property tests where a unit
+  invariant fits.
+- Coverage threshold ≥90% lines / functions / statements, ≥85% branches — enforced. `pnpm test` fails the build below
+  the floor.
+- Defensive guards that can't be reached from external inputs should be marked `/* v8 ignore start/stop */` rather than
+  hand-crafted tests that exist purely to satisfy coverage.
 
 ## Adding a new package
 
 When adding one, follow the same template as the existing three (`x402`, `x402-seller`, `x402-buyer`):
 
 - `packages/<name>/{src,test/unit}`
-- `package.json` with `"version": "1.0.0"`, `peerDependencies`, `publishConfig.access: public`, `publishConfig.provenance: true`
+- `package.json` with `"version": "1.0.0"`, `peerDependencies`, `publishConfig.access: public`,
+  `publishConfig.provenance: true`
 - `tsconfig.json` extending `tsconfig.base.json`
 - `tsup.config.ts` + `vitest.config.ts`
 - `README.md`

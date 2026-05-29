@@ -4,7 +4,8 @@ A minimal script that pays for a protected resource via `fetch`.
 
 ## Run
 
-Start one of the seller examples first (`examples/x402-seller-express` or `examples/x402-seller-hono`), then in another terminal:
+Start one of the seller examples first (`examples/x402-seller-express` or `examples/x402-seller-hono`), then in another
+terminal:
 
 ```bash
 cp .env.example .env

@@ -1,11 +1,12 @@
 # Example — x402 seller on Next 16
 
-A minimal Next 16 App Router app that accepts x402 payments via InFlow. Uses the foundation V2 proxy (`paymentProxyFromConfig` from
-`@x402/next`) with InFlow's facilitator client + seller client + `inflowAccepts` helper. The InFlow setup lives at module top in
-`proxy.ts` so `await createInflowSellerClient(...)` primes its caches once at the cold-start boundary.
+A minimal Next 16 App Router app that accepts x402 payments via InFlow. Uses the foundation V2 proxy
+(`paymentProxyFromConfig` from `@x402/next`) with InFlow's facilitator client + seller client + `inflowAccepts` helper.
+The InFlow setup lives at module top in `proxy.ts` so `await createInflowSellerClient(...)` primes its caches once at
+the cold-start boundary.
 
-Next 16 only — `@x402/next@2.12.0`'s peer dep is `next >=16.0.10 <16.1.0`. There is no 14/15 adapter. The file convention is
-`proxy.ts` (renamed from `middleware.ts` in Next 16); the export is `const proxy`, not `const middleware`.
+Next 16 only — `@x402/next@2.12.0`'s peer dep is `next >=16.0.10 <16.1.0`. There is no 14/15 adapter. The file
+convention is `proxy.ts` (renamed from `middleware.ts` in Next 16); the export is `const proxy`, not `const middleware`.
 
 ## Run
 
@@ -40,6 +41,6 @@ app/api/upload/route.ts    # plain Route Handler, no x402 code
 app/free/route.ts          # plain Route Handler, not protected
 ```
 
-Next 16's `proxy.ts` always runs on the Node.js runtime; no route-segment `config` export is needed (or allowed). The proxy
-dispatches by matching the request against the `routes` keys passed to `paymentProxyFromConfig`, so `/free` — which is not in
-that map — passes through to its Route Handler untouched.
+Next 16's `proxy.ts` always runs on the Node.js runtime; no route-segment `config` export is needed (or allowed). The
+proxy dispatches by matching the request against the `routes` keys passed to `paymentProxyFromConfig`, so `/free` —
+which is not in that map — passes through to its Route Handler untouched.

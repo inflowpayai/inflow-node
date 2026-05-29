@@ -1,12 +1,12 @@
 # Example — x402 SVM buyer (foundation-only)
 
-A vanilla x402 SVM buyer that recognises and pays an InFlow-generated 402. **No `@inflowpayai/*` imports** — that's the point: the
-buyer side reads InFlow's `accepts[]` the same way it reads any other foundation `accepts[]`. The InFlow-specific work all happens
-on the seller side; from this side the wire is just x402.
+A vanilla x402 SVM buyer that recognises and pays an InFlow-generated 402. **No `@inflowpayai/*` imports** — that's the
+point: the buyer side reads InFlow's `accepts[]` the same way it reads any other foundation `accepts[]`. The
+InFlow-specific work all happens on the seller side; from this side the wire is just x402.
 
-Default network is Solana devnet. The CAIP-2 identifier is `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` — the genesis-hash-based
-CAIP-2 namespace value `@x402/svm` exports as `SOLANA_DEVNET_CAIP2`. The shorthand alias `solana:devnet` is not a valid CAIP-2
-value and is rejected by the package's `normalizeNetwork`.
+Default network is Solana devnet. The CAIP-2 identifier is `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` — the
+genesis-hash-based CAIP-2 namespace value `@x402/svm` exports as `SOLANA_DEVNET_CAIP2`. The shorthand alias
+`solana:devnet` is not a valid CAIP-2 value and is rejected by the package's `normalizeNetwork`.
 
 ## Run
 
@@ -27,8 +27,8 @@ pnpm start
 | `[`           | JSON byte array of 64 ints in `0..255` — matches `solana-keygen`'s on-disk format.                                                                                                                                                                                         |
 | anything else | base58 string — matches InFlow's `SolanaClient.Account.getSeed()` (`Base58.encode(keyPair.getSecretKey())` per [`Account.java:153-155`](../../../inflow-server/src/main/java/ai/inflowpay/blockchain/solana/model/Account.java)) and Phantom's exported secret-key string. |
 
-Either encoding must decode to exactly 64 bytes (the Ed25519 secret key: first 32 bytes are the seed, the last 32 are the public
-key). On any decode failure the example throws with both accepted forms named in the error message.
+Either encoding must decode to exactly 64 bytes (the Ed25519 secret key: first 32 bytes are the seed, the last 32 are
+the public key). On any decode failure the example throws with both accepted forms named in the error message.
 
 Default target is `http://localhost:3000/api/widgets`. Override with `TARGET_URL=...` in `.env`.
 
@@ -37,8 +37,8 @@ Default target is `http://localhost:3000/api/widgets`. Override with `TARGET_URL
 The example registers a payment policy on the foundation `x402Client` that filters the seller's advertised `accepts[]`
 down to entries whose `asset` matches a chosen SPL Token mint. The default is Circle's canonical devnet USDC
 (`4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`). Override with the optional `SOLANA_PAYMENT_MINT` env var when paying a
-sandbox or seller that uses a custom test mint — the buyer wallet must hold (and have an ATA for) the chosen mint, so the
-override has to match a mint you actually have a balance in.
+sandbox or seller that uses a custom test mint — the buyer wallet must hold (and have an ATA for) the chosen mint, so
+the override has to match a mint you actually have a balance in.
 
 On each 402, a KEEP/drop log line is printed for every payment requirement the seller offered, so you can inspect which
 mints the seller advertised and pick the right address to set in `SOLANA_PAYMENT_MINT`. If no offered entry matches, the
@@ -56,8 +56,9 @@ GET http://localhost:3000/api/widgets
 
 ## Public counterpart
 
-The same key-decoder logic ships from `@inflowpayai/x402-buyer` as the published `decodeSolanaSecret(value: string): Uint8Array`
-(throws `X402InvalidSolanaKeyError`). The example duplicates it inline to preserve the foundation-only invariant.
+The same key-decoder logic ships from `@inflowpayai/x402-buyer` as the published
+`decodeSolanaSecret(value: string): Uint8Array` (throws `X402InvalidSolanaKeyError`). The example duplicates it inline
+to preserve the foundation-only invariant.
 
 The InFlow-side buyer using the same protocol but with InFlow's signer (no on-chain hot key required) is
 [`examples/x402-buyer-fetch`](../x402-buyer-fetch).
