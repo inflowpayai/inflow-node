@@ -4,8 +4,8 @@ Official Node.js SDKs for the [InFlow](https://inflowpay.ai) payments platform.
 
 ## What's here
 
-This monorepo houses InFlow's open-source Node.js packages, organized by product. Every package, example, and product doc folder uses a product
-prefix (`x402-`, …) so multiple products can coexist without ambiguity.
+This monorepo houses InFlow's open-source Node.js packages, organized by product. Every package, example, and product
+doc folder uses a product prefix (`x402-`, …) so multiple products can coexist without ambiguity.
 
 | Product  | What it does                                                                    | Docs                                                                                                                                                                       |
 | -------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -21,9 +21,9 @@ All packages publish under the `@inflowpayai` scope on npm and depend on `@x402/
 | [`@inflowpayai/x402-seller`](./packages/x402-seller) | Facilitator client + seller client + `inflowAccepts` helper  |
 | [`@inflowpayai/x402-buyer`](./packages/x402-buyer)   | `InflowClient` — foundation `x402Client` subclass for buyers |
 
-Sellers integrate via the foundation V2 middleware (`paymentMiddlewareFromConfig` from `@x402/express`, `@x402/hono`, `@x402/fastify`, or
-`@x402/next`) and pass InFlow's facilitator client into its `facilitatorClients` array. See the [x402 quickstart](./docs/x402/README.md) for
-the integration shape.
+Sellers integrate via the foundation V2 middleware (`paymentMiddlewareFromConfig` from `@x402/express`, `@x402/hono`,
+`@x402/fastify`, or `@x402/next`) and pass InFlow's facilitator client into its `facilitatorClients` array. See the
+[x402 quickstart](./docs/x402/README.md) for the integration shape.
 
 Common installs:
 
@@ -52,19 +52,28 @@ Runnable end-to-end examples live in [`examples/`](./examples):
 
 - [`x402-seller-express`](./examples/x402-seller-express) — Express server with three protected routes.
 - [`x402-seller-hono`](./examples/x402-seller-hono) — same shape on Hono via `@hono/node-server`.
-- [`x402-seller-fastify`](./examples/x402-seller-fastify) — same shape on Fastify; `@x402/fastify` mutates the Fastify instance in place rather than returning middleware.
-- [`x402-seller-next`](./examples/x402-seller-next) — Next 16 App Router; `proxy.ts` carries the InFlow wiring and Route Handlers stay x402-free.
-- [`x402-buyer-fetch`](./examples/x402-buyer-fetch) — paying a protected endpoint with `@inflowpayai/x402-buyer` + native `fetch`.
-- [`x402-buyer-axios`](./examples/x402-buyer-axios) — paying a protected endpoint with `@inflowpayai/x402-buyer` + `axios`.
-- [`x402-buyer-x402-evm`](./examples/x402-buyer-x402-evm) — foundation-only EVM buyer (no `@inflowpayai/*` imports) paying an InFlow seller.
-- [`x402-buyer-x402-svm`](./examples/x402-buyer-x402-svm) — foundation-only SVM buyer paying an InFlow seller; same idea on Solana devnet.
-- [`x402-facilitator`](./examples/x402-facilitator) — InFlow facilitator as a foundation drop-in: vanilla `@x402/express` seller + foundation-only EVM buyer, with no `INFLOW_API_KEY` (uses `createUnauthenticatedInflowFacilitator`).
+- [`x402-seller-fastify`](./examples/x402-seller-fastify) — same shape on Fastify; `@x402/fastify` mutates the Fastify
+  instance in place rather than returning middleware.
+- [`x402-seller-next`](./examples/x402-seller-next) — Next 16 App Router; `proxy.ts` carries the InFlow wiring and Route
+  Handlers stay x402-free.
+- [`x402-buyer-fetch`](./examples/x402-buyer-fetch) — paying a protected endpoint with `@inflowpayai/x402-buyer` +
+  native `fetch`.
+- [`x402-buyer-axios`](./examples/x402-buyer-axios) — paying a protected endpoint with `@inflowpayai/x402-buyer` +
+  `axios`.
+- [`x402-buyer-x402-evm`](./examples/x402-buyer-x402-evm) — foundation-only EVM buyer (no `@inflowpayai/*` imports)
+  paying an InFlow seller.
+- [`x402-buyer-x402-svm`](./examples/x402-buyer-x402-svm) — foundation-only SVM buyer paying an InFlow seller; same idea
+  on Solana devnet.
+- [`x402-facilitator`](./examples/x402-facilitator) — InFlow facilitator as a foundation drop-in: vanilla
+  `@x402/express` seller + foundation-only EVM buyer, with no `INFLOW_API_KEY` (uses
+  `createUnauthenticatedInflowFacilitator`).
 
 Start a seller, then run a buyer against it.
 
 ## Supported runtimes
 
-Node 22 LTS or newer at runtime; the packages ship `engines.node: >=22.0.0`. CI exercises Node 22 (maintenance LTS until April 2027) and Node 24 (active LTS, April 2028 EOL). Node 20 went EOL on 2026-04-30 and is no longer supported.
+Node 22 LTS or newer at runtime; the packages ship `engines.node: >=22.0.0`. CI exercises Node 22 (maintenance LTS until
+April 2027) and Node 24 (active LTS, April 2028 EOL). Node 20 went EOL on 2026-04-30 and is no longer supported.
 
 ## Monorepo
 

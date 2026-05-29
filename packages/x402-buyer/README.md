@@ -1,8 +1,9 @@
 # @inflowpayai/x402-buyer
 
-Buyer-side InFlow primitives that plug into the foundation V2 buyer transport (`x402HTTPClient` from `@x402/core`). This package ships
-**`InflowClient`** — a subclass of `@x402/core`'s `x402Client` that routes InFlow-acceptable `(scheme, network)` pairs through the InFlow
-MPC signing flow and delegates everything else to foundation-managed schemes registered on the same instance.
+Buyer-side InFlow primitives that plug into the foundation V2 buyer transport (`x402HTTPClient` from `@x402/core`). This
+package ships **`InflowClient`** — a subclass of `@x402/core`'s `x402Client` that routes InFlow-acceptable
+`(scheme, network)` pairs through the InFlow MPC signing flow and delegates everything else to foundation-managed
+schemes registered on the same instance.
 
 ## Install
 
@@ -15,15 +16,15 @@ pnpm add @inflowpayai/x402-buyer @x402/core
 
 ## What's exported
 
-- `createInflowClient(options)` — async factory. Returns a primed `InflowClient`. Primes the buyer capability cache before
-  resolving, so the routing decision inside `createPaymentPayload` is synchronous against in-memory data.
-- `InflowClient` — `extends @x402/core/client.x402Client`. Overrides `createPaymentPayload` to route to InFlow first and fall back to
-  foundation-registered schemes. Adds `prepareInflowPayment` for callers that want to surface pending-approval UI before the protected
-  request is replayed.
-- `parseEvmPrivateKey`, `decodeSolanaSecret` — key-decoding helpers for callers wiring up foundation EVM/SVM schemes from existing
-  InFlow-managed wallet exports.
-- Typed errors: `X402AdapterRoutingError`, `X402ApprovalCancelledError`, `X402ApprovalFailedError`, `X402ApprovalTimeoutError`,
-  `X402PaymentIdFormatError`, `X402InvalidEvmKeyError`, `X402InvalidSolanaKeyError`.
+- `createInflowClient(options)` — async factory. Returns a primed `InflowClient`. Primes the buyer capability cache
+  before resolving, so the routing decision inside `createPaymentPayload` is synchronous against in-memory data.
+- `InflowClient` — `extends @x402/core/client.x402Client`. Overrides `createPaymentPayload` to route to InFlow first and
+  fall back to foundation-registered schemes. Adds `prepareInflowPayment` for callers that want to surface
+  pending-approval UI before the protected request is replayed.
+- `parseEvmPrivateKey`, `decodeSolanaSecret` — key-decoding helpers for callers wiring up foundation EVM/SVM schemes
+  from existing InFlow-managed wallet exports.
+- Typed errors: `X402AdapterRoutingError`, `X402ApprovalCancelledError`, `X402ApprovalFailedError`,
+  `X402ApprovalTimeoutError`, `X402PaymentIdFormatError`, `X402InvalidEvmKeyError`, `X402InvalidSolanaKeyError`.
 
 ## Quickstart
 
@@ -50,8 +51,9 @@ if (initial.status === 402) {
 }
 ```
 
-The same composition works with axios — see [`examples/x402-buyer-axios`](../../examples/x402-buyer-axios) for the variant that swaps `fetch`
-for an axios call and decodes the response header with `decodePaymentResponseHeader` from `@x402/core/http`.
+The same composition works with axios — see [`examples/x402-buyer-axios`](../../examples/x402-buyer-axios) for the
+variant that swaps `fetch` for an axios call and decodes the response header with `decodePaymentResponseHeader` from
+`@x402/core/http`.
 
 ## Composing with foundation schemes
 
@@ -70,15 +72,15 @@ registerExactSvmScheme(core, { signer: svmKeypair, networks: ['solana:5eykt4UsFv
 const http = new x402HTTPClient(core);
 ```
 
-When the seller's 402 offers a requirement InFlow signs (`balance/inflow:1`, or any `(scheme, network)` advertised by the buyer capability
-cache), the InFlow path wins. Otherwise the foundation's selector routes to whatever EVM or SVM scheme the caller registered. The
-foundation methods (`register`, `registerPolicy`, `onBeforePaymentCreation`, …) are return-type narrowed to `this` so chaining preserves
-the `InflowClient` type.
+When the seller's 402 offers a requirement InFlow signs (`balance/inflow:1`, or any `(scheme, network)` advertised by
+the buyer capability cache), the InFlow path wins. Otherwise the foundation's selector routes to whatever EVM or SVM
+scheme the caller registered. The foundation methods (`register`, `registerPolicy`, `onBeforePaymentCreation`, …) are
+return-type narrowed to `this` so chaining preserves the `InflowClient` type.
 
 ## Two-phase signing (pending-approval UI)
 
-For callers that want to surface a pending-approval state to the user before the protected request is replayed, `prepareInflowPayment`
-returns a `PreparedPayment` handle:
+For callers that want to surface a pending-approval state to the user before the protected request is replayed,
+`prepareInflowPayment` returns a `PreparedPayment` handle:
 
 ```ts
 const prepared = await core.prepareInflowPayment(requirement, {
@@ -96,13 +98,14 @@ try {
 }
 ```
 
-The two-phase flow is InFlow-specific — there's no foundation equivalent. `prepareInflowPayment` throws `X402AdapterRoutingError` if
-the requirement is not in the InFlow buyer capability cache.
+The two-phase flow is InFlow-specific — there's no foundation equivalent. `prepareInflowPayment` throws
+`X402AdapterRoutingError` if the requirement is not in the InFlow buyer capability cache.
 
 ## Signing timeouts
 
-`SignOptions.timeoutMs` defaults to **15 minutes** to match the server-side approval expiry. `SignOptions.pollIntervalMs` defaults to
-**5 seconds** — caller-overridable, no jitter or backoff. Transient 5xx errors during a single poll are swallowed; the loop is itself the retry.
+`SignOptions.timeoutMs` defaults to **15 minutes** to match the server-side approval expiry.
+`SignOptions.pollIntervalMs` defaults to **5 seconds** — caller-overridable, no jitter or backoff. Transient 5xx errors
+during a single poll are swallowed; the loop is itself the retry.
 
 ## Caller-supplied payment IDs
 
@@ -113,9 +116,10 @@ const paymentId = generatePaymentId(); // 'pay_<32 hex>'
 const prepared = await core.prepareInflowPayment(requirement, context, { paymentId });
 ```
 
-The ID is forwarded to the server's `remotePaymentId` field and embedded in the resulting `PaymentPayload.extensions['payment-identifier']`.
-Invalid format (16–128 chars, `^[a-zA-Z0-9_-]+$`) throws `X402PaymentIdFormatError` before any server round trip. The one-shot
-`createPaymentPayload` path doesn't carry a per-call `paymentId` — use `prepareInflowPayment` when a custom ID is required.
+The ID is forwarded to the server's `remotePaymentId` field and embedded in the resulting
+`PaymentPayload.extensions['payment-identifier']`. Invalid format (16–128 chars, `^[a-zA-Z0-9_-]+$`) throws
+`X402PaymentIdFormatError` before any server round trip. The one-shot `createPaymentPayload` path doesn't carry a
+per-call `paymentId` — use `prepareInflowPayment` when a custom ID is required.
 
 ## See also
 

@@ -1,7 +1,8 @@
 # Example — x402 seller on Express
 
-A minimal Express app that accepts x402 payments via InFlow. Uses the foundation V2 middleware (`paymentMiddlewareFromConfig` from
-`@x402/express`) with InFlow's facilitator client + seller client + `inflowAccepts` helper.
+A minimal Express app that accepts x402 payments via InFlow. Uses the foundation V2 middleware
+(`paymentMiddlewareFromConfig` from `@x402/express`) with InFlow's facilitator client + seller client + `inflowAccepts`
+helper.
 
 ## Run
 
