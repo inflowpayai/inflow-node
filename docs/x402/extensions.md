@@ -40,9 +40,8 @@ valid.
 ### Server behavior
 
 **InFlow never auto-generates a `payment-identifier`.** The extension is an opt-in idempotency hint — the buyer asks for
-it, the server echoes it back, and the facilitator's `X402PaymentIdCache` uses it to dedupe retries. If the caller
-doesn't supply one, no `payment-identifier` is embedded and the cache simply doesn't dedupe — retries produce fresh
-transactions.
+it, the server echoes it back, and the facilitator dedupes retries keyed on the identifier. If the caller doesn't supply
+one, no `payment-identifier` is embedded and there is nothing to dedupe on — retries produce fresh transactions.
 
 Rationale:
 

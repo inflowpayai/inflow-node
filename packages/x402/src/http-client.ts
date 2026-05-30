@@ -1,7 +1,7 @@
 import { readHeader } from './constants.js';
 import type { Environment } from './environment.js';
 import { resolveBaseUrl } from './environment.js';
-import { InflowApiError } from './errors.js';
+import { firstErrorEntry, InflowApiError } from './errors.js';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_RETRIES = 3;
@@ -382,6 +382,12 @@ function isTimeoutReason(value: unknown): boolean {
 }
 
 function extractCode(body: unknown): string {
+  // Prefer the InFlow `errors[0].code` envelope (e.g. "INSUFFICIENT_FUNDS"); fall back to a top-level `code` for
+  // non-InFlow responses, then to the generic sentinel.
+  const first = firstErrorEntry(body);
+  if (first !== undefined && typeof first.code === 'string' && first.code.length > 0) {
+    return first.code;
+  }
   if (body !== null && typeof body === 'object' && 'code' in body) {
     const raw = body.code;
     if (typeof raw === 'string' && raw.length > 0) return raw;

@@ -95,23 +95,49 @@ export class InflowApiError extends Error {
   }
 
   /**
-   * Compose an {@link InflowApiError} with a standard message shape.
+   * Compose an {@link InflowApiError} from a non-2xx response.
    *
-   * Format: `[<requestId>] <endpoint>: <httpStatus> <code> — <bodyMessage>`, where `<requestId>` is omitted when
-   * missing and `<bodyMessage>` falls back to a generic `request failed` when the body had no `message` field.
+   * `.message` is the server's human-readable message (the body's `message`, falling back to a generic `request failed`
+   * when the body had none). Transport/diagnostic details — `endpoint`, `httpStatus`, `requestId`, `code`, and the raw
+   * `body` — are carried as fields on the instance, not folded into the message, so consumers (CLIs, logs) can present
+   * a clean message and opt into the diagnostics they need.
    */
   static from(init: InflowApiErrorInit): InflowApiError {
-    const prefix = init.requestId !== undefined ? `[${init.requestId}] ` : '';
-    const bodyMessage = extractBodyMessage(init.body) ?? 'request failed';
-    const message = `${prefix}${init.endpoint}: ${init.httpStatus} ${init.code} — ${bodyMessage}`;
+    const message = extractBodyMessage(init.body) ?? 'request failed';
     return new InflowApiError(message, init);
   }
 }
 
+/**
+ * Read the first entry of an InFlow `{ errors: [...] }` error envelope, if present. The InFlow API serializes failures
+ * as `{ "errors": [{ "code", "message", "parameter" }], "id" }` (server-side `ErrorCode.ErrorPayload`), so the
+ * diagnostic `code` and `message` live one level down rather than at the top level. Returns `undefined` when the body
+ * is not an object, carries no `errors` array, or the array is empty / its first element is not an object.
+ */
+export function firstErrorEntry(body: unknown): Record<string, unknown> | undefined {
+  if (body === null || typeof body !== 'object' || !('errors' in body)) return undefined;
+  const errors: unknown = body.errors;
+  if (!Array.isArray(errors) || errors.length === 0) return undefined;
+  const first: unknown = errors[0];
+  return first !== null && typeof first === 'object' ? (first as Record<string, unknown>) : undefined;
+}
+
+/**
+ * Read a non-empty string field off a candidate object, or `undefined`. Used to pull `code` / `message` from either the
+ * InFlow `errors[0]` envelope entry or the top-level body.
+ */
+function readNonEmptyString(source: Record<string, unknown> | undefined, key: string): string | undefined {
+  if (source === undefined) return undefined;
+  const raw = source[key];
+  return typeof raw === 'string' && raw.length > 0 ? raw : undefined;
+}
+
 function extractBodyMessage(body: unknown): string | undefined {
-  if (body !== null && typeof body === 'object' && 'message' in body) {
-    const raw = body.message;
-    if (typeof raw === 'string' && raw.length > 0) return raw;
+  // Prefer the InFlow `errors[0].message` envelope; fall back to a top-level `message` for non-InFlow responses.
+  const fromEnvelope = readNonEmptyString(firstErrorEntry(body), 'message');
+  if (fromEnvelope !== undefined) return fromEnvelope;
+  if (body !== null && typeof body === 'object') {
+    return readNonEmptyString(body as Record<string, unknown>, 'message');
   }
   return undefined;
 }

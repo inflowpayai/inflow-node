@@ -120,9 +120,9 @@ caller            x402HTTPClient                InflowClient                    
 The `InflowClient.createPaymentPayload` call is two-phase under the hood when it routes to the InFlow branch: a
 synchronous `POST /v1/transactions/x402` creates the buyer's Approval, then a polling loop on
 `GET /v1/transactions/{id}/x402` waits for the server to sign. The polling cadence is a fixed 5 s; the default total
-budget is 15 minutes to match the server-side approval expiry. The foundation transport
-(`x402HTTPClient.encodePaymentSignatureHeader`) re-encodes the parsed payload via `JSON.stringify` + base64; the InFlow
-facilitator decodes with `Base64.getMimeDecoder()` + lenient JSON parse, so the round trip is wire-equivalent.
+budget is 15 minutes. The foundation transport (`x402HTTPClient.encodePaymentSignatureHeader`) re-encodes the parsed
+payload via `JSON.stringify` + base64, and InFlow decodes the standard base64 + JSON form, so the round trip is
+wire-equivalent.
 
 When no `accepts[]` entry matches the InFlow buyer capability cache, the override delegates to
 `super.createPaymentPayload`, which uses the foundation's selector to route to whatever scheme the caller registered on
@@ -131,21 +131,9 @@ the same `InflowClient` instance via `registerExactEvmScheme` / `registerExactSv
 ## Conflict precedence: foundation declaration order
 
 The foundation middleware resolves overlapping `(scheme, network)` claims by **declaration order** in the
-`facilitatorClients` array. Direct quote from `x402ResourceServer.initialize()`:
-
-```js
-for (const facilitatorClient of this.facilitatorClients) {
-  const supported = await facilitatorClient.getSupported();
-  for (const kind of supported.kinds) {
-    if (!responseNetworkMap.has(kind.scheme)) {
-      responseNetworkMap.set(kind.scheme, supported);
-      clientNetworkMap.set(kind.scheme, facilitatorClient);
-    }
-  }
-}
-```
-
-First claimer wins; subsequent claimers are silently ignored. Sellers control resolution by ordering the array:
+`facilitatorClients` array: at startup it walks the array, takes each facilitator's `getSupported()`, and assigns each
+`(scheme, network)` pair to the first facilitator that claims it. First claimer wins; subsequent claimers are silently
+ignored. Sellers control resolution by ordering the array:
 
 ```ts
 paymentMiddlewareFromConfig(
@@ -204,25 +192,16 @@ paymentMiddlewareFromConfig(
 The registrations are passthrough — they don't sign or settle anything themselves; the InFlow facilitator handles both.
 They exist solely to satisfy the middleware's scheme-knowledge check at boot.
 
-## Server-side auto-upgrade
-
-When both buyer and seller are InFlow accounts, the InFlow server may rewrite a buyer-chosen `exact` requirement into a
-`balance` requirement before signing (free internal transfer). The SDK propagates the server's signed payload verbatim —
-`EncodedPayment.paymentPayload.accepted` is the requirement the server actually settled, which may differ from the one
-the buyer originally selected. Downstream consumers (metrics, auditing) should key off `paymentPayload.accepted`, not
-the locally-selected requirement.
-
 ## Orphan approvals
 
 `InflowClient.prepareInflowPayment()` issues `POST /v1/transactions/x402` synchronously, which creates the server-side
 Approval before returning. If the caller aborts after `prepareInflowPayment()` resolves but before `awaitPayload()`
-returns, the Approval would otherwise sit pending until the 15-minute server-side expiry. Three things together keep
-this clean:
+returns, the Approval would otherwise sit pending until it expires server-side. Three things together keep this clean:
 
 - `InflowClient.createPaymentPayload()` internally calls the InFlow signer's one-shot path, which wraps `prepare` →
   `awaitPayload` with an auto-cancel-on-error fire-and-forget POST. A failed sign cleans itself up.
 - `PreparedPayment.cancel()` is fire-and-forget — it never rejects. Safe to call unconditionally in a `finally`.
-- The 15-minute server expiry bounds the worst case even when the cancel POST fails to land.
+- Server-side expiry bounds the worst case even when the cancel POST fails to land.
 
 ## See also
 

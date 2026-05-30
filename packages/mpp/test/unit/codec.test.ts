@@ -1,0 +1,139 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  canonicalize,
+  decode,
+  decodeCredential,
+  decodeReceipt,
+  encode,
+  encodeCredential,
+  padBase64Url,
+  parseChallengeHeader,
+  parseChallengeHeaders,
+  renderChallengeHeader,
+} from '../../src/codec.js';
+import { MppCodecError } from '../../src/errors.js';
+import type { MppChallenge, MppCredential, MppReceipt } from '../../src/types.js';
+
+describe('canonicalize (RFC 8785 JCS)', () => {
+  it('sorts object keys by UTF-16 code unit and drops null/undefined properties', () => {
+    const value = { currency: 'USDC', amount: '10', recipient: 'r', blockchain: null, walletAddress: undefined };
+    expect(canonicalize(value)).toBe('{"amount":"10","currency":"USDC","recipient":"r"}');
+  });
+
+  it('escapes the C0 control set and leaves non-ASCII verbatim', () => {
+    expect(canonicalize({ note: 'café\t\n"\\' })).toBe('{"note":"café\\t\\n\\"\\\\"}');
+  });
+
+  it('formats numbers per the ECMAScript Number::toString (which RFC 8785 mandates)', () => {
+    expect(canonicalize({ a: 1, b: -0, c: 1.5, d: 1e21 })).toBe('{"a":1,"b":0,"c":1.5,"d":1e+21}');
+  });
+
+  it('serialises nested arrays and objects', () => {
+    expect(canonicalize({ xs: [3, 1, 2], y: { b: true, a: false } })).toBe('{"xs":[3,1,2],"y":{"a":false,"b":true}}');
+  });
+
+  it('rejects non-finite numbers', () => {
+    expect(() => canonicalize({ n: Number.POSITIVE_INFINITY })).toThrow(MppCodecError);
+    expect(() => canonicalize({ n: Number.NaN })).toThrow(MppCodecError);
+  });
+});
+
+describe('base64url encode/decode', () => {
+  it('encodes without padding over canonical JSON and round-trips', () => {
+    const value = { b: 2, a: 1 };
+    const encoded = encode(value);
+    expect(encoded).not.toContain('=');
+    expect(decode<typeof value>(encoded)).toEqual(value);
+  });
+
+  it('encodes byte-for-byte from the canonical form', () => {
+    // base64url of `{"amount":"10","currency":"usd"}`
+    expect(encode({ currency: 'usd', amount: '10' })).toBe('eyJhbW91bnQiOiIxMCIsImN1cnJlbmN5IjoidXNkIn0');
+  });
+
+  it('re-pads on decode and tolerates missing padding', () => {
+    expect(padBase64Url('YWJj')).toBe('YWJj');
+    expect(padBase64Url('YWI')).toBe('YWI=');
+    expect(padBase64Url('YQ')).toBe('YQ==');
+  });
+
+  it('rejects a base64url length that is impossible (mod 4 === 1)', () => {
+    expect(() => padBase64Url('abcde')).toThrow(MppCodecError);
+  });
+
+  it('throws MppCodecError on malformed JSON', () => {
+    const notJson = Buffer.from('not json', 'utf8').toString('base64url');
+    expect(() => decode(notJson, 'credential')).toThrow(MppCodecError);
+  });
+});
+
+const challenge: MppChallenge = {
+  id: 'qB3w',
+  realm: 'inflow',
+  method: 'inflow',
+  intent: 'charge',
+  request: 'eyJhbW91bnQiOiIxMCJ9',
+  expires: '2025-01-15T12:05:00Z',
+  description: 'Pay "now" \\ later',
+};
+
+describe('WWW-Authenticate: Payment render/parse', () => {
+  it('renders auth-params in the server field order with RFC 7235 escaping of description', () => {
+    expect(renderChallengeHeader(challenge)).toBe(
+      'Payment id="qB3w", realm="inflow", method="inflow", intent="charge", ' +
+        'request="eyJhbW91bnQiOiIxMCJ9", expires="2025-01-15T12:05:00Z", ' +
+        'description="Pay \\"now\\" \\\\ later"',
+    );
+  });
+
+  it('round-trips render → parse, un-escaping the description', () => {
+    expect(parseChallengeHeader(renderChallengeHeader(challenge))).toEqual(challenge);
+  });
+
+  it('matches the Payment scheme case-insensitively', () => {
+    const parsed = parseChallengeHeader('payment id="x", realm="r", method="inflow", intent="charge", request="q"');
+    expect(parsed.id).toBe('x');
+  });
+
+  it('rejects a non-Payment value', () => {
+    expect(() => parseChallengeHeader('Bearer realm="x"')).toThrow(MppCodecError);
+  });
+
+  it('throws when a required auth-param is missing', () => {
+    expect(() => parseChallengeHeader('Payment id="x", realm="r", method="inflow", intent="charge"')).toThrow(
+      MppCodecError,
+    );
+  });
+
+  it('parses multiple challenges from one combined value and from an array', () => {
+    const a = 'Payment id="a", realm="r", method="inflow", intent="charge", request="q1"';
+    const b = 'Payment id="b", realm="r", method="inflow", intent="charge", request="q2"';
+    expect(parseChallengeHeaders(`${a}, ${b}`).map((c) => c.id)).toEqual(['a', 'b']);
+    expect(parseChallengeHeaders([a, b]).map((c) => c.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('credential / receipt codecs', () => {
+  it('round-trips a credential', () => {
+    const credential: MppCredential = {
+      challenge,
+      payload: { approvalId: 'appr_123' },
+      source: 'did:inflow:abc',
+      senderId: '11111111-1111-1111-1111-111111111111',
+    };
+    expect(decodeCredential(encodeCredential(credential))).toEqual(credential);
+  });
+
+  it('decodes a receipt', () => {
+    const receipt: MppReceipt = {
+      challengeId: 'qB3w',
+      method: 'inflow',
+      reference: 'ref-1',
+      settlement: { amount: '10', currency: 'USDC' },
+      status: 'success',
+      timestamp: '2025-01-15T12:05:00Z',
+    };
+    expect(decodeReceipt(encode(receipt))).toEqual(receipt);
+  });
+});

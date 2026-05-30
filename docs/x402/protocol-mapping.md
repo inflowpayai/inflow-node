@@ -25,8 +25,8 @@ exposes to the corresponding upstream V2 names.
 V2 spec mandates CAIP-2. EVM uses `eip155:<chainId>` (e.g. `eip155:8453`); Solana uses the spec-strict
 `solana:<first-32-base58-chars-of-genesis-hash>` (e.g. `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` for mainnet,
 `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` for devnet — the foundation's `@x402/svm` rejects the shorthand
-`solana:mainnet`/`solana:devnet` at `normalizeNetwork`). InFlow **extends** this with the literal `'inflow:1'` for
-balance and (reserved) instrument schemes. As a result:
+`solana:mainnet`/`solana:devnet`). InFlow **extends** this with the literal `'inflow:1'` for balance and (reserved)
+instrument schemes. As a result:
 
 - The SDK's `network: string` field accepts either form.
 - `@x402/core`'s `Network` template literal type (`` `${string}:${string}` ``) is strict about which

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { InflowApiError, X402VersionMismatchError } from '../../src/errors.js';
 
 describe('InflowApiError.from', () => {
-  it('composes the standard message shape with request id', () => {
+  it('uses the body message verbatim and carries diagnostics as fields', () => {
     const err = InflowApiError.from({
       code: 'PARAMETER_INVALID',
       httpStatus: 400,
@@ -17,16 +17,17 @@ describe('InflowApiError.from', () => {
     expect(err.httpStatus).toBe(400);
     expect(err.endpoint).toBe('/v1/x402/verify');
     expect(err.requestId).toBe('req_abc');
-    expect(err.message).toBe('[req_abc] /v1/x402/verify: 400 PARAMETER_INVALID — invalid amount');
+    // Message is the server's human text only — endpoint / status / request id stay on the fields above.
+    expect(err.message).toBe('invalid amount');
   });
 
-  it('omits the request-id prefix when none is set', () => {
+  it('falls back to "request failed" when there is no body message', () => {
     const err = InflowApiError.from({
       code: 'UNEXPECTED_ERROR',
       httpStatus: 500,
       endpoint: '/v1/x402/settle',
     });
-    expect(err.message).toBe('/v1/x402/settle: 500 UNEXPECTED_ERROR — request failed');
+    expect(err.message).toBe('request failed');
     expect(err.requestId).toBeUndefined();
   });
 
