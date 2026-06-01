@@ -1,79 +1,125 @@
 # @inflowpayai/x402-buyer
 
+## 0.7.0
+
+### Minor Changes
+
+- [#17](https://github.com/inflowpayai/inflow-node/pull/17)
+  [`45540f2`](https://github.com/inflowpayai/inflow-node/commit/45540f2253b1c814ae6c41daa1f4375214c7fa41) Thanks
+  [@nkavian](https://github.com/nkavian)! - Add `INFLOW_AMOUNT_SCALE` (the `inflow:1` atomic-unit scale, 1e18) to
+  `@inflowpayai/x402` and export it from the package root. Add the `firstErrorEntry` helper for reading the InFlow
+  `{ errors: [...] }` envelope, and reshape `InflowApiError.from()` so `.message` is the server's human-readable message
+  while transport details (`endpoint`, `httpStatus`, `requestId`, `code`, `body`) are carried as instance fields rather
+  than folded into the message string.
+
+  `@inflowpayai/x402-buyer` gains a buyer-side signer module and an expanded `InflowClient` surface.
+
+### Patch Changes
+
+- Updated dependencies
+  [[`45540f2`](https://github.com/inflowpayai/inflow-node/commit/45540f2253b1c814ae6c41daa1f4375214c7fa41)]:
+  - @inflowpayai/x402@0.8.0
+
 ## 0.6.2
 
 ### Patch Changes
 
-- [#14](https://github.com/inflowpayai/inflow-node/pull/14) [`2569768`](https://github.com/inflowpayai/inflow-node/commit/2569768130ac35a2fa6dca2c34bf54d5210d7cc6) Thanks [@nkavian](https://github.com/nkavian)! - Add `@inflowpayai/x402-buyer/probe` subpath export.
+- [#14](https://github.com/inflowpayai/inflow-node/pull/14)
+  [`2569768`](https://github.com/inflowpayai/inflow-node/commit/2569768130ac35a2fa6dca2c34bf54d5210d7cc6) Thanks
+  [@nkavian](https://github.com/nkavian)! - Add `@inflowpayai/x402-buyer/probe` subpath export.
 
-  The subpath ships a small set of buyer-side helpers that pair with
-  `createInflowClient` for callers that need to drive the 402 → sign →
-  replay loop themselves:
-  - `sellerProbe(url, options)` — a `fetch` wrapper that captures
-    `{ status, headers, bytes, contentType }` without interpreting the
-    body. Useful when the same response will be inspected for a
-    PAYMENT-REQUIRED header or replayed with a signed payload.
-  - `replayWithPayment(url, options)` — same as `sellerProbe` plus the
-    `PAYMENT-SIGNATURE` header pre-attached.
-  - `describeBody(bytes)` — best-effort UTF-8 decode + base64 mirror +
-    byte count. Lets the caller decide between inline text, inline
-    base64, or size-only display.
-  - `parseHeaderFlag(input)` / `parseHeaderFlags(inputs)` — parse
-    CLI-style `"Name: Value"` header flags into a `Record`. Throws
-    `X402HeaderFlagFormatError` on bad input.
-  - `X402HeaderFlagFormatError` — typed error class for header-flag
-    parse failures. Follows the package's existing `X402<Thing><Reason>Error`
-    naming convention.
+  The subpath ships a small set of buyer-side helpers that pair with `createInflowClient` for callers that need to drive
+  the 402 → sign → replay loop themselves:
+  - `sellerProbe(url, options)` — a `fetch` wrapper that captures `{ status, headers, bytes, contentType }` without
+    interpreting the body. Useful when the same response will be inspected for a PAYMENT-REQUIRED header or replayed
+    with a signed payload.
+  - `replayWithPayment(url, options)` — same as `sellerProbe` plus the `PAYMENT-SIGNATURE` header pre-attached.
+  - `describeBody(bytes)` — best-effort UTF-8 decode + base64 mirror + byte count. Lets the caller decide between inline
+    text, inline base64, or size-only display.
+  - `parseHeaderFlag(input)` / `parseHeaderFlags(inputs)` — parse CLI-style `"Name: Value"` header flags into a
+    `Record`. Throws `X402HeaderFlagFormatError` on bad input.
+  - `X402HeaderFlagFormatError` — typed error class for header-flag parse failures. Follows the package's existing
+    `X402<Thing><Reason>Error` naming convention.
 
-  Strictly additive: no existing exports change. The new helpers are
-  gated behind the `/probe` subpath so signing-only consumers don't pull
-  this code.
+  Strictly additive: no existing exports change. The new helpers are gated behind the `/probe` subpath so signing-only
+  consumers don't pull this code.
 
 ## 0.6.1
 
 ### Patch Changes
 
-- Updated dependencies [[`ef26298`](https://github.com/inflowpayai/inflow-node/commit/ef26298a969e19c018d6f1d8b106065f36dd2d3f)]:
+- Updated dependencies
+  [[`ef26298`](https://github.com/inflowpayai/inflow-node/commit/ef26298a969e19c018d6f1d8b106065f36dd2d3f)]:
   - @inflowpayai/x402@0.7.0
 
 ## 0.6.0
 
 ### Minor Changes
 
-- [#7](https://github.com/inflowpayai/inflow-node/pull/7) [`20435e0`](https://github.com/inflowpayai/inflow-node/commit/20435e0375998df59f5021990081dc5c5ee85df7) Thanks [@nkavian](https://github.com/nkavian)! - `SignerOptions` now accepts `InflowAnonymousClientOptions` and `InflowBearerClientOptions` in addition to `InflowClientOptions`. The type changed from `interface extends InflowClientOptions` to a discriminated union; existing API-key callers see no behavior change.
+- [#7](https://github.com/inflowpayai/inflow-node/pull/7)
+  [`20435e0`](https://github.com/inflowpayai/inflow-node/commit/20435e0375998df59f5021990081dc5c5ee85df7) Thanks
+  [@nkavian](https://github.com/nkavian)! - `SignerOptions` now accepts `InflowAnonymousClientOptions` and
+  `InflowBearerClientOptions` in addition to `InflowClientOptions`. The type changed from
+  `interface extends InflowClientOptions` to a discriminated union; existing API-key callers see no behavior change.
 
-- [#9](https://github.com/inflowpayai/inflow-node/pull/9) [`53b3b9f`](https://github.com/inflowpayai/inflow-node/commit/53b3b9f993bcb1a0a8e45900b5f5bff9c3eae24d) Thanks [@nkavian](https://github.com/nkavian)! - Add four public methods to `InflowClient` for callers without an in-process `PreparedPayment`: `getSupported`, `selectInflowRequirement`, `getX402Payload`, `cancelApproval`. Lets a separate process resume polling on an existing `transactionId` or cancel an existing `approvalId` without re-entering the `prepareInflowPayment` flow. Also re-exports `fromFoundationRequirements` from the barrel so callers that decode a `PaymentRequired` via `@x402/core/http` can convert the foundation `accepts[]` into the InFlow `PaymentRequirements[]` shape that the rest of the buyer surface speaks.
+- [#9](https://github.com/inflowpayai/inflow-node/pull/9)
+  [`53b3b9f`](https://github.com/inflowpayai/inflow-node/commit/53b3b9f993bcb1a0a8e45900b5f5bff9c3eae24d) Thanks
+  [@nkavian](https://github.com/nkavian)! - Add four public methods to `InflowClient` for callers without an in-process
+  `PreparedPayment`: `getSupported`, `selectInflowRequirement`, `getX402Payload`, `cancelApproval`. Lets a separate
+  process resume polling on an existing `transactionId` or cancel an existing `approvalId` without re-entering the
+  `prepareInflowPayment` flow. Also re-exports `fromFoundationRequirements` from the barrel so callers that decode a
+  `PaymentRequired` via `@x402/core/http` can convert the foundation `accepts[]` into the InFlow `PaymentRequirements[]`
+  shape that the rest of the buyer surface speaks.
 
 ### Patch Changes
 
-- [#10](https://github.com/inflowpayai/inflow-node/pull/10) [`da9ce53`](https://github.com/inflowpayai/inflow-node/commit/da9ce5373c736e7c745f547d5933a782b595307b) Thanks [@nkavian](https://github.com/nkavian)! - Loosen `engines.node` from `>=22.13.0` to `>=22.0.0`. Nothing in the published surface depends on a 22.13-specific API: `AbortSignal.any` is feature-detected (Node 20.3+) with a manual fan-in fallback, native `fetch` is stable since Node 18, and no `import.meta.dirname` / `import.meta.filename` references exist. Widens compatibility with Linux distributions that lag on minor releases without changing runtime requirements.
+- [#10](https://github.com/inflowpayai/inflow-node/pull/10)
+  [`da9ce53`](https://github.com/inflowpayai/inflow-node/commit/da9ce5373c736e7c745f547d5933a782b595307b) Thanks
+  [@nkavian](https://github.com/nkavian)! - Loosen `engines.node` from `>=22.13.0` to `>=22.0.0`. Nothing in the
+  published surface depends on a 22.13-specific API: `AbortSignal.any` is feature-detected (Node 20.3+) with a manual
+  fan-in fallback, native `fetch` is stable since Node 18, and no `import.meta.dirname` / `import.meta.filename`
+  references exist. Widens compatibility with Linux distributions that lag on minor releases without changing runtime
+  requirements.
 
-- Updated dependencies [[`20435e0`](https://github.com/inflowpayai/inflow-node/commit/20435e0375998df59f5021990081dc5c5ee85df7), [`da9ce53`](https://github.com/inflowpayai/inflow-node/commit/da9ce5373c736e7c745f547d5933a782b595307b)]:
+- Updated dependencies
+  [[`20435e0`](https://github.com/inflowpayai/inflow-node/commit/20435e0375998df59f5021990081dc5c5ee85df7),
+  [`da9ce53`](https://github.com/inflowpayai/inflow-node/commit/da9ce5373c736e7c745f547d5933a782b595307b)]:
   - @inflowpayai/x402@0.6.0
 
 ## 0.5.3
 
 ### Patch Changes
 
-- [#5](https://github.com/inflowpayai/inflow-node/pull/5) [`a61cdf6`](https://github.com/inflowpayai/inflow-node/commit/a61cdf69e6f1d839729977860879e0ccfce12ffe) Thanks [@nkavian](https://github.com/nkavian)! - Internal: exercise the release workflow's CDN-propagation retry in the verify step. No functional changes to the published API or runtime behavior.
+- [#5](https://github.com/inflowpayai/inflow-node/pull/5)
+  [`a61cdf6`](https://github.com/inflowpayai/inflow-node/commit/a61cdf69e6f1d839729977860879e0ccfce12ffe) Thanks
+  [@nkavian](https://github.com/nkavian)! - Internal: exercise the release workflow's CDN-propagation retry in the
+  verify step. No functional changes to the published API or runtime behavior.
 
-- Updated dependencies [[`a61cdf6`](https://github.com/inflowpayai/inflow-node/commit/a61cdf69e6f1d839729977860879e0ccfce12ffe)]:
+- Updated dependencies
+  [[`a61cdf6`](https://github.com/inflowpayai/inflow-node/commit/a61cdf69e6f1d839729977860879e0ccfce12ffe)]:
   - @inflowpayai/x402@0.5.3
 
 ## 0.5.2
 
 ### Patch Changes
 
-- [#3](https://github.com/inflowpayai/inflow-node/pull/3) [`2120084`](https://github.com/inflowpayai/inflow-node/commit/2120084f8723f40fd6f984915efa2d92fac4a94b) Thanks [@nkavian](https://github.com/nkavian)! - Internal: exercise the Trusted Publishing OIDC flow and the new provenance-attestation verify step end-to-end. No functional changes to the published API or runtime behavior.
+- [#3](https://github.com/inflowpayai/inflow-node/pull/3)
+  [`2120084`](https://github.com/inflowpayai/inflow-node/commit/2120084f8723f40fd6f984915efa2d92fac4a94b) Thanks
+  [@nkavian](https://github.com/nkavian)! - Internal: exercise the Trusted Publishing OIDC flow and the new
+  provenance-attestation verify step end-to-end. No functional changes to the published API or runtime behavior.
 
-- Updated dependencies [[`2120084`](https://github.com/inflowpayai/inflow-node/commit/2120084f8723f40fd6f984915efa2d92fac4a94b)]:
+- Updated dependencies
+  [[`2120084`](https://github.com/inflowpayai/inflow-node/commit/2120084f8723f40fd6f984915efa2d92fac4a94b)]:
   - @inflowpayai/x402@0.5.2
 
 ## 0.5.1
 
 ### Patch Changes
 
-- [#1](https://github.com/inflowpayai/inflow-node/pull/1) [`7e2e601`](https://github.com/inflowpayai/inflow-node/commit/7e2e60156da9539ccb389c14dac131cfc44f2c8e) Thanks [@nkavian](https://github.com/nkavian)! - Verify Trusted Publishing pipeline.
+- [#1](https://github.com/inflowpayai/inflow-node/pull/1)
+  [`7e2e601`](https://github.com/inflowpayai/inflow-node/commit/7e2e60156da9539ccb389c14dac131cfc44f2c8e) Thanks
+  [@nkavian](https://github.com/nkavian)! - Verify Trusted Publishing pipeline.
 
-- Updated dependencies [[`7e2e601`](https://github.com/inflowpayai/inflow-node/commit/7e2e60156da9539ccb389c14dac131cfc44f2c8e)]:
+- Updated dependencies
+  [[`7e2e601`](https://github.com/inflowpayai/inflow-node/commit/7e2e60156da9539ccb389c14dac131cfc44f2c8e)]:
   - @inflowpayai/x402@0.5.1
