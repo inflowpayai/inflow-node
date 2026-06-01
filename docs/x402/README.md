@@ -143,8 +143,8 @@ paymentMiddlewareFromConfig(
 ```
 
 First claimer in the `facilitatorClients` array of a `(scheme, network)` pair (via `getSupported()`) wins verify/settle
-routing — that's the foundation's `x402ResourceServer.initialize()` contract. Order the array intentionally; subsequent
-claimers are silently ignored.
+routing — that's the foundation middleware's resolution contract. Order the array intentionally; subsequent claimers are
+silently ignored.
 
 On the buyer side, `InflowClient` enforces a fixed precedence instead: the InFlow buyer capability cache is consulted
 first, and only the foundation's registered schemes get a turn when nothing matches. This mirrors the seller-side rule

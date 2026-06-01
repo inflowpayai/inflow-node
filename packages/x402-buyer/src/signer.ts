@@ -15,6 +15,7 @@ import {
 } from './errors.js';
 import type {
   ApprovalStatus,
+  BuyerLedgerBalance,
   EncodedPayment,
   InflowSigner,
   PreparedPayment,
@@ -27,6 +28,7 @@ import type {
 } from './types.js';
 
 const SUPPORTED_PATH = '/v1/transactions/x402-supported';
+const BALANCES_PATH = '/v1/balances';
 const TRANSACTIONS_PATH = '/v1/transactions/x402';
 const APPROVAL_CANCEL_PATH = (id: string): string => `/v1/approvals/${id}/cancel`;
 const TRANSACTION_X402_PATH = (id: string): string => `/v1/transactions/${id}/x402`;
@@ -97,6 +99,27 @@ export async function createInflowSigner(options: SignerOptions): Promise<Inflow
     return cached.kinds.some((k) => k.scheme === requirement.scheme && k.network === requirement.network);
   }
 
+  // Shape of `GET /v1/balances`. Both fields are strings on the wire (`available` is serialized with
+  // `@JsonFormat(shape = STRING)`; `currency` is the enum name, e.g. "USDC"). Typed loosely here and narrowed below
+  // because the SDK only needs the (currency, available) pair for balance-aware requirement selection.
+  interface BalancesApiResponse {
+    balances?: { available?: string; currency?: string }[];
+  }
+
+  // Always fetches fresh: ledger balances are volatile and selection happens at most once per pay, so caching them
+  // (unlike the long-lived capability table) would risk picking an asset the buyer no longer holds.
+  async function getBalances(): Promise<readonly BuyerLedgerBalance[]> {
+    const res = await http.get<BalancesApiResponse>(BALANCES_PATH);
+    const list = Array.isArray(res.balances) ? res.balances : [];
+    const out: BuyerLedgerBalance[] = [];
+    for (const b of list) {
+      if (typeof b.currency === 'string' && typeof b.available === 'string') {
+        out.push({ currency: b.currency, available: b.available });
+      }
+    }
+    return out;
+  }
+
   async function prepare(
     requirement: PaymentRequirements,
     context: SigningContext,
@@ -165,6 +188,7 @@ export async function createInflowSigner(options: SignerOptions): Promise<Inflow
     ready: () => Promise.resolve(),
     getSupported,
     refreshSupported,
+    getBalances,
     getX402Payload,
     cancelApproval,
   };

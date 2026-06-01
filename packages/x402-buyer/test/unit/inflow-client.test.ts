@@ -388,7 +388,7 @@ describe('InflowClient.selectInflowRequirement', () => {
       maxTimeoutSeconds: 300,
       extra: {},
     };
-    const match = client.selectInflowRequirement(paymentRequired([INFLOW_REQ, exactReq]));
+    const match = await client.selectInflowRequirement(paymentRequired([INFLOW_REQ, exactReq]));
     expect(match).toEqual(INFLOW_REQ);
   });
 
@@ -396,7 +396,7 @@ describe('InflowClient.selectInflowRequirement', () => {
     installSupported();
     const client = await createInflowClient({ apiKey: 'sk_test' });
     // EVM_REQ.network is 'eip155:1'; the buyer cache covers 'eip155:8453'. Same scheme, different network.
-    const match = client.selectInflowRequirement(paymentRequired([EVM_REQ]));
+    const match = await client.selectInflowRequirement(paymentRequired([EVM_REQ]));
     expect(match).toBeNull();
   });
 
@@ -409,9 +409,10 @@ describe('InflowClient.selectInflowRequirement', () => {
       }),
     );
     const client = await createInflowClient({ apiKey: 'sk_test' });
-    const match = client.selectInflowRequirement(paymentRequired([]));
+    const match = await client.selectInflowRequirement(paymentRequired([]));
     expect(match).toBeNull();
-    // Only the construction-time prime; selectInflowRequirement is synchronous against the cache.
+    // Only the construction-time prime; an empty accepts[] matches nothing, so selection never reaches the
+    // balances endpoint or any other extra HTTP call.
     expect(calls).toBe(1);
   });
 
@@ -429,8 +430,48 @@ describe('InflowClient.selectInflowRequirement', () => {
     };
     // Both entries are in the buyer capability cache; prefer order picks the exact one even though balance appears first
     // in the accepts array.
-    const match = client.selectInflowRequirement(paymentRequired([INFLOW_REQ, exactReq]));
+    const match = await client.selectInflowRequirement(paymentRequired([INFLOW_REQ, exactReq]));
     expect(match).toEqual(exactReq);
+  });
+
+  // amount '10000000000000000' = 0.01 at INFLOW_AMOUNT_SCALE (18).
+  const balanceRow = (assetName: string): PaymentRequirements => ({
+    scheme: 'balance',
+    network: 'inflow:1',
+    asset: '',
+    amount: '10000000000000000',
+    payTo: '00000000-0000-0000-0000-000000000001',
+    maxTimeoutSeconds: 300,
+    extra: { assetName },
+  });
+
+  it('prefers a balance asset the buyer can cover when several are advertised', async () => {
+    installSupported();
+    // Server advertises USDT first (zero balance); selection must skip it for the first affordable asset.
+    server.use(
+      http.get(`${PROD_BASE}/v1/balances`, () =>
+        HttpResponse.json({
+          balances: [
+            { currency: 'USDT', available: '0' },
+            { currency: 'USDC', available: '78.3757' },
+            { currency: 'PYUSD', available: '89.19762' },
+          ],
+        }),
+      ),
+    );
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    const match = await client.selectInflowRequirement(
+      paymentRequired([balanceRow('USDT'), balanceRow('USDC'), balanceRow('PYUSD')]),
+    );
+    expect(match?.extra?.['assetName']).toBe('USDC');
+  });
+
+  it('falls back to the first balance entry when balances cannot be read', async () => {
+    installSupported();
+    server.use(http.get(`${PROD_BASE}/v1/balances`, () => new HttpResponse(null, { status: 500 })));
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    const match = await client.selectInflowRequirement(paymentRequired([balanceRow('USDT'), balanceRow('USDC')]));
+    expect(match?.extra?.['assetName']).toBe('USDT');
   });
 });
 

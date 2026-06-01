@@ -1,0 +1,75 @@
+{
+  "name": "@inflowpayai/mpp-seller",
+  "version": "0.5.0",
+  "description": "InFlow MPP SDK: seller-side `inflow` method built as a native mppx server method — challenges are minted and HMAC-bound locally by mppx, while verify delegates settlement to the InFlow PSP (POST /v1/mpp/redeem).",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "node": {
+        "import": "./dist/index.js",
+        "require": "./dist/index.cjs"
+      },
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "lint": "eslint src test --max-warnings 0",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "clean": "rm -rf dist .turbo"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@inflowpayai/mpp": "workspace:^"
+  },
+  "peerDependencies": {
+    "mppx": "^0.6.28"
+  },
+  "peerDependenciesMeta": {
+    "mppx": {
+      "optional": false
+    }
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.0",
+    "mppx": "^0.6.28",
+    "msw": "^2.4.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/inflowpayai/inflow-node.git",
+    "directory": "packages/mpp-seller"
+  },
+  "bugs": {
+    "url": "https://github.com/inflowpayai/inflow-node/issues"
+  },
+  "homepage": "https://github.com/inflowpayai/inflow-node/tree/main/packages/mpp-seller#readme",
+  "keywords": [
+    "mpp",
+    "machine-payments-protocol",
+    "payments",
+    "inflow",
+    "seller"
+  ]
+}

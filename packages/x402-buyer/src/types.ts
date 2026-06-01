@@ -191,6 +191,20 @@ export interface Signer {
 }
 
 /**
+ * One held balance on the InFlow internal ledger, as returned by `GET /v1/balances`. Used by balance-aware requirement
+ * selection in {@link InflowClient}.
+ */
+export interface BuyerLedgerBalance {
+  /**
+   * Currency code — e.g. `'USDC'`, `'USDT'`, `'PYUSD'`. Matches `PaymentRequirements.extra.assetName` for `balance`
+   * rows.
+   */
+  currency: string;
+  /** Available (spendable) amount as a decimal string, e.g. `'78.3757'`. */
+  available: string;
+}
+
+/**
  * InFlow-specific buyer signer. Adds the InFlow-server capability table, priming hooks, and a two-phase `prepare()` /
  * `awaitPayload()` flow for callers that want to surface pending-approval UI before the protected request.
  * Implementation detail of {@link InflowClient}; not re-exported from the package barrel.
@@ -217,6 +231,14 @@ export interface InflowSigner extends Signer {
    * @returns The freshly fetched {@link X402BuyerSupportedResponse}.
    */
   refreshSupported(): Promise<X402BuyerSupportedResponse>;
+  /**
+   * Fetch the buyer's current InFlow ledger balances (`GET /v1/balances`). Used by balance-aware requirement selection
+   * to choose, among several `balance`/`inflow:1` rows, an asset the buyer can actually cover. Always fetches fresh
+   * (ledger balances are volatile and unlike the capability table are not cached).
+   *
+   * @returns One {@link BuyerLedgerBalance} per held currency.
+   */
+  getBalances(): Promise<readonly BuyerLedgerBalance[]>;
   /**
    * Callers loop at their own cadence.
    *

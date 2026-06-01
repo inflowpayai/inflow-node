@@ -15,12 +15,14 @@ import type {
   PaymentScheme,
   X402BuyerSupportedResponse,
 } from '@inflowpayai/x402';
+import { EXTRA_KEYS, INFLOW_AMOUNT_SCALE, SCHEMES } from '@inflowpayai/x402';
 import { EXTENSION_REGISTRY, getExtension, setExtension, type SignContext } from '@inflowpayai/x402/extensions';
 
 import { X402AdapterRoutingError } from './errors.js';
 import { fromFoundationRequirements, toFoundationPayload } from './_foundation-bridge.js';
 import { createInflowSigner } from './signer.js';
 import type {
+  BuyerLedgerBalance,
   InflowSigner,
   PreparedPayment,
   SignerOptions,
@@ -68,7 +70,7 @@ export class InflowClient extends x402Client {
   override async createPaymentPayload(paymentRequired: PaymentRequired): Promise<PaymentPayload> {
     // All foundation/InFlow type translation goes through ./_foundation-bridge.ts; see that file for the rationale on
     // why these casts are safe under the V2 wire shape.
-    const inflowMatch = this.pickInflowMatch(fromFoundationRequirements(paymentRequired.accepts));
+    const inflowMatch = await this.pickInflowMatchBalanceAware(fromFoundationRequirements(paymentRequired.accepts));
     if (inflowMatch !== null) {
       const context: SigningContext = {
         resource: paymentRequired.resource,
@@ -128,11 +130,17 @@ export class InflowClient extends x402Client {
    * order against the decoded `PaymentRequired`. Returns `null` when no entry matches — caller should fall back to the
    * foundation flow via {@link InflowClient.createPaymentPayload} or surface a "no InFlow match" error.
    *
-   * Synchronous against the supported cache primed by {@link createInflowClient}. Callers holding a long-lived client
-   * should call `getSupported()` first if cache freshness matters.
+   * Balance-aware: when the winning scheme is `balance`/`inflow:1` and the seller advertises several assets, it fetches
+   * the buyer's InFlow ledger balances (`GET /v1/balances`) and prefers an asset the buyer can actually cover —
+   * avoiding a guaranteed `INSUFFICIENT_FUNDS` rejection when the seller's first-listed asset happens to be one the
+   * buyer doesn't hold. Degrades safely: a single option, a non-`balance` winning scheme, an unreadable balance, or no
+   * affordable asset all fall back to the first preferred match, leaving the server as the authority on sufficiency.
+   *
+   * Returns a promise because it may hit the balances endpoint; the `(scheme, network)` capability lookup itself is
+   * synchronous against the cache primed by {@link createInflowClient}.
    */
-  selectInflowRequirement(paymentRequired: PaymentRequired): PaymentRequirements | null {
-    return this.pickInflowMatch(fromFoundationRequirements(paymentRequired.accepts));
+  async selectInflowRequirement(paymentRequired: PaymentRequired): Promise<PaymentRequirements | null> {
+    return this.pickInflowMatchBalanceAware(fromFoundationRequirements(paymentRequired.accepts));
   }
 
   /**
@@ -199,17 +207,87 @@ export class InflowClient extends x402Client {
   }
 
   /**
-   * Pick the buyer's preferred `accepts[]` entry the InFlow signer can handle. Walks {@link InflowClient.preferOrder}
-   * and returns the first entry whose `(scheme, network)` is in the InFlow capability cache; returns `null` when no
-   * entry matches (the foundation branch takes over).
+   * Pick the buyer's preferred `accepts[]` entry the InFlow signer can handle, balance-aware. Preserves the
+   * preferred-scheme precedence exactly: the first scheme in {@link InflowClient.preferOrder} that has any signable
+   * entry wins, and selection never jumps to a less-preferred scheme. Within the winning scheme, when it is
+   * `balance`/`inflow:1` and more than one asset is offered, prefer the first the buyer can cover on the InFlow ledger.
+   * If balances can't be read, or none are sufficient, it returns the first preferred match, leaving the server to
+   * issue the authoritative `INSUFFICIENT_FUNDS`.
    */
-  private pickInflowMatch(accepts: readonly PaymentRequirements[]): PaymentRequirements | null {
+  private async pickInflowMatchBalanceAware(
+    accepts: readonly PaymentRequirements[],
+  ): Promise<PaymentRequirements | null> {
     for (const scheme of this.preferOrder) {
-      const match = accepts.find((r) => r.scheme === scheme && this.inflowSigner.supports(r));
-      if (match !== undefined) return match;
+      const matches = accepts.filter((r) => r.scheme === scheme && this.inflowSigner.supports(r));
+      if (matches.length === 0) continue;
+      if (scheme === SCHEMES.BALANCE && matches.length > 1) {
+        const balances = await this.loadLedgerBalances();
+        if (balances !== undefined) {
+          const affordable = matches.find((r) => ledgerCovers(balances, r));
+          if (affordable !== undefined) return affordable;
+        }
+      }
+      // Single option, non-ledger scheme, unreadable balances, or nothing affordable: first match.
+      return matches[0] ?? null;
     }
     return null;
   }
+
+  /**
+   * Fetch the buyer's InFlow ledger balances as a `currency -> available (atomic, {@link INFLOW_AMOUNT_SCALE})` map.
+   * Best-effort: returns `undefined` on any failure so callers degrade to balance-unaware selection rather than
+   * blocking a pay on a balances-endpoint hiccup.
+   */
+  private async loadLedgerBalances(): Promise<Map<string, bigint> | undefined> {
+    let raw: readonly BuyerLedgerBalance[];
+    try {
+      raw = await this.inflowSigner.getBalances();
+    } catch {
+      return undefined;
+    }
+    const byCurrency = new Map<string, bigint>();
+    for (const b of raw) {
+      const atomic = decimalToAtomic(b.available, INFLOW_AMOUNT_SCALE);
+      if (atomic !== undefined) byCurrency.set(b.currency, atomic);
+    }
+    return byCurrency;
+  }
+}
+
+/**
+ * True when the buyer's ledger balance for a `balance`-scheme requirement's asset covers its required amount. The
+ * requirement's `amount` is already atomic at {@link INFLOW_AMOUNT_SCALE} and the balance map is normalized to the same
+ * scale, so the comparison is a direct `bigint` compare. Returns `false` when the asset name is missing/unmatched or
+ * the amount is unparseable — i.e. "can't prove coverage" never blocks a viable row, it just isn't preferred.
+ */
+function ledgerCovers(balances: Map<string, bigint>, requirement: PaymentRequirements): boolean {
+  const assetName = requirement.extra?.[EXTRA_KEYS.ASSET_NAME];
+  if (typeof assetName !== 'string') return false;
+  const available = balances.get(assetName);
+  if (available === undefined) return false;
+  let required: bigint;
+  try {
+    required = BigInt(requirement.amount);
+  } catch {
+    return false;
+  }
+  return available >= required;
+}
+
+/**
+ * Convert a non-negative decimal string (e.g. `'78.3757'`) to an atomic `bigint` at `scale` decimal places. The
+ * fractional part is right-padded with zeros and truncated to `scale` digits (the ledger never exposes more precision
+ * than its scale). Returns `undefined` for anything that isn't a plain decimal number.
+ */
+function decimalToAtomic(value: string, scale: number): bigint | undefined {
+  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value.trim());
+  if (match === null) return undefined;
+  const sign = match[1] ?? '';
+  const intPart = match[2] ?? '0';
+  const fracRaw = match[3] ?? '';
+  const frac = `${fracRaw}${'0'.repeat(scale)}`.slice(0, scale);
+  const magnitude = BigInt(`${intPart}${frac}`);
+  return sign === '-' ? -magnitude : magnitude;
 }
 
 /**

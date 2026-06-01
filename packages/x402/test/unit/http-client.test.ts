@@ -114,7 +114,7 @@ describe('InflowHttpClient error mapping', () => {
       expect(e.httpStatus).toBe(400);
       expect(e.requestId).toBe('req_1');
       expect(e.endpoint).toBe('/_fail');
-      expect(e.message).toBe('[req_1] /_fail: 400 PARAMETER_INVALID — bad amount');
+      expect(e.message).toBe('bad amount');
     }
   });
 

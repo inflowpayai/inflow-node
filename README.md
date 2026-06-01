@@ -7,9 +7,10 @@ Official Node.js SDKs for the [InFlow](https://inflowpay.ai) payments platform.
 This monorepo houses InFlow's open-source Node.js packages, organized by product. Every package, example, and product
 doc folder uses a product prefix (`x402-`, …) so multiple products can coexist without ambiguity.
 
-| Product  | What it does                                                                    | Docs                                                                                                                                                                       |
-| -------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **x402** | x402 protocol integration — facilitator client, seller helpers, buyer wrappers. | [overview](./docs/x402/README.md) · [architecture](./docs/x402/architecture.md) · [wire format](./docs/x402/protocol-mapping.md) · [extensions](./docs/x402/extensions.md) |
+| Product  | What it does                                                                             | Docs                                                                                                                                                                       |
+| -------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **x402** | x402 protocol integration — facilitator client, seller helpers, buyer wrappers.          | [overview](./docs/x402/README.md) · [architecture](./docs/x402/architecture.md) · [wire format](./docs/x402/protocol-mapping.md) · [extensions](./docs/x402/extensions.md) |
+| **mpp**  | MPP (Machine Payments Protocol) integration — the `inflow` method, seller/buyer drivers. | [overview](./docs/mpp/README.md) · [architecture](./docs/mpp/architecture.md) · [wire format](./docs/mpp/protocol-mapping.md) · [extensions](./docs/mpp/extensions.md)     |
 
 ## Packages
 
@@ -20,6 +21,25 @@ All packages publish under the `@inflowpayai` scope on npm and depend on `@x402/
 | [`@inflowpayai/x402`](./packages/x402)               | Core types + HTTP client                                     |
 | [`@inflowpayai/x402-seller`](./packages/x402-seller) | Facilitator client + seller client + `inflowAccepts` helper  |
 | [`@inflowpayai/x402-buyer`](./packages/x402-buyer)   | `InflowClient` — foundation `x402Client` subclass for buyers |
+
+The **MPP** packages publish under the same scope but declare [`mppx`](https://github.com/wevm/mppx)`@^0.6.28` as their
+peer instead of `@x402/core`:
+
+| Package                                            | Role                                                                   |
+| -------------------------------------------------- | ---------------------------------------------------------------------- |
+| [`@inflowpayai/mpp`](./packages/mpp)               | Core: the `inflow` `Method` definition, wire types, codec, HTTP client |
+| [`@inflowpayai/mpp-seller`](./packages/mpp-seller) | `Method.toServer` + InFlow redeem/settle driver — accepting MPP        |
+| [`@inflowpayai/mpp-buyer`](./packages/mpp-buyer)   | `Method.toClient` + InFlow buyer-endpoint driver — paying via MPP      |
+
+```bash
+# Seller accepting MPP payments
+pnpm add @inflowpayai/mpp-seller mppx
+
+# Buyer paying via MPP
+pnpm add @inflowpayai/mpp-buyer mppx
+```
+
+See the [MPP product docs](./docs/mpp/README.md) for the seller/buyer integration shape.
 
 Sellers integrate via the foundation V2 middleware (`paymentMiddlewareFromConfig` from `@x402/express`, `@x402/hono`,
 `@x402/fastify`, or `@x402/next`) and pass InFlow's facilitator client into its `facilitatorClients` array. See the

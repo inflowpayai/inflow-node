@@ -44,6 +44,14 @@ export const NETWORKS = {
   INFLOW: 'inflow:1',
 } as const;
 
+/**
+ * Atomic-unit scale for amounts on InFlow's internal ledger (`inflow:1`) — the `balance` (and reserved `instrument`)
+ * scheme. A `PaymentRequirements.amount` of `10n ** 18n` therefore denotes `1.0` of the asset. Mirrors the server-side
+ * `X402Constants.INFLOW_AMOUNT_SCALE`. On-chain (`exact`) entries use their own per-asset decimals
+ * (`X402AssetInfo.decimals`) and are unrelated to this constant.
+ */
+export const INFLOW_AMOUNT_SCALE = 18;
+
 /** Well-known keys read from `PaymentRequirements.extra` and `PaymentMethodInfo.extra`. */
 export const EXTRA_KEYS = {
   ASSET_NAME: 'assetName',
