@@ -1,4 +1,4 @@
-# @inflowpayai/mpp
+# @inflowpayai/mpp-seller
 
 ## 0.5.1
 
@@ -20,11 +20,7 @@
   error class, and the `protocolVersion`/`minSdkVersion` fields on the `MppConfigResponse` type.
   `@inflowpayai/mpp-seller` no longer re-exports `MppProtocolVersionError`, and `createConfigClient` no longer
   version-gates on load.
-
-## 0.5.0
-
-### Minor Changes
-
-- Initial release: the shared MPP definitions for InFlow's `inflow` payment method — the `inflow` `Method` namespace
-  (defaulting to `charge`), the MPP wire types, the RFC 8785 JCS + base64url codec and `WWW-Authenticate: Payment`
-  header render/parse, the InFlow MPP REST client, protocol constants, and typed errors.
+- Updated dependencies
+  [[`9c18441`](https://github.com/inflowpayai/inflow-node/commit/9c18441acc9f69873c6a94690bb12d6672db5de5),
+  [`9c18441`](https://github.com/inflowpayai/inflow-node/commit/9c18441acc9f69873c6a94690bb12d6672db5de5)]:
+  - @inflowpayai/mpp@0.5.1
