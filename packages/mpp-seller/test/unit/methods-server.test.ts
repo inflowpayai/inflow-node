@@ -11,6 +11,7 @@ import { inflow } from '../../src/methods.server.js';
 
 const BASE = 'https://mpp.test';
 const UUID = '11111111-1111-1111-1111-111111111111';
+const SELLER = '22222222-2222-2222-2222-222222222222';
 const INSTRUMENT = '33333333-3333-3333-3333-333333333333';
 const SECRET = 'seller-binding-secret';
 const server = setupServer();
@@ -25,9 +26,8 @@ afterAll(() => server.close());
 
 function config(overrides: Partial<MppConfigResponse> = {}): MppConfigResponse {
   return {
+    sellerId: SELLER,
     featureFlags: { idempotencyKeyEnabled: true },
-    minSdkVersion: '0.1.0',
-    protocolVersion: '1.0',
     replayPolicy: { managedBy: 'psp' },
     supportedMethods: [
       {
@@ -65,7 +65,6 @@ function mockRedeemSuccess(): { body(): unknown; idempotencyKey(): string | null
           challengeId: 'c1',
           method: 'inflow',
           reference: 'ref-123',
-          settlement: { amount: '10', currency: 'USDC' },
           status: 'success',
           timestamp: '2026-05-31T00:00:00Z',
         },
@@ -95,16 +94,14 @@ describe('native issuance: currency → rail in the minted 402', () => {
   it('mints a single balance-rail challenge for a crypto currency (USDC)', async () => {
     mockConfig();
     const { mppx } = makeMppx();
-    const r = await mppx.charge({ amount: '0.01', currency: 'USDC', recipient: UUID })(
-      new Request('https://app.test/r'),
-    );
+    const r = await mppx.charge({ amount: '0.01', currency: 'USDC' })(new Request('https://app.test/r'));
     expect(r.status).toBe(402);
     if (r.status !== 402) throw new Error('expected 402');
     const request = decodeChallengeRequest(r.challenge);
     expect(request).toMatchObject({
       amount: '0.01',
       currency: 'USDC',
-      recipient: UUID,
+      recipient: SELLER,
       methodDetails: { rail: 'balance' },
     });
   });
@@ -132,14 +129,13 @@ describe('native issuance: currency → rail in the minted 402', () => {
     ).rejects.toBeInstanceOf(MppUnsupportedCurrencyError);
   });
 
-  it('honours pinned currency/recipient defaults and all client options', async () => {
+  it('honours the pinned currency default and all client options', async () => {
     mockConfig();
     const method = inflow({
       apiKey: 'sk_test',
       baseUrl: BASE,
       environment: 'sandbox',
       currency: 'USDC',
-      recipient: UUID,
       timeoutMs: 5_000,
       fetch: globalThis.fetch,
     });
@@ -150,7 +146,7 @@ describe('native issuance: currency → rail in the minted 402', () => {
     expect(decodeChallengeRequest(r.challenge)).toMatchObject({
       amount: '7',
       currency: 'USDC',
-      recipient: UUID,
+      recipient: SELLER,
       methodDetails: { rail: 'balance' },
     });
   });
@@ -305,7 +301,6 @@ describe('verify → /v1/mpp/redeem', () => {
             challengeId: 'c1',
             method: 'inflow',
             reference: 'ref-9',
-            settlement: { amount: '10', currency: 'USDC' },
             status: 'success',
             timestamp: '2026-05-31T00:00:00Z',
           },

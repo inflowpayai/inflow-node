@@ -11,8 +11,6 @@ export { MppRedeemProblemError, MppUnsupportedCurrencyError } from './errors.js'
 
 export type { InflowSellerParameters, LoadedConfig } from './types.js';
 
-// Re-exported from core so a consumer types the version-gate failure without a second dependency on `@inflowpayai/mpp`.
-export { MppProtocolVersionError } from '@inflowpayai/mpp';
 export type { Environment, MppCurrencyRail, MppProblemDetail, MppReceipt } from '@inflowpayai/mpp';
 
 // The foundation server handler + helpers. `Mppx.create({ methods: [inflow(...)], secretKey })` owns challenge minting

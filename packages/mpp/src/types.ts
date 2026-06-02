@@ -90,16 +90,6 @@ export interface MppCredential {
   payload: Record<string, unknown>;
   /** Payer identity per the MPP spec — a DID, blockchain address, or account identifier. Required. */
   source: string;
-  /** InFlow-internal payer userId (UUID), used for server-side bookkeeping. */
-  senderId?: string;
-}
-
-/** Nested settlement value on {@link MppReceipt}: the amount and currency actually settled. */
-export interface MppSettlement {
-  /** Amount actually settled, canonicalised without trailing zeros. Required. */
-  amount: string;
-  /** Currency actually settled. Required. */
-  currency: CurrencyCode;
 }
 
 /**
@@ -113,8 +103,6 @@ export interface MppReceipt {
   method: MppMethodLabel;
   /** Method-specific reference (tx hash, PaymentIntent id, ledger entry id, etc.). Required. */
   reference: string;
-  /** Amount and currency actually settled. Required. */
-  settlement: MppSettlement;
   /** Settlement status. Only `'success'` is emitted today. Required. */
   status: 'success' | (string & {});
   /** RFC 3339 timestamp of settlement. Required. */
@@ -185,12 +173,10 @@ export interface MppReplayPolicy {
 export interface MppConfigResponse {
   /** Bootstrap feature flags. Required. */
   featureFlags: MppFeatureFlags;
-  /** Minimum SDK semver the PSP will accept traffic from (e.g. `'0.1.0'`). Required. */
-  minSdkVersion: string;
-  /** MPP protocol version supported by the PSP (e.g. `'1.0'`). Required. */
-  protocolVersion: string;
   /** Who owns replay protection for credential redemptions. Required. */
   replayPolicy: MppReplayPolicy;
+  /** The authenticated seller's user id; the SDK uses it as the challenge recipient. Required. */
+  sellerId: string;
   /** Per-method capabilities, unioned across the PSP's registered methods. Required. */
   supportedMethods: MppMethodConfig[];
 }

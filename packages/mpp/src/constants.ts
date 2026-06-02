@@ -1,17 +1,4 @@
 /**
- * MPP protocol version this SDK speaks. Compared against `MppConfigResponse.protocolVersion` at the boundary; a
- * mismatch is surfaced as {@link MppProtocolVersionError} rather than allowed to fail deeper in as a decode error.
- */
-export const MPP_PROTOCOL_VERSION = '1.0' as const;
-
-/**
- * This SDK's semantic version, advertised to the PSP and compared against `MppConfigResponse.minSdkVersion`. The PSP
- * rejects traffic from SDKs older than its advertised floor; the SDK refuses to start against a PSP whose floor exceeds
- * this value.
- */
-export const MPP_SDK_VERSION = '0.1.0' as const;
-
-/**
  * HTTP header names used by the MPP wire protocol. Mirrors the server's `MppHeaders`. Emitted verbatim on the write
  * path; read via {@link readHeader} (case-insensitive).
  */

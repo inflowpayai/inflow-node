@@ -21,9 +21,8 @@ describe('MppClient endpoints', () => {
   it('GET /v1/mpp/config returns the typed config and sends the API key', async () => {
     let seenKey: string | null = null;
     const config: MppConfigResponse = {
+      sellerId: '22222222-2222-2222-2222-222222222222',
       featureFlags: { idempotencyKeyEnabled: true },
-      minSdkVersion: '0.1.0',
-      protocolVersion: '1.0',
       replayPolicy: { managedBy: 'psp' },
       supportedMethods: [
         { id: 'inflow', label: 'InFlow', supportedCurrencies: ['USDC'], supportedIntents: ['charge'] },
@@ -46,7 +45,6 @@ describe('MppClient endpoints', () => {
         challengeId: 'c1',
         method: 'inflow',
         reference: 'ref_1',
-        settlement: { amount: '10', currency: 'USDC' },
         status: 'success',
         timestamp: '2025-01-15T12:05:00Z',
       },

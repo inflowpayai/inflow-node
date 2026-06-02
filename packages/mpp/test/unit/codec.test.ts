@@ -120,7 +120,6 @@ describe('credential / receipt codecs', () => {
       challenge,
       payload: { approvalId: 'appr_123' },
       source: 'did:inflow:abc',
-      senderId: '11111111-1111-1111-1111-111111111111',
     };
     expect(decodeCredential(encodeCredential(credential))).toEqual(credential);
   });
@@ -130,7 +129,6 @@ describe('credential / receipt codecs', () => {
       challengeId: 'qB3w',
       method: 'inflow',
       reference: 'ref-1',
-      settlement: { amount: '10', currency: 'USDC' },
       status: 'success',
       timestamp: '2025-01-15T12:05:00Z',
     };

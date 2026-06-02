@@ -154,35 +154,3 @@ export class MppCodecError extends Error {
     this.artifact = artifact;
   }
 }
-
-/**
- * Thrown when the PSP's advertised protocol/SDK floor is incompatible with this SDK: either the server's
- * `protocolVersion` differs from the supported `MPP_PROTOCOL_VERSION`, or the server's `minSdkVersion` exceeds this
- * SDK's version. The SDK does not negotiate — an incompatibility is a hard error surfaced at config time, analogous to
- * `@inflowpayai/x402`'s `X402VersionMismatchError`.
- */
-export class MppProtocolVersionError extends Error {
-  /** The kind of version that was incompatible. */
-  readonly kind: 'protocol' | 'sdk';
-  /** The version this SDK supports (protocol version) or runs at (SDK version). */
-  readonly expected: string;
-  /** The version the server advertised (`protocolVersion` or `minSdkVersion`). */
-  readonly received: string;
-
-  /**
-   * @param kind - `'protocol'` when `protocolVersion` mismatched, `'sdk'` when this SDK is below `minSdkVersion`.
-   * @param expected - The supported protocol version, or this SDK's version.
-   * @param received - The server-advertised value.
-   */
-  constructor(kind: 'protocol' | 'sdk', expected: string, received: string) {
-    const message =
-      kind === 'protocol'
-        ? `Unsupported MPP protocol version: expected ${expected}, server advertised ${received}`
-        : `SDK version ${expected} is below the PSP's minimum supported version ${received}`;
-    super(message);
-    this.name = 'MppProtocolVersionError';
-    this.kind = kind;
-    this.expected = expected;
-    this.received = received;
-  }
-}

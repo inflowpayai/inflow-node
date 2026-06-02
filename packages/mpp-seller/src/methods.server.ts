@@ -30,12 +30,12 @@ interface ResolvedMethodDetails {
  * The flow is the exact analog of `@inflowpayai/x402-seller` delegating verify/settle to the InFlow facilitator while
  * the foundation SDK owns the wire mechanics:
  *
- * - **`defaults`** pin the seller's `currency`/`recipient` so `charge({ amount })` need not repeat them.
- * - **`request`** is a _pure_ function of the request + cached `/config`: it derives the rail from the charge currency
- *   (`currencyRails`: crypto → `balance`, fiat → `instrument`) and fails fast for an unsupported currency. Purity is
- *   required — mppx re-derives the request at verify, and a non-deterministic hook would trip the binding mismatch
- *   check. No randomness, no remote calls (the cached config is primed at construction), no transaction id minted
- *   here.
+ * - **`defaults`** pin the seller's `currency` so `charge({ amount })` need not repeat it.
+ * - **`request`** is a _pure_ function of the request + cached `/config`: it sets the `recipient` to the authenticated
+ *   seller (the config's `sellerId`) and derives the rail from the charge currency (`currencyRails`: crypto →
+ *   `balance`, fiat → `instrument`), failing fast for an unsupported currency. Purity is required — mppx re-derives the
+ *   request at verify, and a non-deterministic hook would trip the binding mismatch check. No randomness, no remote
+ *   calls (the cached config is primed at construction), no transaction id minted here.
  * - **`stableBinding`** opts `rail`/`instrumentId` into the bound set (default binding is only amount/currency/recipient)
  *   so a `balance` credential cannot be redeemed on an `instrument` route, or vice-versa.
  * - **`verify`** forwards the submitted credential to `/v1/mpp/redeem` and reflects the result: a receipt becomes an mppx
@@ -49,9 +49,7 @@ interface ResolvedMethodDetails {
  *   key.
  * @returns The `inflow` server method to pass into `Mppx.create({ methods: [...] })`.
  */
-export function inflow(
-  parameters: InflowSellerParameters,
-): Method.Server<typeof inflowCharge, { currency?: string; recipient?: string }> {
+export function inflow(parameters: InflowSellerParameters): Method.Server<typeof inflowCharge, { currency?: string }> {
   const client = new MppClient({
     apiKey: parameters.apiKey,
     ...(parameters.environment !== undefined ? { environment: parameters.environment } : {}),
@@ -73,7 +71,7 @@ export function inflow(
 
     async request({ request }) {
       const loaded = await config.load();
-      return { ...request, methodDetails: deriveMethodDetails(request, loaded) };
+      return { ...request, recipient: loaded.sellerId, methodDetails: deriveMethodDetails(request, loaded) };
     },
 
     stableBinding(request) {
@@ -101,10 +99,9 @@ export function inflow(
  * @param parameters - The seller parameters.
  * @returns A partial request used as mppx `defaults`.
  */
-function buildDefaults(parameters: InflowSellerParameters): { currency?: string; recipient?: string } {
+function buildDefaults(parameters: InflowSellerParameters): { currency?: string } {
   return {
     ...(parameters.currency !== undefined ? { currency: parameters.currency } : {}),
-    ...(parameters.recipient !== undefined ? { recipient: parameters.recipient } : {}),
   };
 }
 
@@ -114,7 +111,7 @@ function buildDefaults(parameters: InflowSellerParameters): { currency?: string;
  * so mppx's verify-time re-derivation reproduces the same value.
  *
  * @param request - The (defaulted) charge request.
- * @param loaded - The cached, version-gated config.
+ * @param loaded - The cached config.
  * @returns The resolved rail/instrument selector.
  * @throws {@link MppUnsupportedCurrencyError} When the currency is absent from `currencyRails` (or maps to a rail this
  *   SDK does not serve) — the SDK never invents a rail.
@@ -171,9 +168,9 @@ async function redeem(
 /**
  * Map mppx's verified credential to the InFlow wire {@link MppCredential} for redeem. mppx holds `challenge.request` as
  * the parsed object; the server expects the base64url-JCS string, so it is re-encoded with the core codec
- * (byte-for-byte identical to the server's canonicalisation — locked by the shared codec vectors). `senderId` is
- * intentionally absent: it is not carried by mppx's credential and the server correlates by the payload
- * `transactionId`, not by sender.
+ * (byte-for-byte identical to the server's canonicalisation — locked by the shared codec vectors). The server
+ * correlates by the payload `transactionId` and resolves the payer from the transaction, so the credential carries no
+ * sender.
  *
  * @param credential - The mppx credential from `verify`.
  * @returns The InFlow wire credential.
@@ -199,10 +196,8 @@ function toWireCredential(credential: Credential.Credential<Record<string, unkno
 
 /**
  * Map the InFlow {@link MppReceipt} onto mppx's minimal receipt shape (`method`, `reference`, `status`, `timestamp`).
- * mppx's receipt schema carries no `settlement`/`challengeId`, so the settlement amount is **not** reflected in the
- * `Payment-Receipt` header mppx renders; a seller that needs the settled amount reads it from the redeem response.
  *
- * @param receipt - The InFlow settlement receipt.
+ * @param receipt - The InFlow receipt.
  * @returns Parameters for `Receipt.from`.
  * @throws {@link MppRedeemProblemError} When the receipt carries a non-`success` status (a contract violation): mppx's
  *   receipt schema models only successful settlement, so we surface a payment error rather than stamp a false success.

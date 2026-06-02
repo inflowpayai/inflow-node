@@ -1,0 +1,22 @@
+{
+  "name": "@inflowpayai/example-mpp-buyer-fetch",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Example: paying via MPP with a transparently polyfilled global fetch.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@inflowpayai/mpp-buyer": "workspace:^",
+    "dotenv": "^16.4.0",
+    "mppx": "^0.6.28"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.6.0"
+  }
+}
