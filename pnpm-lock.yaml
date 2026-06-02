@@ -69,6 +69,106 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@24.12.4)(msw@2.14.6(@types/node@24.12.4)(typescript@5.9.3))
 
+  examples/mpp-buyer-fetch:
+    dependencies:
+      '@inflowpayai/mpp-buyer':
+        specifier: workspace:^
+        version: link:../../packages/mpp-buyer
+      dotenv:
+        specifier: ^16.4.0
+        version: 16.6.1
+      mppx:
+        specifier: ^0.6.28
+        version: 0.6.28(express@5.2.1)(hono@4.12.19)(typescript@5.9.3)(viem@2.50.4(typescript@5.9.3)(zod@4.4.3))
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.12.4
+      tsx:
+        specifier: ^4.0.0
+        version: 4.22.2
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  examples/mpp-buyer-manual:
+    dependencies:
+      '@inflowpayai/mpp-buyer':
+        specifier: workspace:^
+        version: link:../../packages/mpp-buyer
+      dotenv:
+        specifier: ^16.4.0
+        version: 16.6.1
+      mppx:
+        specifier: ^0.6.28
+        version: 0.6.28(express@5.2.1)(hono@4.12.19)(typescript@5.9.3)(viem@2.50.4(typescript@5.9.3)(zod@4.4.3))
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.12.4
+      tsx:
+        specifier: ^4.0.0
+        version: 4.22.2
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  examples/mpp-seller-express:
+    dependencies:
+      '@inflowpayai/mpp-seller':
+        specifier: workspace:^
+        version: link:../../packages/mpp-seller
+      dotenv:
+        specifier: ^16.4.0
+        version: 16.6.1
+      express:
+        specifier: ^5.0.0
+        version: 5.2.1
+      mppx:
+        specifier: ^0.6.28
+        version: 0.6.28(express@5.2.1)(hono@4.12.19)(typescript@5.9.3)(viem@2.50.4(typescript@5.9.3)(zod@4.4.3))
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.0
+        version: 5.0.6
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.12.4
+      tsx:
+        specifier: ^4.0.0
+        version: 4.22.2
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  examples/mpp-seller-hono:
+    dependencies:
+      '@hono/node-server':
+        specifier: ^1.13.0
+        version: 1.19.14(hono@4.12.19)
+      '@inflowpayai/mpp-seller':
+        specifier: workspace:^
+        version: link:../../packages/mpp-seller
+      dotenv:
+        specifier: ^16.4.0
+        version: 16.6.1
+      hono:
+        specifier: ^4.0.0
+        version: 4.12.19
+      mppx:
+        specifier: ^0.6.28
+        version: 0.6.28(express@5.2.1)(hono@4.12.19)(typescript@5.9.3)(viem@2.50.4(typescript@5.9.3)(zod@4.4.3))
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.12.4
+      tsx:
+        specifier: ^4.0.0
+        version: 4.22.2
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   examples/x402-buyer-axios:
     dependencies:
       '@inflowpayai/x402':
@@ -2046,9 +2146,6 @@ packages:
   '@types/node@12.20.55':
     resolution: {integrity: sha512-J8xLz7q2OFulZ2cyGTLE1TbbZcjpno7FaN6zdJNrgAdrJ+DZzh/uFR6YrTb4C+nXakvud8Q4+rbhoIWlYQbUFQ==}
 
-  '@types/node@20.19.41':
-    resolution: {integrity: sha512-ECymXOukMnOoVkC2bb1Vc/w/836DXncOg5m8Xj1RH7xSHZJWNYY6Zh7EH477vcnD5egKNNfy2RpNOmuChhFPgQ==}
-
   '@types/node@24.12.4':
     resolution: {integrity: sha512-GUUEShf+PBCGW2KaXwcIt3Yk+e3pkKwWKb9GSyM9WQVE+ep2jzmHdGsHzu4wgcZy5fN9FBdVzjpBQsYlpfpgLA==}
 
@@ -3957,9 +4054,6 @@ packages:
   ufo@1.6.4:
     resolution: {integrity: sha512-JFNbkD1Svwe0KvGi8GOeLcP4kAWQ609twvCdcHxq1oSL8svv39ZuSvajcD8B+5D0eL4+s1Is2D/O6KN3qcTeRA==}
 
-  undici-types@6.21.0:
-    resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
-
   undici-types@7.16.0:
     resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
 
@@ -5485,11 +5579,11 @@ snapshots:
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
-      '@types/node': 20.19.41
+      '@types/node': 24.12.4
 
   '@types/connect@3.4.38':
     dependencies:
-      '@types/node': 20.19.41
+      '@types/node': 24.12.4
 
   '@types/debug@4.1.13':
     dependencies:
@@ -5501,7 +5595,7 @@ snapshots:
 
   '@types/express-serve-static-core@5.1.1':
     dependencies:
-      '@types/node': 20.19.41
+      '@types/node': 24.12.4
       '@types/qs': 6.15.1
       '@types/range-parser': 1.2.7
       '@types/send': 1.2.1
@@ -5528,10 +5622,6 @@ snapshots:
 
   '@types/node@12.20.55': {}
 
-  '@types/node@20.19.41':
-    dependencies:
-      undici-types: 6.21.0
-
   '@types/node@24.12.4':
     dependencies:
       undici-types: 7.16.0
@@ -5546,16 +5636,16 @@ snapshots:
 
   '@types/send@1.2.1':
     dependencies:
-      '@types/node': 20.19.41
+      '@types/node': 24.12.4
 
   '@types/serve-static@2.2.0':
     dependencies:
       '@types/http-errors': 2.0.5
-      '@types/node': 20.19.41
+      '@types/node': 24.12.4
 
   '@types/set-cookie-parser@2.4.10':
     dependencies:
-      '@types/node': 20.19.41
+      '@types/node': 24.12.4
 
   '@types/statuses@2.0.6': {}
 
@@ -7708,8 +7798,6 @@ snapshots:
   uc.micro@2.1.0: {}
 
   ufo@1.6.4: {}
-
-  undici-types@6.21.0: {}
 
   undici-types@7.16.0: {}
 

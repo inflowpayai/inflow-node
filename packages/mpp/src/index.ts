@@ -7,8 +7,6 @@ export {
   HEADERS,
   INTENT_CHARGE,
   METHOD_INFLOW,
-  MPP_PROTOCOL_VERSION,
-  MPP_SDK_VERSION,
   PROBLEM_TYPE_BASE,
   PROBLEM_TYPES,
   SCHEME_PAYMENT,
@@ -21,7 +19,7 @@ export type { HeaderBag } from './constants.js';
 export { resolveBaseUrl } from './environment.js';
 export type { Environment, ResolveBaseUrlOptions } from './environment.js';
 
-export { InflowApiError, MppCodecError, MppProtocolVersionError } from './errors.js';
+export { InflowApiError, MppCodecError } from './errors.js';
 export type { InflowApiErrorInit } from './errors.js';
 
 export {
@@ -67,7 +65,6 @@ export type {
   MppRedeemResponse,
   MppReceipt,
   MppReplayPolicy,
-  MppSettlement,
   MppSupportedIntent,
   MppSupportedKind,
   MppSupportedRail,

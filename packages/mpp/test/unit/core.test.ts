@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { PROBLEM_TYPES, readHeader, readHeaderAll, transactionPath } from '../../src/constants.js';
 import { resolveBaseUrl } from '../../src/environment.js';
-import { InflowApiError, MppCodecError, MppProtocolVersionError } from '../../src/errors.js';
+import { InflowApiError, MppCodecError } from '../../src/errors.js';
 
 describe('resolveBaseUrl', () => {
   it('defaults to production', () => {
@@ -48,11 +48,6 @@ describe('errors', () => {
     expect(err.message).toBe('bad amount');
     expect(err.headers?.authorization).toBeUndefined();
     expect(err.headers?.['x-trace']).toBe('keep');
-  });
-
-  it('MppProtocolVersionError distinguishes protocol vs sdk mismatches', () => {
-    expect(new MppProtocolVersionError('protocol', '1.0', '2.0').message).toContain('protocol version');
-    expect(new MppProtocolVersionError('sdk', '0.1.0', '0.2.0').message).toContain('minimum supported');
   });
 
   it('MppCodecError names the artefact', () => {

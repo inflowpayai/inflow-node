@@ -45,15 +45,15 @@ const VECTORS: readonly Vector[] = [
   },
   {
     name: 'credential_balance',
-    json: `{"challenge":{"expires":"2026-05-30T12:05:00Z","id":"qB3wChallengeId","intent":"charge","method":"inflow","realm":"api.inflowpay.ai","request":"${REQUEST_BALANCE_B64}"},"payload":{"approvalId":"appr_0001","transactionId":"44444444-4444-4444-4444-444444444444","type":"balance"},"senderId":"22222222-2222-2222-2222-222222222222","source":"did:inflow:22222222-2222-2222-2222-222222222222"}`,
+    json: `{"challenge":{"expires":"2026-05-30T12:05:00Z","id":"qB3wChallengeId","intent":"charge","method":"inflow","realm":"api.inflowpay.ai","request":"${REQUEST_BALANCE_B64}"},"payload":{"approvalId":"appr_0001","transactionId":"44444444-4444-4444-4444-444444444444","type":"balance"},"source":"did:inflow:22222222-2222-2222-2222-222222222222"}`,
     b64url:
-      'eyJjaGFsbGVuZ2UiOnsiZXhwaXJlcyI6IjIwMjYtMDUtMzBUMTI6MDU6MDBaIiwiaWQiOiJxQjN3Q2hhbGxlbmdlSWQiLCJpbnRlbnQiOiJjaGFyZ2UiLCJtZXRob2QiOiJpbmZsb3ciLCJyZWFsbSI6ImFwaS5pbmZsb3dwYXkuYWkiLCJyZXF1ZXN0IjoiZXlKaGJXOTFiblFpT2lJeE1DNDFJaXdpWTNWeWNtVnVZM2tpT2lKVlUwUkRJaXdpYldWMGFHOWtSR1YwWVdsc2N5STZleUp5WVdsc0lqb2lZbUZzWVc1alpTSjlMQ0p5WldOcGNHbGxiblFpT2lJeE1URXhNVEV4TVMweE1URXhMVEV4TVRFdE1URXhNUzB4TVRFeE1URXhNVEV4TVRFaWZRIn0sInBheWxvYWQiOnsiYXBwcm92YWxJZCI6ImFwcHJfMDAwMSIsInRyYW5zYWN0aW9uSWQiOiI0NDQ0NDQ0NC00NDQ0LTQ0NDQtNDQ0NC00NDQ0NDQ0NDQ0NDQiLCJ0eXBlIjoiYmFsYW5jZSJ9LCJzZW5kZXJJZCI6IjIyMjIyMjIyLTIyMjItMjIyMi0yMjIyLTIyMjIyMjIyMjIyMiIsInNvdXJjZSI6ImRpZDppbmZsb3c6MjIyMjIyMjItMjIyMi0yMjIyLTIyMjItMjIyMjIyMjIyMjIyIn0',
+      'eyJjaGFsbGVuZ2UiOnsiZXhwaXJlcyI6IjIwMjYtMDUtMzBUMTI6MDU6MDBaIiwiaWQiOiJxQjN3Q2hhbGxlbmdlSWQiLCJpbnRlbnQiOiJjaGFyZ2UiLCJtZXRob2QiOiJpbmZsb3ciLCJyZWFsbSI6ImFwaS5pbmZsb3dwYXkuYWkiLCJyZXF1ZXN0IjoiZXlKaGJXOTFiblFpT2lJeE1DNDFJaXdpWTNWeWNtVnVZM2tpT2lKVlUwUkRJaXdpYldWMGFHOWtSR1YwWVdsc2N5STZleUp5WVdsc0lqb2lZbUZzWVc1alpTSjlMQ0p5WldOcGNHbGxiblFpT2lJeE1URXhNVEV4TVMweE1URXhMVEV4TVRFdE1URXhNUzB4TVRFeE1URXhNVEV4TVRFaWZRIn0sInBheWxvYWQiOnsiYXBwcm92YWxJZCI6ImFwcHJfMDAwMSIsInRyYW5zYWN0aW9uSWQiOiI0NDQ0NDQ0NC00NDQ0LTQ0NDQtNDQ0NC00NDQ0NDQ0NDQ0NDQiLCJ0eXBlIjoiYmFsYW5jZSJ9LCJzb3VyY2UiOiJkaWQ6aW5mbG93OjIyMjIyMjIyLTIyMjItMjIyMi0yMjIyLTIyMjIyMjIyMjIyMiJ9',
   },
   {
     name: 'receipt_success',
-    json: '{"challengeId":"qB3wChallengeId","method":"inflow","reference":"0xdeadbeef","settlement":{"amount":"10.5","currency":"USDC"},"status":"success","timestamp":"2026-05-30T12:05:00Z"}',
+    json: '{"challengeId":"qB3wChallengeId","method":"inflow","reference":"0xdeadbeef","status":"success","timestamp":"2026-05-30T12:05:00Z"}',
     b64url:
-      'eyJjaGFsbGVuZ2VJZCI6InFCM3dDaGFsbGVuZ2VJZCIsIm1ldGhvZCI6ImluZmxvdyIsInJlZmVyZW5jZSI6IjB4ZGVhZGJlZWYiLCJzZXR0bGVtZW50Ijp7ImFtb3VudCI6IjEwLjUiLCJjdXJyZW5jeSI6IlVTREMifSwic3RhdHVzIjoic3VjY2VzcyIsInRpbWVzdGFtcCI6IjIwMjYtMDUtMzBUMTI6MDU6MDBaIn0',
+      'eyJjaGFsbGVuZ2VJZCI6InFCM3dDaGFsbGVuZ2VJZCIsIm1ldGhvZCI6ImluZmxvdyIsInJlZmVyZW5jZSI6IjB4ZGVhZGJlZWYiLCJzdGF0dXMiOiJzdWNjZXNzIiwidGltZXN0YW1wIjoiMjAyNi0wNS0zMFQxMjowNTowMFoifQ',
   },
 ];
 
@@ -85,7 +85,7 @@ describe('server byte-parity vectors', () => {
 
     const receiptVector = VECTORS.find((vector) => vector.name === 'receipt_success')!;
     const receipt = decodeReceipt(receiptVector.b64url);
-    expect(receipt.settlement.amount).toBe('10.5');
+    expect(receipt.reference).toBe('0xdeadbeef');
     expect(receipt.method).toBe('inflow');
   });
 });

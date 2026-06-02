@@ -68,7 +68,9 @@ See the [x402 product docs](./docs/x402/README.md) for quickstarts.
 
 ## Examples
 
-Runnable end-to-end examples live in [`examples/`](./examples):
+Runnable end-to-end examples live in [`examples/`](./examples). Start a seller, then run a buyer against it.
+
+**x402:**
 
 - [`x402-seller-express`](./examples/x402-seller-express) — Express server with three protected routes.
 - [`x402-seller-hono`](./examples/x402-seller-hono) — same shape on Hono via `@hono/node-server`.
@@ -88,7 +90,13 @@ Runnable end-to-end examples live in [`examples/`](./examples):
   `@x402/express` seller + foundation-only EVM buyer, with no `INFLOW_API_KEY` (uses
   `createUnauthenticatedInflowFacilitator`).
 
-Start a seller, then run a buyer against it.
+**MPP:**
+
+- [`mpp-seller-express`](./examples/mpp-seller-express) — Express server accepting MPP payments via `mppx`'s Express
+  adapter + InFlow's `inflow` seller method.
+- [`mpp-seller-hono`](./examples/mpp-seller-hono) — same shape on Hono via `mppx/hono` and `@hono/node-server`.
+- [`mpp-buyer-fetch`](./examples/mpp-buyer-fetch) — paying via MPP through a transparently polyfilled global `fetch`.
+- [`mpp-buyer-manual`](./examples/mpp-buyer-manual) — paying via MPP through the explicit, non-polyfill `mppx.fetch`.
 
 ## Supported runtimes
 

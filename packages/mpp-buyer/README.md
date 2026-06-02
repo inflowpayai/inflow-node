@@ -1,8 +1,7 @@
 # @inflowpayai/mpp-buyer
 
-Buyer-side of InFlow's MPP (Machine Payments Protocol) method for the
-[InFlow MPP SDK](https://github.com/inflowpayai/inflow-node/tree/main/docs/mpp). It attaches `Method.toClient` behaviour
-to the shared `inflow` method from
+Buyer-side of InFlow's MPP (Machine Payments Protocol) `inflow` method for [`mppx`](https://github.com/wevm/mppx). It
+attaches `Method.toClient` behaviour to the shared `inflow` method from
 [`@inflowpayai/mpp`](https://github.com/inflowpayai/inflow-node/tree/main/packages/mpp): `createCredential` does **not**
 sign locally — it drives the InFlow buyer endpoints (`POST /v1/transactions/mpp` → poll `GET /v1/transactions/{id}/mpp`)
 through the pending → ready lifecycle and returns the **server-produced** credential. This is the MPP analog of
@@ -17,9 +16,21 @@ pnpm add @inflowpayai/mpp-buyer mppx
 [`mppx`](https://github.com/wevm/mppx) is a peer dependency — co-install it so package managers warn loudly when it's
 missing. `@inflowpayai/mpp` comes along as a normal dependency.
 
-## Usage
+## What's exported
 
-### Transparent (polyfilled global `fetch`)
+- `inflow(parameters)` — the buyer `inflow` client method. Pass it to `Mppx.create({ methods: [inflow({ apiKey })] })`.
+  The returned method is augmented with `cleanup()` (aborts any in-flight poll) and `cancelApproval(approvalId)`
+  (fire-and-forget cancel of a backing approval, e.g. for out-of-process resumption).
+- `inflowContextSchema` — the per-call context schema (`{ instrumentId? }`) `mppx` validates before `createCredential`
+  runs.
+- `Mppx` (re-exported from `mppx/client`) and `Receipt` (from `mppx`) — a single import gives the foundation client and
+  the InFlow method.
+- Types: `InflowBuyerParameters`, `FulfilOptions`, plus the core re-exports `Environment`, `InflowClientOptions` /
+  `InflowAnonymousClientOptions` / `InflowBearerClientOptions`, `InflowPaymentOptions`, `MppCredential`.
+- Errors: `MppPaymentFailedError` (carries the server's `MppProblemDetail`), `MppPaymentExpiredError`,
+  `MppPaymentTimeoutError`, `MppPaymentCancelledError`, `MppMalformedCredentialError`.
+
+## Quickstart
 
 `Mppx.create` polyfills `globalThis.fetch` by default, so payments happen transparently on a `402`:
 
@@ -32,20 +43,9 @@ const res = await fetch('https://api.example.com/widgets');
 // 402 → InFlow fulfils the challenge → request is replayed with `Authorization: Payment …`
 ```
 
-### Manual / non-polyfill
-
-```ts
-import { Mppx, inflow, Receipt } from '@inflowpayai/mpp-buyer';
-
-const mppx = Mppx.create({ polyfill: false, methods: [inflow({ apiKey, environment: 'sandbox' })] });
-
-// For an instrument-rail (fiat) challenge, pass the funding instrument via per-request context.
-const res = await mppx.fetch('https://api.example.com/widgets', {
-  context: { instrumentId: '00000000-0000-0000-0000-000000000001' },
-});
-
-const receipt = Receipt.fromResponse(res); // present when the seller returned a `Payment-Receipt`
-```
+The transparent path above is [`examples/mpp-buyer-fetch`](../../examples/mpp-buyer-fetch); the explicit, non-polyfill
+path (`Mppx.create({ polyfill: false })` + `mppx.fetch`) is
+[`examples/mpp-buyer-manual`](../../examples/mpp-buyer-manual).
 
 The rail (`balance` for crypto, `instrument` for fiat) is **derived from the seller's challenge** — the buyer does not
 choose it. The only buyer-supplied per-call option is `instrumentId` for instrument-rail challenges.
@@ -66,10 +66,13 @@ A `pending` transaction is backed by a server-side **approval**. The method inst
 If a cancel is unavailable or races, **server-side expiry is the backstop** — orphaned pending transactions are reaped
 when their challenge/approval window elapses.
 
-## Errors
+## See also
 
-`MppPaymentFailedError` (carries the server's `MppProblemDetail`), `MppPaymentExpiredError`, `MppPaymentTimeoutError`,
-`MppPaymentCancelledError`, and `MppMalformedCredentialError`.
+- [@inflowpayai/mpp](../mpp) — core `inflow` `Method` definition, wire types, codec, HTTP client
+- [Product overview](../../docs/mpp/README.md)
+- [Architecture](../../docs/mpp/architecture.md) — InFlow-as-PSP boundary, package layering, the buyer poll lifecycle
+- Examples: [`mpp-buyer-fetch`](../../examples/mpp-buyer-fetch) (transparent),
+  [`mpp-buyer-manual`](../../examples/mpp-buyer-manual) (explicit `mppx.fetch`)
 
 ## License
 

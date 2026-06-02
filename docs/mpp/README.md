@@ -57,20 +57,26 @@ const tx = await mpp.createTransaction({ challenge });
 The seller package (`@inflowpayai/mpp-seller`) attaches `Method.toServer` whose `verify` calls `POST /v1/mpp/redeem`: an
 unpaid request returns a locally issued `402` challenge, and a paid one is redeemed and settled through InFlow. Sellers
 wire it into their framework via the foundation SDK's own middleware. See [architecture.md](./architecture.md) for the
-PSP boundary.
+PSP boundary, and [`examples/mpp-seller-express`](../../examples/mpp-seller-express) or
+[`examples/mpp-seller-hono`](../../examples/mpp-seller-hono) for the complete runnable shape.
 
 ## Quickstart — buyer
 
 The buyer package (`@inflowpayai/mpp-buyer`) provides `Method.toClient` whose `createCredential` forwards the parsed
 challenge to `POST /v1/transactions/mpp`, polls `GET /v1/transactions/{id}/mpp` through the `pending → ready` lifecycle,
 and returns the server-produced credential. The buyer does not sign locally and does not synthesise `source` — the
-server-produced credential already carries it.
+server-produced credential already carries it. See [`examples/mpp-buyer-fetch`](../../examples/mpp-buyer-fetch)
+(transparent, polyfilled `fetch`) and [`examples/mpp-buyer-manual`](../../examples/mpp-buyer-manual) (explicit
+`mppx.fetch`) for the complete runnable shape.
 
 ## Deeper reading
 
 - [architecture.md](./architecture.md) — InFlow-as-PSP boundary, package layering, the buyer poll lifecycle.
 - [protocol-mapping.md](./protocol-mapping.md) — InFlow wire models ↔ `mppx` `Method` schemas ↔ IETF drafts.
 - [extensions.md](./extensions.md) — the `charge` → `session` namespace path.
+
+Runnable examples live under [`examples/`](../../examples): the `mpp-seller-*` and `mpp-buyer-*` directories. Start a
+seller, then run a buyer against it.
 
 For monorepo-level docs (publishing, contributing, tooling), see [../monorepo](../monorepo).
 
