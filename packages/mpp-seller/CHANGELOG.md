@@ -1,5 +1,19 @@
 # @inflowpayai/mpp-seller
 
+## 0.5.2
+
+### Patch Changes
+
+- [#21](https://github.com/inflowpayai/inflow-node/pull/21)
+  [`3106b26`](https://github.com/inflowpayai/inflow-node/commit/3106b263415b58f88189360e8187fb3703b0fc86) Thanks
+  [@nkavian](https://github.com/nkavian)! - Add multi-currency seller helpers. `inflowCharges(mppx, prices)` presents
+  several currencies on one route — one `WWW-Authenticate: Payment` challenge per `{ amount, currency }` via mppx's
+  `compose(...)` — and returns the Web-fetch handler; `inflowChargesNodeListener(mppx, prices)` wraps it with
+  `Mppx.toNodeListener` for Node/Express. Amounts are per-currency and independent, and each currency's rail is derived
+  from the PSP config (crypto → `balance`, fiat → `instrument`). This is the MPP analog of `@inflowpayai/x402-seller`'s
+  `inflowAccepts`, needed because the mppx framework adapters expose only the single-currency `charge` and do not expose
+  `compose`. Also exports the `InflowChargePrice` type.
+
 ## 0.5.1
 
 ### Patch Changes
