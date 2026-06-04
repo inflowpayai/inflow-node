@@ -56,8 +56,11 @@ const tx = await mpp.createTransaction({ challenge });
 
 The seller package (`@inflowpayai/mpp-seller`) attaches `Method.toServer` whose `verify` calls `POST /v1/mpp/redeem`: an
 unpaid request returns a locally issued `402` challenge, and a paid one is redeemed and settled through InFlow. Sellers
-wire it into their framework via the foundation SDK's own middleware. See [architecture.md](./architecture.md) for the
-PSP boundary, and [`examples/mpp-seller-express`](../../examples/mpp-seller-express) or
+wire it into their framework via the foundation SDK's own middleware. To accept **multiple currencies** on one route
+(one challenge per currency), use the package's `inflowCharges` / `inflowChargesNodeListener` helpers over the core
+`mppx/server` instance — the framework adapters expose only the single-currency `charge`. See
+[architecture.md](./architecture.md) for the PSP boundary, and
+[`examples/mpp-seller-express`](../../examples/mpp-seller-express) or
 [`examples/mpp-seller-hono`](../../examples/mpp-seller-hono) for the complete runnable shape.
 
 ## Quickstart — buyer

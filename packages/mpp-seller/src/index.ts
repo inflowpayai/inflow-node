@@ -4,6 +4,9 @@
 
 export { inflow } from './methods.server.js';
 
+export { inflowCharges, inflowChargesNodeListener } from './compose.server.js';
+export type { InflowChargePrice } from './compose.server.js';
+
 export { createConfigClient } from './config-client.js';
 export type { InflowConfigClient } from './config-client.js';
 

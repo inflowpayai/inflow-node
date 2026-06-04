@@ -5,6 +5,8 @@ import * as pkg from '../../src/index.js';
 describe('public barrel', () => {
   it('re-exports the inflow factory, config client, errors, and the foundation Mppx + Receipt', () => {
     expect(typeof pkg.inflow).toBe('function');
+    expect(typeof pkg.inflowCharges).toBe('function');
+    expect(typeof pkg.inflowChargesNodeListener).toBe('function');
     expect(typeof pkg.createConfigClient).toBe('function');
     expect(typeof pkg.MppRedeemProblemError).toBe('function');
     expect(typeof pkg.MppUnsupportedCurrencyError).toBe('function');

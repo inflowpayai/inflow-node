@@ -23,7 +23,7 @@ if (sellerAddress === undefined || sellerAddress === '') {
 // — the seller hand-builds the `accepts[]` array against Base Sepolia
 // USDC, the same way a seller using the foundation's reference
 // facilitator would.
-const inflow = createUnauthenticatedInflowFacilitator({ environment: 'sandbox', baseUrl: 'https://dev.inflowpay.ai' });
+const inflow = createUnauthenticatedInflowFacilitator({ environment: 'sandbox' });
 
 // Base Sepolia USDC, hand-built `RouteConfig`. The atomic-amount and
 // asset contract address are pre-resolved here in `price` (the

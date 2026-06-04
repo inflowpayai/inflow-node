@@ -1,6 +1,19 @@
 # inflow-node
 
-Official Node.js SDKs for the [InFlow](https://inflowpay.ai) payments platform.
+Official Node.js SDKs for the [InFlow](https://www.inflowpay.ai) payments platform.
+
+## Accounts & environments
+
+Register a Seller account and create an API key in the InFlow dashboard, then pass `environment` to the SDK. That's the
+only configuration you need — the SDK resolves the right endpoint internally (don't set `baseUrl`).
+
+| `environment`       | Register / get your API key at |
+| ------------------- | ------------------------------ |
+| `sandbox` (testing) | `https://sandbox.inflowpay.ai` |
+| `production` (live) | `https://app.inflowpay.ai`     |
+
+> For network egress allowlisting only: the SDK makes its outbound API calls to `https://sandbox.inflowpay.ai` (sandbox)
+> and `https://api.inflowpay.ai` (production). You never set these yourself.
 
 ## What's here
 
@@ -93,8 +106,10 @@ Runnable end-to-end examples live in [`examples/`](./examples). Start a seller, 
 **MPP:**
 
 - [`mpp-seller-express`](./examples/mpp-seller-express) — Express server accepting MPP payments via `mppx`'s Express
-  adapter + InFlow's `inflow` seller method.
-- [`mpp-seller-hono`](./examples/mpp-seller-hono) — same shape on Hono via `mppx/hono` and `@hono/node-server`.
+  adapter + InFlow's `inflow` seller method, plus a multi-currency `/api/checkout` route via
+  `inflowChargesNodeListener`.
+- [`mpp-seller-hono`](./examples/mpp-seller-hono) — same shape on Hono via `mppx/hono` and `@hono/node-server`; the
+  multi-currency `/api/checkout` route uses `inflowCharges` on the core `mppx/server` instance.
 - [`mpp-buyer-fetch`](./examples/mpp-buyer-fetch) — paying via MPP through a transparently polyfilled global `fetch`.
 - [`mpp-buyer-manual`](./examples/mpp-buyer-manual) — paying via MPP through the explicit, non-polyfill `mppx.fetch`.
 
