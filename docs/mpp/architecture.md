@@ -12,7 +12,9 @@ correlates by the server-stamped `transactionId` carried in the credential paylo
 - The **seller** package's `Method.toServer` issues and renders the `WWW-Authenticate` challenge locally. Its `verify`
   forwards the credential to `POST /v1/mpp/redeem`, where the server correlates by `transactionId` and settles, and maps
   the response to a `Receipt` (success) or throws (failure → 402 + problem). This is the direct analog of x402-seller
-  delegating verify/settle to the InFlow facilitator.
+  delegating verify/settle to the InFlow facilitator. A single charge advertises one currency; to offer several, the
+  seller emits one challenge per currency via `compose(...)` — surfaced by the package's `inflowCharges` helper, the MPP
+  analog of x402-seller's `inflowAccepts`.
 - The **buyer** package's `Method.toClient.createCredential` does not sign locally. It forwards the parsed challenge to
   `POST /v1/transactions/mpp`, polls `GET /v1/transactions/{id}/mpp` through the `pending → ready` lifecycle, and
   returns the server-produced credential, re-serialised for the `Authorization: Payment` header.

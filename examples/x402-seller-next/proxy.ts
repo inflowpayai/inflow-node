@@ -17,13 +17,13 @@ if (apiKey === undefined || apiKey === '') {
 //    Drops into the foundation's `facilitatorClients` array. The seller
 //    can prepend or append other facilitators; first claimer of a
 //    (scheme, network) pair via `getSupported()` wins routing.
-const inflow = createInflowFacilitator({ environment: 'sandbox', apiKey, baseUrl: 'https://dev.inflowpay.ai' });
+const inflow = createInflowFacilitator({ environment: 'sandbox', apiKey });
 
 // 2. Seller-authed client — owns `/v1/x402/config` and signer-discovery.
 //    Module-top `await` so the cache prime runs once at the cold-start
 //    boundary; subsequent proxy invocations on the same worker reuse
 //    the warmed client.
-const seller = await createInflowSellerClient({ environment: 'sandbox', apiKey, baseUrl: 'https://dev.inflowpay.ai' });
+const seller = await createInflowSellerClient({ environment: 'sandbox', apiKey });
 
 // 3. Foundation proxy + InFlow-built `PaymentOption[]` entries.
 //    `paymentProxyFromConfig` returns a `(req) => Promise<NextResponse>`
