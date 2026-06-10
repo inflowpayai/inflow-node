@@ -5,17 +5,14 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   ci:
     runs-on: ubuntu-latest
     strategy:
-      # `x402-foundation: locked` runs against the lockfile-pinned `@x402/*` packages (the versions we built and
-      # tested against). `x402-foundation: latest` overrides every `@x402/*` to the highest 2.x on npm before
-      # installing, so any drift between our peer range (`^2.12.0`) and what consumers actually resolve surfaces
-      # in CI before npm. Both runs are required.
-      #
-      # The `node` axis is a superset of `engines.node` (>=22.0.0): 22 is the floor users see, 24 is the active
-      # LTS. See "Node version management" in AGENTS.md for the three-knob model.
       fail-fast: false
       matrix:
         node: [22, 24]
@@ -23,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 0 # needed for Changesets to detect unreleased PRs
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v6
 
@@ -37,11 +34,6 @@ jobs:
 
       - name: Override @x402/* foundation packages to latest 2.x
         if: matrix.x402-foundation == 'latest'
-        # Bump every `@x402/*` package together, not just `@x402/core`. Each foundation package carries its own
-        # peer-resolved `@x402/core`; updating only `@x402/core` leaves the others on their 2.12.x line and you
-        # end up with two copies of `@x402/core` in node_modules, which collide at the type level (e.g. an
-        # `x402Client` instance from 2.13 passed to a function from `@x402/svm@2.12` fails typecheck). The list
-        # tracks the union of `@x402/*` packages referenced anywhere under `packages/**` and `examples/**`.
         run: |
           pnpm -r update \
             '@x402/core@latest' \
@@ -78,10 +70,18 @@ jobs:
           == 'locked'
         run: pnpm changeset status --since=origin/main
 
+      - name: Upload coverage to Codecov
+        if: matrix.x402-foundation == 'locked' && matrix.node == 22
+        uses: codecov/codecov-action@v5
+        with:
+          use_oidc: true
+          files: >-
+            packages/mpp/coverage/lcov.info,packages/mpp-buyer/coverage/lcov.info,packages/mpp-seller/coverage/lcov.info,packages/x402/coverage/lcov.info,packages/x402-buyer/coverage/lcov.info,packages/x402-seller/coverage/lcov.info
+
       - name: Upload coverage
         if: matrix.x402-foundation == 'locked'
         uses: actions/upload-artifact@v6
         with:
-          name: coverage-report
+          name: coverage-report-node${{ matrix.node }}
           path: packages/*/coverage
           retention-days: 7
