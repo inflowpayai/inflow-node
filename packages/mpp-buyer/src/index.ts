@@ -1,6 +1,6 @@
 // Public barrel for `@inflowpayai/mpp-buyer`. Anything not re-exported here is internal.
 
-export { inflow, inflowContextSchema } from './methods.client.js';
+export { inflow, inflowContextSchema, tempo, tempoContextSchema } from './methods.client.js';
 
 export type { FulfilOptions, InflowBuyerParameters } from './types.js';
 

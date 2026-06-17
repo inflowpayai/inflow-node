@@ -13,11 +13,11 @@ for x402's.
 
 ## Packages
 
-| Package                                  | Role                                                                   | Install when…                       |
-| ---------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------- |
-| [`@inflowpayai/mpp`](../../packages/mpp) | Core: the `inflow` `Method` definition, wire types, codec, HTTP client | Rarely installed directly.          |
-| `@inflowpayai/mpp-seller`                | `Method.toServer` + InFlow redeem/settle driver                        | Accepting MPP payments as a seller. |
-| `@inflowpayai/mpp-buyer`                 | `Method.toClient` + InFlow buyer-endpoint driver                       | Paying via MPP.                     |
+| Package                                  | Role                                                           | Install when…                       |
+| ---------------------------------------- | -------------------------------------------------------------- | ----------------------------------- |
+| [`@inflowpayai/mpp`](../../packages/mpp) | Core: MPP `Method` definitions, wire types, codec, HTTP client | Rarely installed directly.          |
+| `@inflowpayai/mpp-seller`                | `Method.toServer` + InFlow redeem/settle driver                | Accepting MPP payments as a seller. |
+| `@inflowpayai/mpp-buyer`                 | `Method.toClient` + InFlow buyer-endpoint driver               | Paying via MPP.                     |
 
 All packages publish under the `@inflowpayai` scope and declare [`mppx`](https://github.com/wevm/mppx)`@^0.6.28` as a
 peer. The seller/buyer packages additionally re-export `Mppx` from the appropriate `mppx` entry (`mppx/server` /
@@ -28,9 +28,10 @@ peer. The seller/buyer packages additionally re-export `Mppx` from the appropria
 `@inflowpayai/mpp` is the shared foundation both side packages import. It carries no client- or server-only
 orchestration. It exports:
 
-- **`inflow`** — the `mppx` `Method` definition for InFlow's method, organised as a namespace that defaults to `charge`
-  (`inflow` and `inflow.charge` are the same definition today; see [extensions.md](./extensions.md)). The buyer/seller
-  packages attach `Method.toClient` / `Method.toServer` behaviour to it.
+- **`inflow`** — the `mppx` `Method` definition for InFlow balance/instrument payments, organised as a namespace that
+  defaults to `charge` (`inflow` and `inflow.charge` are the same definition; see [extensions.md](./extensions.md)).
+- **`tempo`** — the `mppx` `Method` definition for Tempo TIP-20 charges (`tempo` and `tempo.charge` are the same
+  definition). The buyer/seller packages attach `Method.toClient` / `Method.toServer` behaviour to both methods.
 - **Wire types** — `MppChallenge`, `MppCredential`, `MppReceipt`, `MppProblemDetail`, and the InFlow REST DTOs
   (`MppConfigResponse`, `MppRedeemRequest/Response`, `MppTransactionRequest/Response`). These match the MPP wire format
   byte-for-byte.
@@ -55,22 +56,21 @@ const tx = await mpp.createTransaction({ challenge });
 ## Quickstart — seller
 
 The seller package (`@inflowpayai/mpp-seller`) attaches `Method.toServer` whose `verify` calls `POST /v1/mpp/redeem`: an
-unpaid request returns a locally issued `402` challenge, and a paid one is redeemed and settled through InFlow. Sellers
-wire it into their framework via the foundation SDK's own middleware. To accept **multiple currencies** on one route
-(one challenge per currency), use the package's `inflowCharges` / `inflowChargesNodeListener` helpers over the core
-`mppx/server` instance — the framework adapters expose only the single-currency `charge`. See
-[architecture.md](./architecture.md) for the PSP boundary, and
-[`examples/mpp-seller-express`](../../examples/mpp-seller-express) or
+unpaid request returns a locally issued `402` challenge, and a paid one is redeemed and settled through InFlow. It
+exports seller methods for `inflow` and `tempo`. To accept **multiple InFlow currencies** on one route (one challenge
+per currency), use the package's `inflowCharges` / `inflowChargesNodeListener` helpers over the core `mppx/server`
+instance — the framework adapters expose only the single-currency `charge`. See [architecture.md](./architecture.md) for
+the PSP boundary, and [`examples/mpp-seller-express`](../../examples/mpp-seller-express) or
 [`examples/mpp-seller-hono`](../../examples/mpp-seller-hono) for the complete runnable shape.
 
 ## Quickstart — buyer
 
-The buyer package (`@inflowpayai/mpp-buyer`) provides `Method.toClient` whose `createCredential` forwards the parsed
-challenge to `POST /v1/transactions/mpp`, polls `GET /v1/transactions/{id}/mpp` through the `pending → ready` lifecycle,
-and returns the server-produced credential. The buyer does not sign locally and does not synthesise `source` — the
-server-produced credential already carries it. See [`examples/mpp-buyer-fetch`](../../examples/mpp-buyer-fetch)
-(transparent, polyfilled `fetch`) and [`examples/mpp-buyer-manual`](../../examples/mpp-buyer-manual) (explicit
-`mppx.fetch`) for the complete runnable shape.
+The buyer package (`@inflowpayai/mpp-buyer`) provides `Method.toClient` behaviour for `inflow` and `tempo`. Its
+`createCredential` forwards the parsed challenge to `POST /v1/transactions/mpp`, polls `GET /v1/transactions/{id}/mpp`
+through the `pending → ready` lifecycle, and returns the server-produced credential. The buyer does not sign locally and
+does not synthesise `source` — the server-produced credential already carries it. See
+[`examples/mpp-buyer-fetch`](../../examples/mpp-buyer-fetch) (transparent, polyfilled `fetch`) and
+[`examples/mpp-buyer-manual`](../../examples/mpp-buyer-manual) (explicit `mppx.fetch`) for the complete runnable shape.
 
 ## Deeper reading
 

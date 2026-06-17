@@ -5,17 +5,17 @@ shapes; the source of truth is the MPP wire format and the spec at [mpp.dev](htt
 
 ## Wire models ↔ SDK types
 
-| MPP spec / IETF                            | SDK type (`@inflowpayai/mpp`)                          |
-| ------------------------------------------ | ------------------------------------------------------ |
-| `WWW-Authenticate: Payment` challenge      | `MppChallenge`                                         |
-| `Authorization: Payment <credential>`      | `MppCredential`                                        |
-| `Payment-Receipt`                          | `MppReceipt`                                           |
-| RFC 9457 problem detail                    | `MppProblemDetail`                                     |
-| method-specific challenge `request` object | `InflowChallengeRequest` / `inflowChargeRequestSchema` |
+| MPP spec / IETF                            | SDK type (`@inflowpayai/mpp`)                                                                                |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `WWW-Authenticate: Payment` challenge      | `MppChallenge`                                                                                               |
+| `Authorization: Payment <credential>`      | `MppCredential`                                                                                              |
+| `Payment-Receipt`                          | `MppReceipt`                                                                                                 |
+| RFC 9457 problem detail                    | `MppProblemDetail`                                                                                           |
+| method-specific challenge `request` object | `InflowChallengeRequest` / `inflowChargeRequestSchema`; `TempoChallengeRequest` / `tempoChargeRequestSchema` |
 
-Enum-valued fields are carried as their lowercase wire labels: `method` → `"inflow"`, `intent` → `"charge"`, and `rail`
-→ `"balance"` (crypto) or `"instrument"` (fiat). The SDK types use these wire forms with an open `(string & {})` branch
-so a label added later does not break the type.
+Enum-valued fields are carried as their lowercase wire labels: `method` → `"inflow"` or `"tempo"`, `intent` →
+`"charge"`, and `rail` → `"balance"` (crypto) or `"instrument"` (fiat). The SDK types use these wire forms with an open
+`(string & {})` branch so a label added later does not break the type.
 
 ## Canonical encoding (the byte-parity contract)
 
@@ -51,6 +51,15 @@ and `recipient` — and nests the settlement selectors under a `methodDetails` s
 nesting method-specific selectors under `methodDetails`. `inflowChargeRequestSchema` mirrors that shape, and the nested
 `methodDetails` JCS-encodes deterministically (sorted keys) so byte parity holds. The seller derives `rail` from the
 charge currency via the `currencyRails` capability advertised in `GET /v1/mpp/config`; the buyer does not choose it.
+
+## The `tempo` request object
+
+The Tempo challenge `request` object carries `amount` as a base-unit integer string, `currency` as a TIP-20 token
+address, and `recipient` as a Tempo address. `methodDetails` carries the Tempo chain id, a fee-payer capability flag,
+optional bytes32 primary memo, split transfers, and supported submission modes (`pull` or `push`). The current
+seller/server path emits `feePayer: false` by default and preserves opt-in `feePayer: true` for sponsored settlement.
+The corresponding credential payload carries `type: "transaction"` with a signed transaction, `type: "hash"` with a
+submitted transaction hash, or `type: "proof"` with a zero-amount proof signature.
 
 ## `source` / payer identity
 

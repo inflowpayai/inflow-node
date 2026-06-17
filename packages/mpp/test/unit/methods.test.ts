@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { charge, inflow, inflowChargeRequestSchema, inflowCredentialPayloadSchema } from '../../src/methods.js';
+import {
+  charge,
+  inflow,
+  inflowChargeRequestSchema,
+  inflowCredentialPayloadSchema,
+  tempo,
+  tempoCharge,
+  tempoChargeRequestSchema,
+  tempoCredentialPayloadSchema,
+} from '../../src/methods.js';
+
+const ADDRESS = '0x1111111111111111111111111111111111111111';
+const MEMO = '0x0000000000000000000000000000000000000000000000000000000000001234';
 
 describe('inflow charge request schema', () => {
   it('accepts a well-formed request with nested methodDetails', () => {
@@ -49,5 +61,56 @@ describe('inflow charge request schema', () => {
 describe('inflow Method namespace', () => {
   it('defaults to charge and exposes inflow.charge', () => {
     expect(inflow.charge).toBe(charge);
+  });
+});
+
+describe('tempo charge request schema', () => {
+  it('accepts a request with bytes32 primary and split memos', () => {
+    const parsed = tempoChargeRequestSchema.parse({
+      amount: '100',
+      currency: ADDRESS,
+      recipient: ADDRESS,
+      methodDetails: {
+        memo: MEMO,
+        splits: [{ amount: '10', memo: MEMO, recipient: ADDRESS }],
+        supportedModes: ['pull'],
+      },
+    });
+    expect(parsed.methodDetails?.memo).toBe(MEMO);
+    expect(parsed.methodDetails?.splits?.[0]?.memo).toBe(MEMO);
+  });
+
+  it('rejects non-bytes32 primary and split memos', () => {
+    expect(
+      tempoChargeRequestSchema.safeParse({
+        amount: '100',
+        currency: ADDRESS,
+        recipient: ADDRESS,
+        methodDetails: { memo: '0x1234' },
+      }).success,
+    ).toBe(false);
+    expect(
+      tempoChargeRequestSchema.safeParse({
+        amount: '100',
+        currency: ADDRESS,
+        recipient: ADDRESS,
+        methodDetails: { splits: [{ amount: '10', memo: '0x1234', recipient: ADDRESS }] },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('accepts pull, push, and proof credential payloads', () => {
+    expect(
+      tempoCredentialPayloadSchema.parse({ type: 'transaction', signature: '0x76deadbeef', transactionId: 'tx-tempo' })
+        .transactionId,
+    ).toBe('tx-tempo');
+    expect(tempoCredentialPayloadSchema.safeParse({ type: 'hash', hash: '0x1234' }).success).toBe(true);
+    expect(tempoCredentialPayloadSchema.safeParse({ type: 'proof', signature: '0xabcd' }).success).toBe(true);
+  });
+});
+
+describe('tempo Method namespace', () => {
+  it('defaults to charge and exposes tempo.charge', () => {
+    expect(tempo.charge).toBe(tempoCharge);
   });
 });

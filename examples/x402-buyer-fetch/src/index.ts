@@ -41,20 +41,26 @@ const paymentHeaders = http.encodePaymentSignatureHeader(paymentPayload);
 
 const paid = await fetch(target, { headers: paymentHeaders });
 
-// processResponse parses the response body once and returns a
-// discriminated outcome. `'success'` carries the parsed body and the
-// settle response; other branches surface the failure mode.
-const result = await http.processResponse(paid);
-switch (result.kind) {
-  case 'success':
-    console.log(`  status: ${result.response.status.toString()}`);
-    console.log(`  body: ${JSON.stringify(result.body)}`);
-    console.log(`  paid via ${result.settleResponse.network}: ${result.settleResponse.transaction}`);
-    break;
-  case 'settle_failed':
-    console.error(`  settle failed: ${result.settleResponse.errorReason ?? 'unknown'}`);
-    process.exit(1);
-  default:
-    console.error(`  unexpected outcome: kind=${result.kind}`);
-    process.exit(1);
+// The settlement rides in the `PAYMENT-RESPONSE` (legacy `X-PAYMENT-RESPONSE`)
+// header, decoded by `getPaymentSettleResponse`; the HTTP status is on the
+// native `Response`.
+const getHeader = (name: string): string | null => paid.headers.get(name);
+const hasSettleHeader = getHeader('PAYMENT-RESPONSE') !== null || getHeader('X-PAYMENT-RESPONSE') !== null;
+
+console.log(`  status: ${paid.status.toString()}`);
+console.log(`  body: ${await paid.text()}`);
+
+if (!hasSettleHeader) {
+  // `getPaymentSettleResponse` throws without a settlement header, so surface
+  // the unexpected outcome (e.g. a repeated 402) instead of decoding.
+  console.error(`  unexpected outcome: no settlement header (status ${paid.status.toString()})`);
+  process.exit(1);
+}
+
+const settle = http.getPaymentSettleResponse(getHeader);
+if (settle.success) {
+  console.log(`  paid via ${settle.network}: ${settle.transaction}`);
+} else {
+  console.error(`  settle failed: ${settle.errorReason ?? 'unknown'}`);
+  process.exit(1);
 }

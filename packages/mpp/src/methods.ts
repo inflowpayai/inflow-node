@@ -1,16 +1,16 @@
 import { Method, z } from 'mppx';
 
-import { INTENT_CHARGE, METHOD_INFLOW } from './constants.js';
+import { CREDENTIAL_TRANSACTION_ID, INTENT_CHARGE, METHOD_INFLOW, METHOD_TEMPO } from './constants.js';
 
-// The shared `inflow` Method definition. The foundation SDK (mppx) mints + HMAC-binds challenges locally with the
-// seller's secret; InFlow is the PSP that issues and settles credentials via its REST endpoints and does not verify
-// the challenge HMAC. This definition carries only the schemas (the shared contract); the client/server
-// behaviour (`Method.toClient` / `Method.toServer`) is attached in `@inflowpayai/mpp-buyer` and `@inflowpayai/mpp-seller`,
-// which forward to the InFlow REST endpoints rather than signing/verifying locally.
+// The shared MPP Method definitions (`inflow`, `tempo`). The foundation SDK (mppx) mints + HMAC-binds challenges
+// locally with the seller's secret; InFlow is the PSP that issues and settles credentials via its REST endpoints and
+// does not verify the challenge HMAC. These definitions carry only the schemas (the shared contract); the
+// client/server behaviour (`Method.toClient` / `Method.toServer`) is attached in `@inflowpayai/mpp-buyer` and
+// `@inflowpayai/mpp-seller`, which forward to the InFlow REST endpoints rather than signing/verifying locally.
 //
-// Organised as a Method namespace: the `inflow` export defaults to `charge`, so consumers write `inflow(...)` or
-// `inflow.charge(...)`, and a sibling such as `inflow.session` (see docs/mpp/extensions.md) attaches without changing
-// the import surface.
+// Each method is organised as a Method namespace: the `inflow` / `tempo` exports default to `charge`, so consumers
+// write `inflow(...)` or `inflow.charge(...)` (and likewise `tempo`), leaving room for sibling intents (see
+// docs/mpp/extensions.md) to attach without changing the import surface.
 
 /**
  * Decimal-string amount validator. Amounts are carried as plain decimal strings on the wire (the server serialises
@@ -21,12 +21,38 @@ import { INTENT_CHARGE, METHOD_INFLOW } from './constants.js';
 // are wrappers (`z.optional(...)`) rather than the chainable methods of classic zod.
 const decimalString = z.string().check(z.regex(/^-?\d+(\.\d+)?$/));
 
+const bytes32Hex = z.string().check(z.regex(/^0x[0-9a-fA-F]{64}$/));
+
+const hexAddress = z.string().check(z.regex(/^0x[0-9a-fA-F]{40}$/));
+
+const hexString = z.string().check(z.regex(/^0x[0-9a-fA-F]+$/));
+
+const integerString = z.string().check(z.regex(/^(0|[1-9]\d*)$/));
+
 const nonEmptyString = z.string().check(z.minLength(1));
 
 // Rails wire as the `MppRail` lowercase `@JsonValue` label (consistent with `method`/`intent`). The server's
 // `@JsonCreator` also accepts the uppercase enum name on input. The `inflow` method serves two rails: `balance`
 // (crypto) and `instrument` (fiat).
 const railLabel = z.enum(['balance', 'instrument']);
+
+const tempoSubmissionMode = z.enum(['pull', 'push']);
+
+const tempoSplitSchema = z.object({
+  amount: integerString,
+  recipient: hexAddress,
+  memo: z.optional(bytes32Hex),
+});
+
+const tempoMethodDetailsSchema = z.optional(
+  z.object({
+    chainId: z.optional(z.number()),
+    feePayer: z.optional(z.boolean()),
+    memo: z.optional(bytes32Hex),
+    splits: z.optional(z.array(tempoSplitSchema)),
+    supportedModes: z.optional(z.array(tempoSubmissionMode)),
+  }),
+);
 
 /**
  * Schema for the `inflow` charge request's `methodDetails` selector object. `rail` is derived by the seller SDK from
@@ -66,11 +92,43 @@ export const inflowChargeRequestSchema = z.object({
  */
 export const inflowCredentialPayloadSchema = z.record(z.string(), z.unknown());
 
+/**
+ * Schema for the `tempo` charge request — the method-specific object carried (base64url-JCS) in `MppChallenge.request`.
+ * Byte-compatible with the server's `TempoChallengeRequest`: `amount` is a base-unit integer string, `currency` is the
+ * TIP-20 token address, `recipient` is a Tempo address, and the on-chain selectors (chain id, fee-payer, memo, splits,
+ * supported modes) are nested under `methodDetails`.
+ */
+export const tempoChargeRequestSchema = z.object({
+  amount: integerString,
+  currency: z.optional(hexAddress),
+  recipient: z.optional(hexAddress),
+  description: z.optional(nonEmptyString),
+  externalId: z.optional(nonEmptyString),
+  methodDetails: tempoMethodDetailsSchema,
+});
+
+/**
+ * Schema for the `tempo` credential payload. Pull mode carries a signed Tempo transaction in `signature`; push mode
+ * carries `hash`; zero-amount proof credentials also carry `signature`.
+ */
+export const tempoCredentialPayloadSchema = z.object({
+  type: z.enum(['transaction', 'hash', 'proof']),
+  hash: z.optional(hexString),
+  signature: z.optional(hexString),
+  [CREDENTIAL_TRANSACTION_ID]: z.optional(nonEmptyString),
+});
+
 /** Inferred type of a validated {@link inflowChargeRequestSchema} value. */
 export type InflowChargeRequestInput = z.infer<typeof inflowChargeRequestSchema>;
 
 /** Inferred type of a validated {@link inflowCredentialPayloadSchema} value. */
 export type InflowCredentialPayloadInput = z.infer<typeof inflowCredentialPayloadSchema>;
+
+/** Inferred type of a validated {@link tempoChargeRequestSchema} value. */
+export type TempoChargeRequestInput = z.infer<typeof tempoChargeRequestSchema>;
+
+/** Inferred type of a validated {@link tempoCredentialPayloadSchema} value. */
+export type TempoCredentialPayloadInput = z.infer<typeof tempoCredentialPayloadSchema>;
 
 /**
  * The `inflow` charge Method definition. The shared (schema-only) half of the custom method; buyer/seller packages
@@ -87,8 +145,25 @@ export const charge = Method.from({
   },
 });
 
+/** The `tempo` charge Method definition. */
+export const tempoCharge = Method.from({
+  intent: INTENT_CHARGE,
+  name: METHOD_TEMPO,
+  schema: {
+    request: tempoChargeRequestSchema,
+    credential: {
+      payload: tempoCredentialPayloadSchema,
+    },
+  },
+});
+
 /**
  * The `inflow` Method namespace. Defaults to {@link charge} and exposes it as `inflow.charge`, leaving room for a
  * sibling `inflow.session` to be added later without changing the import surface (see docs/mpp/extensions.md).
  */
 export const inflow: typeof charge & { readonly charge: typeof charge } = Object.assign(charge, { charge });
+
+/** The `tempo` Method namespace. Defaults to {@link tempoCharge} and exposes it as `tempo.charge`. */
+export const tempo: typeof tempoCharge & { readonly charge: typeof tempoCharge } = Object.assign(tempoCharge, {
+  charge: tempoCharge,
+});

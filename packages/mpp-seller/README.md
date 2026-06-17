@@ -1,9 +1,9 @@
 # @inflowpayai/mpp-seller
 
-Seller-side InFlow MPP `inflow` method for [`mppx`](https://www.npmjs.com/package/mppx). Add it to `Mppx.create`, and
+Seller-side InFlow MPP methods for [`mppx`](https://www.npmjs.com/package/mppx). Add them to `Mppx.create`, and
 `charge()` returns a `402` payment challenge for unpaid requests and verifies + settles payments through InFlow. This
-attaches `Method.toServer` behaviour to the shared `inflow` method from `@inflowpayai/mpp`; the foundation `mppx` SDK
-owns the wire mechanics (challenge minting + HMAC binding).
+attaches `Method.toServer` behaviour to shared methods from `@inflowpayai/mpp`; the foundation `mppx` SDK owns the wire
+mechanics (challenge minting + HMAC binding).
 
 ## Install
 
@@ -18,6 +18,9 @@ pnpm add @inflowpayai/mpp-seller mppx
 - `inflow(parameters)` — the seller `inflow` method. Pass it to
   `Mppx.create({ methods: [inflow({ apiKey })], secretKey })`. Its `verify` redeems and settles the submitted credential
   through InFlow (`POST /v1/mpp/redeem`).
+- `tempo(parameters)` — the seller `tempo` method for Tempo TIP-20 charges. Pass it to
+  `Mppx.create({ methods: [tempo({ apiKey, currency, recipient })], secretKey })`. Fee-payer sponsorship defaults to
+  off; set `methodDetails.feePayer: true` (on the method or per charge) to mint a sponsored challenge.
 - `inflowCharges(mppx, prices)` — present several currencies on one route. Returns the Web-fetch handler from
   `compose(...)`: one `WWW-Authenticate` challenge per price (the MPP analog of `@inflowpayai/x402-seller`'s
   `inflowAccepts`). See [Multiple currencies](#multiple-currencies) below.
@@ -26,9 +29,9 @@ pnpm add @inflowpayai/mpp-seller mppx
 - `createConfigClient(client)` — exposes the `GET /v1/mpp/config` loader directly, to prime or inspect the currency→rail
   capability map yourself. Returns an `InflowConfigClient`.
 - `Mppx` and `Expires` (re-exported from `mppx/server`) and `Receipt` (from `mppx`) — a single import gives the
-  foundation server handler and the InFlow method.
-- Types: `InflowSellerParameters`, `LoadedConfig`, `InflowChargePrice`, plus the core re-exports `Environment`,
-  `MppCurrencyRail`, `MppProblemDetail`, `MppReceipt`.
+  foundation server handler and the InFlow methods.
+- Types: `InflowSellerParameters`, `TempoSellerParameters`, `LoadedConfig`, `InflowChargePrice`, plus the core
+  re-exports `Environment`, `MppCurrencyRail`, `MppProblemDetail`, `MppReceipt`.
 - Errors: `MppUnsupportedCurrencyError` (charge currency has no rail in the PSP config), `MppRedeemProblemError`
   (redemption failed; carries the PSP's RFC 9457 problem).
 
@@ -108,7 +111,7 @@ currency. Amounts are per-currency and independent (not a converted exchange rat
 
 ## See also
 
-- [@inflowpayai/mpp](../mpp) — core `inflow` `Method` definition, wire types, codec, HTTP client
+- [@inflowpayai/mpp](../mpp) — core MPP `Method` definitions, wire types, codec, HTTP client
 - [Product overview](../../docs/mpp/README.md)
 - [Architecture](../../docs/mpp/architecture.md) — InFlow-as-PSP boundary, package layering
 - Examples: [`mpp-seller-express`](../../examples/mpp-seller-express),
