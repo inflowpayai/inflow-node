@@ -1,6 +1,6 @@
 {
   "name": "@inflowpayai/mpp-buyer",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "InFlow MPP SDK: buyer-side `inflow` method that drives the InFlow buyer endpoints (prepare → poll → cancel) and returns the server-produced credential, composed with the mppx foundation client.",
   "type": "module",
   "main": "./dist/index.cjs",
