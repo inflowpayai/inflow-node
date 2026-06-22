@@ -7,13 +7,17 @@ import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { MppRedeemProblemError, MppUnsupportedCurrencyError } from '../../src/errors.js';
-import { inflow } from '../../src/methods.server.js';
+import { inflow, tempo } from '../../src/methods.server.js';
 
 const BASE = 'https://mpp.test';
 const UUID = '11111111-1111-1111-1111-111111111111';
 const SELLER = '22222222-2222-2222-2222-222222222222';
 const INSTRUMENT = '33333333-3333-3333-3333-333333333333';
 const SECRET = 'seller-binding-secret';
+const TEMPO_ASSET = '0x20c0000000000000000000000000000000000000';
+const TEMPO_RECIPIENT = '0x2222222222222222222222222222222222222222';
+const TEMPO_SPLIT_RECIPIENT = '0x3333333333333333333333333333333333333333';
+const TEMPO_MEMO = '0x0000000000000000000000000000000000000000000000000000000000001234';
 const server = setupServer();
 
 // The `mppx.challenge.*` generator returns a loosely-typed Challenge (request: Record, intent/method: string), so
@@ -53,7 +57,7 @@ function mockConfig(body: MppConfigResponse = config()): void {
 }
 
 /** A success redeem handler that records the request body + headers it received. */
-function mockRedeemSuccess(): { body(): unknown; idempotencyKey(): string | null } {
+function mockRedeemSuccess(method = 'inflow'): { body(): unknown; idempotencyKey(): string | null } {
   let captured: unknown;
   let key: string | null = null;
   server.use(
@@ -63,7 +67,7 @@ function mockRedeemSuccess(): { body(): unknown; idempotencyKey(): string | null
       return HttpResponse.json({
         receipt: {
           challengeId: 'c1',
-          method: 'inflow',
+          method,
           reference: 'ref-123',
           status: 'success',
           timestamp: '2026-05-31T00:00:00Z',
@@ -79,6 +83,12 @@ function mockRedeemSuccess(): { body(): unknown; idempotencyKey(): string | null
 // the request URL) share the realm that the HMAC binds — otherwise the credential fails Challenge.verify on realm.
 const REALM = 'app.test';
 function makeMppx(method = inflow({ apiKey: 'sk_test', baseUrl: BASE })) {
+  return { method, mppx: Mppx.create({ methods: [method], secretKey: SECRET, realm: REALM }) };
+}
+
+function makeTempoMppx(
+  method = tempo({ apiKey: 'sk_test', baseUrl: BASE, currency: TEMPO_ASSET, recipient: TEMPO_RECIPIENT }),
+) {
   return { method, mppx: Mppx.create({ methods: [method], secretKey: SECRET, realm: REALM }) };
 }
 
@@ -151,6 +161,53 @@ describe('native issuance: currency → rail in the minted 402', () => {
     });
   });
 
+  it('mints a Tempo challenge with fee-payer disabled by default', async () => {
+    mockConfig();
+    const { mppx } = makeTempoMppx();
+    const r = await mppx.charge({ amount: '100' })(new Request('https://app.test/r'));
+    expect(r.status).toBe(402);
+    if (r.status !== 402) throw new Error('expected 402');
+    const request = decodeChallengeRequest(r.challenge);
+    expect(request).toMatchObject({
+      amount: '100',
+      currency: TEMPO_ASSET,
+      recipient: TEMPO_RECIPIENT,
+      methodDetails: { feePayer: false, supportedModes: ['pull'] },
+    });
+  });
+
+  it('mints a Tempo fee-payer challenge from method defaults', async () => {
+    mockConfig();
+    const { mppx } = makeTempoMppx(
+      tempo({
+        apiKey: 'sk_test',
+        baseUrl: BASE,
+        currency: TEMPO_ASSET,
+        methodDetails: { feePayer: true },
+        recipient: TEMPO_RECIPIENT,
+      }),
+    );
+
+    const r = await mppx.charge({ amount: '100' })(new Request('https://app.test/r'));
+    expect(r.status).toBe(402);
+    if (r.status !== 402) throw new Error('expected 402');
+    const request = decodeChallengeRequest(r.challenge);
+    expect(request.methodDetails).toMatchObject({ feePayer: true, supportedModes: ['pull'] });
+  });
+
+  it('mints a Tempo fee-payer challenge from per-charge method details', async () => {
+    mockConfig();
+    const { mppx } = makeTempoMppx();
+
+    const r = await mppx.charge({ amount: '100', methodDetails: { feePayer: true } })(
+      new Request('https://app.test/r'),
+    );
+    expect(r.status).toBe(402);
+    if (r.status !== 402) throw new Error('expected 402');
+    const request = decodeChallengeRequest(r.challenge);
+    expect(request.methodDetails).toMatchObject({ feePayer: true, supportedModes: ['pull'] });
+  });
+
   it('re-derives the same request across two mints (pure request hook)', async () => {
     mockConfig();
     const { mppx } = makeMppx();
@@ -205,6 +262,37 @@ describe('stableBinding', () => {
     const binding = method.stableBinding!({ amount: '1', currency: 'USDC', recipient: UUID });
     expect(binding.rail).toBe('balance');
   });
+
+  it('binds Tempo chain, memo, split, and metadata fields', () => {
+    mockConfig();
+    const { method } = makeTempoMppx();
+    const binding = method.stableBinding!({
+      amount: '100',
+      currency: TEMPO_ASSET,
+      description: 'invoice',
+      externalId: 'inv-1',
+      recipient: TEMPO_RECIPIENT,
+      methodDetails: {
+        chainId: 555555555,
+        feePayer: false,
+        memo: TEMPO_MEMO,
+        splits: [{ amount: '10', memo: TEMPO_MEMO, recipient: TEMPO_SPLIT_RECIPIENT }],
+        supportedModes: ['pull'],
+      },
+    });
+    expect(binding).toEqual({
+      amount: '100',
+      chainId: 555555555,
+      currency: TEMPO_ASSET,
+      description: 'invoice',
+      externalId: 'inv-1',
+      feePayer: false,
+      memo: TEMPO_MEMO,
+      recipient: TEMPO_RECIPIENT,
+      splits: [{ amount: '10', memo: TEMPO_MEMO, recipient: TEMPO_SPLIT_RECIPIENT }],
+      supportedModes: ['pull'],
+    });
+  });
 });
 
 describe('verify → /v1/mpp/redeem', () => {
@@ -236,6 +324,29 @@ describe('verify → /v1/mpp/redeem', () => {
     expect(redeem.idempotencyKey()).toBe('tx-1');
     const body = redeem.body() as { credential: { payload: Record<string, unknown> } };
     expect(body.credential.payload.transactionId).toBe('tx-1');
+  });
+
+  it('forwards the transactionId idempotency key for Tempo redeem', async () => {
+    mockConfig();
+    const redeem = mockRedeemSuccess('tempo');
+    const { mppx } = makeTempoMppx();
+
+    const challenge = await mppx.challenge.tempo.charge({ amount: '100' });
+    const authorization = Credential.serialize({
+      challenge,
+      payload: { transactionId: 'tx-tempo', type: 'transaction', signature: '0x76deadbeef' },
+      source: 'did:pkh:eip155:555555555:0x4444444444444444444444444444444444444444',
+    });
+
+    const r = await mppx.charge({ amount: '100' })(
+      new Request('https://app.test/r', { headers: { Authorization: authorization } }),
+    );
+    expect(r.status).toBe(200);
+    if (r.status !== 200) throw new Error('expected 200');
+
+    expect(redeem.idempotencyKey()).toBe('tx-tempo');
+    const body = redeem.body() as { credential: { payload: Record<string, unknown> } };
+    expect(body.credential.payload.transactionId).toBe('tx-tempo');
   });
 
   it('throws MppRedeemProblemError → framework emits 402 + the RFC 9457 problem body', async () => {

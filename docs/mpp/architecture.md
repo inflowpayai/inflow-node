@@ -9,15 +9,15 @@ The InFlow server owns balance/instrument provisioning and redemption. `GET /v1/
 rail capability (`currencyRails`). The **seller issues challenges locally**; the server does not mint them. On redeem it
 correlates by the server-stamped `transactionId` carried in the credential payload and settles.
 
-- The **seller** package's `Method.toServer` issues and renders the `WWW-Authenticate` challenge locally. Its `verify`
+- The **seller** package's `Method.toServer` methods issue and render `WWW-Authenticate` challenges locally. `verify`
   forwards the credential to `POST /v1/mpp/redeem`, where the server correlates by `transactionId` and settles, and maps
   the response to a `Receipt` (success) or throws (failure → 402 + problem). This is the direct analog of x402-seller
-  delegating verify/settle to the InFlow facilitator. A single charge advertises one currency; to offer several, the
-  seller emits one challenge per currency via `compose(...)` — surfaced by the package's `inflowCharges` helper, the MPP
-  analog of x402-seller's `inflowAccepts`.
-- The **buyer** package's `Method.toClient.createCredential` does not sign locally. It forwards the parsed challenge to
-  `POST /v1/transactions/mpp`, polls `GET /v1/transactions/{id}/mpp` through the `pending → ready` lifecycle, and
-  returns the server-produced credential, re-serialised for the `Authorization: Payment` header.
+  delegating verify/settle to the InFlow facilitator. For the `inflow` method, a single charge advertises one currency;
+  to offer several, the seller emits one challenge per currency via `compose(...)` — surfaced by the package's
+  `inflowCharges` helper, the MPP analog of x402-seller's `inflowAccepts`.
+- The **buyer** package's `Method.toClient.createCredential` methods do not sign locally. They forward the parsed
+  challenge to `POST /v1/transactions/mpp`, poll `GET /v1/transactions/{id}/mpp` through the `pending → ready`
+  lifecycle, and return the server-produced credential, re-serialised for the `Authorization: Payment` header.
 
 This is the exact analog of the x402 facilitator boundary documented in
 [../x402/architecture.md](../x402/architecture.md).
@@ -25,7 +25,7 @@ This is the exact analog of the x402 facilitator boundary documented in
 ## Package layering
 
 ```
-              @inflowpayai/mpp  (core: inflow Method def, types, codec, MppClient)
+              @inflowpayai/mpp  (core: Method defs, types, codec, MppClient)
               /                 \
              /                   \
   @inflowpayai/mpp-seller    @inflowpayai/mpp-buyer

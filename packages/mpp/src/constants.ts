@@ -29,6 +29,9 @@ export const SCHEME_PAYMENT = 'Payment' as const;
 /** Stable identifier of the `inflow` payment method — the `method` auth-param value and `MppMethodId` label. */
 export const METHOD_INFLOW = 'inflow' as const;
 
+/** Stable identifier of the Tempo payment method — the `method` auth-param value and `MppMethodId` label. */
+export const METHOD_TEMPO = 'tempo' as const;
+
 /** The `charge` intent — the only intent this SDK implements today and the `MppIntent` label. */
 export const INTENT_CHARGE = 'charge' as const;
 
@@ -46,6 +49,7 @@ export const PROBLEM_TYPES = {
   PAYMENT_EXPIRED: `${PROBLEM_TYPE_BASE}payment-expired`,
   PAYMENT_INSUFFICIENT: `${PROBLEM_TYPE_BASE}payment-insufficient`,
   PAYMENT_REQUIRED: `${PROBLEM_TYPE_BASE}payment-required`,
+  SETTLEMENT_UNAVAILABLE: `${PROBLEM_TYPE_BASE}settlement-unavailable`,
   VERIFICATION_FAILED: `${PROBLEM_TYPE_BASE}verification-failed`,
 } as const;
 

@@ -1,7 +1,7 @@
 # @inflowpayai/mpp-buyer
 
-Buyer-side of InFlow's MPP (Machine Payments Protocol) `inflow` method for [`mppx`](https://github.com/wevm/mppx). It
-attaches `Method.toClient` behaviour to the shared `inflow` method from
+Buyer-side of InFlow's MPP (Machine Payments Protocol) methods for [`mppx`](https://github.com/wevm/mppx). It attaches
+`Method.toClient` behaviour to shared methods from
 [`@inflowpayai/mpp`](https://github.com/inflowpayai/inflow-node/tree/main/packages/mpp): `createCredential` does **not**
 sign locally — it drives the InFlow buyer endpoints (`POST /v1/transactions/mpp` → poll `GET /v1/transactions/{id}/mpp`)
 through the pending → ready lifecycle and returns the **server-produced** credential. This is the MPP analog of
@@ -21,10 +21,13 @@ missing. `@inflowpayai/mpp` comes along as a normal dependency.
 - `inflow(parameters)` — the buyer `inflow` client method. Pass it to `Mppx.create({ methods: [inflow({ apiKey })] })`.
   The returned method is augmented with `cleanup()` (aborts any in-flight poll) and `cancelApproval(approvalId)`
   (fire-and-forget cancel of a backing approval, e.g. for out-of-process resumption).
+- `tempo(parameters)` — the buyer `tempo` client method. It uses the same InFlow buyer endpoints and returns the
+  server-produced Tempo credential.
 - `inflowContextSchema` — the per-call context schema (`{ instrumentId? }`) `mppx` validates before `createCredential`
   runs.
+- `tempoContextSchema` — the empty per-call context schema for Tempo charges.
 - `Mppx` (re-exported from `mppx/client`) and `Receipt` (from `mppx`) — a single import gives the foundation client and
-  the InFlow method.
+  the InFlow methods.
 - Types: `InflowBuyerParameters`, `FulfilOptions`, plus the core re-exports `Environment`, `InflowClientOptions` /
   `InflowAnonymousClientOptions` / `InflowBearerClientOptions`, `InflowPaymentOptions`, `MppCredential`.
 - Errors: `MppPaymentFailedError` (carries the server's `MppProblemDetail`), `MppPaymentExpiredError`,
@@ -68,7 +71,7 @@ when their challenge/approval window elapses.
 
 ## See also
 
-- [@inflowpayai/mpp](../mpp) — core `inflow` `Method` definition, wire types, codec, HTTP client
+- [@inflowpayai/mpp](../mpp) — core MPP `Method` definitions, wire types, codec, HTTP client
 - [Product overview](../../docs/mpp/README.md)
 - [Architecture](../../docs/mpp/architecture.md) — InFlow-as-PSP boundary, package layering, the buyer poll lifecycle
 - Examples: [`mpp-buyer-fetch`](../../examples/mpp-buyer-fetch) (transparent),

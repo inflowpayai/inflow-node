@@ -1,4 +1,11 @@
-import { charge as inflowCharge, CREDENTIAL_TRANSACTION_ID, encode, MppClient, PROBLEM_TYPES } from '@inflowpayai/mpp';
+import {
+  charge as inflowCharge,
+  CREDENTIAL_TRANSACTION_ID,
+  encode,
+  MppClient,
+  PROBLEM_TYPES,
+  tempoCharge,
+} from '@inflowpayai/mpp';
 import type {
   InflowChargeRequestInput,
   MppChallenge,
@@ -7,13 +14,14 @@ import type {
   MppReceipt,
   MppRedeemRequest,
   MppRequestOptions,
+  TempoChargeRequestInput,
 } from '@inflowpayai/mpp';
 import { Method, Receipt } from 'mppx';
 import type { Credential } from 'mppx';
 
 import { createConfigClient } from './config-client.js';
 import { MppRedeemProblemError, MppUnsupportedCurrencyError } from './errors.js';
-import type { InflowSellerParameters, LoadedConfig } from './types.js';
+import type { InflowSellerParameters, LoadedConfig, TempoSellerParameters } from './types.js';
 
 /** The resolved `methodDetails` selector the request hook attaches: rail (derived from currency) + optional instrument. */
 interface ResolvedMethodDetails {
@@ -93,6 +101,71 @@ export function inflow(parameters: InflowSellerParameters): Method.Server<typeof
 }
 
 /**
+ * The seller-side `tempo` method, built as a **native mppx server method** — the Tempo analog of {@link inflow}.
+ * `Mppx.create({ methods: [tempo(...)], secretKey }).charge({ amount })` mints and HMAC-binds the `WWW-Authenticate:
+ * Payment` challenge **locally** with the seller's `secretKey`; this factory supplies the request enrichment, the
+ * binding fields, and a `verify` that **delegates settlement to the InFlow PSP** via `POST /v1/mpp/redeem`.
+ *
+ * - **`defaults`** pin the seller's TIP-20 `currency` and Tempo `recipient` so `charge({ amount })` need not repeat them.
+ * - **`request`** fills `currency` / `recipient` from defaults and derives the Tempo `methodDetails` (chain id,
+ *   fee-payer, supported modes) from the seller parameters merged with any per-charge overrides.
+ * - **`stableBinding`** binds the full Tempo charge — amount, currency, recipient, chain id, fee-payer, memo, splits,
+ *   supported modes, description, externalId — so a credential cannot be redeemed against altered on-chain terms.
+ * - **`verify`** forwards the submitted credential to `/v1/mpp/redeem` and reflects the result, exactly as {@link inflow}
+ *   does.
+ *
+ * @param parameters - Auth, environment, and Tempo seller defaults ({@link TempoSellerParameters}). The binding
+ *   `secretKey` is supplied to `Mppx.create({ secretKey })`, never the API key.
+ * @returns The `tempo` server method to pass into `Mppx.create({ methods: [...] })`.
+ */
+export function tempo(
+  parameters: TempoSellerParameters,
+): Method.Server<typeof tempoCharge, { currency?: string; recipient?: string }> {
+  const client = new MppClient({
+    apiKey: parameters.apiKey,
+    ...(parameters.environment !== undefined ? { environment: parameters.environment } : {}),
+    ...(parameters.baseUrl !== undefined ? { baseUrl: parameters.baseUrl } : {}),
+    ...(parameters.timeoutMs !== undefined ? { timeoutMs: parameters.timeoutMs } : {}),
+    ...(parameters.fetch !== undefined ? { fetch: parameters.fetch } : {}),
+  });
+  const config = createConfigClient(client);
+
+  void config.load().catch(() => undefined);
+
+  return Method.toServer(tempoCharge, {
+    defaults: buildTempoDefaults(parameters),
+
+    request({ request }) {
+      return {
+        ...request,
+        currency: request.currency ?? parameters.currency,
+        methodDetails: deriveTempoMethodDetails(request, parameters),
+        recipient: request.recipient ?? parameters.recipient,
+      };
+    },
+
+    stableBinding(request) {
+      return {
+        amount: request.amount,
+        chainId: request.methodDetails?.chainId,
+        currency: request.currency,
+        description: request.description,
+        externalId: request.externalId,
+        feePayer: request.methodDetails?.feePayer,
+        memo: request.methodDetails?.memo,
+        recipient: request.recipient,
+        splits: request.methodDetails?.splits,
+        supportedModes: request.methodDetails?.supportedModes,
+      };
+    },
+
+    async verify({ credential }) {
+      return redeem(credential, client, await config.load());
+    },
+  });
+}
+
+/**
  * Build the mppx request `defaults` from the seller parameters — only the keys the seller actually pinned, so unset
  * fields remain caller-supplied.
  *
@@ -102,6 +175,20 @@ export function inflow(parameters: InflowSellerParameters): Method.Server<typeof
 function buildDefaults(parameters: InflowSellerParameters): { currency?: string } {
   return {
     ...(parameters.currency !== undefined ? { currency: parameters.currency } : {}),
+  };
+}
+
+/**
+ * Build the mppx request `defaults` for the `tempo` method: the TIP-20 `currency` and the Tempo `recipient` the seller
+ * pinned (both required for a Tempo charge).
+ *
+ * @param parameters - The Tempo seller parameters.
+ * @returns A partial request used as mppx `defaults`.
+ */
+function buildTempoDefaults(parameters: TempoSellerParameters): { currency: string; recipient: string } {
+  return {
+    currency: parameters.currency,
+    recipient: parameters.recipient,
   };
 }
 
@@ -134,8 +221,28 @@ function deriveMethodDetails(request: InflowChargeRequestInput, loaded: LoadedCo
 }
 
 /**
- * Forward the submitted credential to `POST /v1/mpp/redeem` and reflect the result. The server correlates and settles
- * by the credential's server-minted `transactionId`; redemption is not HMAC-bound.
+ * Merge the Tempo `methodDetails` for a charge: seller-configured defaults beneath any per-charge overrides, then
+ * default `feePayer` to `false` and `supportedModes` to `['pull']` (the only mode the InFlow buyer fulfils).
+ *
+ * @param request - The charge request.
+ * @param parameters - The Tempo seller parameters supplying the defaults.
+ * @returns The resolved Tempo method-details selector.
+ */
+function deriveTempoMethodDetails(
+  request: TempoChargeRequestInput,
+  parameters: TempoSellerParameters,
+): TempoChargeRequestInput['methodDetails'] {
+  return {
+    ...(parameters.methodDetails ?? {}),
+    ...(request.methodDetails ?? {}),
+    feePayer: request.methodDetails?.feePayer ?? parameters.methodDetails?.feePayer ?? false,
+    supportedModes: request.methodDetails?.supportedModes ?? parameters.methodDetails?.supportedModes ?? ['pull'],
+  };
+}
+
+/**
+ * Forward the submitted credential to `POST /v1/mpp/redeem` and reflect the result. The server owns method-specific
+ * replay protection and settlement.
  *
  * @param credential - The verified credential mppx parsed from the `Authorization: Payment` header.
  * @param client - The shared MPP REST client.
@@ -168,9 +275,8 @@ async function redeem(
 /**
  * Map mppx's verified credential to the InFlow wire {@link MppCredential} for redeem. mppx holds `challenge.request` as
  * the parsed object; the server expects the base64url-JCS string, so it is re-encoded with the core codec
- * (byte-for-byte identical to the server's canonicalisation — locked by the shared codec vectors). The server
- * correlates by the payload `transactionId` and resolves the payer from the transaction, so the credential carries no
- * sender.
+ * (byte-for-byte identical to the server's canonicalisation — locked by the shared codec vectors). The server reads the
+ * method-specific payload and source from the credential.
  *
  * @param credential - The mppx credential from `verify`.
  * @returns The InFlow wire credential.

@@ -1,6 +1,6 @@
 # @inflowpayai/mpp
 
-Core types, codec, HTTP client, and the shared `inflow` `Method` definition for the
+Core types, codec, HTTP client, and shared MPP `Method` definitions for the
 [InFlow MPP SDK](https://github.com/inflowpayai/inflow-node/tree/main/docs/mpp).
 
 This package is a transitive dependency of `@inflowpayai/mpp-seller` and `@inflowpayai/mpp-buyer`. Most integrations
@@ -17,10 +17,13 @@ loudly when it's missing.
 
 ## What's exported
 
-- **`inflow`** — the `mppx` `Method` definition for InFlow's `inflow` method, organised as a namespace that defaults to
-  `charge` (`inflow` and `inflow.charge` are the same definition today). The buyer/seller packages attach
-  `Method.toClient` / `Method.toServer` behaviour. Also exported: `charge`, `inflowChargeRequestSchema`,
-  `inflowCredentialPayloadSchema`, and `Method` / `z` (re-exported from `mppx` for authoring sibling intents).
+- **`inflow`** — the `mppx` `Method` definition for InFlow balance/instrument payments, organised as a namespace that
+  defaults to `charge` (`inflow` and `inflow.charge` are the same definition). Also exported: `charge`,
+  `inflowChargeRequestSchema`, and `inflowCredentialPayloadSchema`.
+- **`tempo`** — the `mppx` `Method` definition for Tempo TIP-20 charges, organised as a namespace that defaults to
+  `charge` (`tempo` and `tempo.charge` are the same definition). Also exported: `tempoCharge`,
+  `tempoChargeRequestSchema`, and `tempoCredentialPayloadSchema`.
+- **`Method` / `z`** — re-exported from `mppx` for method authoring.
 - **`MppClient`** — typed client over the InFlow MPP REST endpoints: `getConfig`, `redeem` (seller);
   `createTransaction`, `getTransaction` (buyer). There is no challenge-minting call — challenges are issued locally, not
   fetched from InFlow. `Idempotency-Key` is supported on the mutating routes. Wraps `InflowHttpClient` (API-key / Bearer
@@ -29,8 +32,8 @@ loudly when it's missing.
   `decodeReceipt`, `canonicalize`, `padBase64Url`, and the `WWW-Authenticate: Payment` `renderChallengeHeader` /
   `parseChallengeHeader` / `parseChallengeHeaders`.
 - **Wire types** — `MppChallenge`, `MppCredential`, `MppReceipt`, `MppProblemDetail`, `InflowChallengeRequest`,
-  `InflowPaymentOptions`, and the REST DTOs (`MppConfigResponse`, `MppRedeemRequest/Response`,
-  `MppTransactionRequest/Response`).
+  `InflowPaymentOptions`, `TempoChallengeRequest`, `TempoCredentialPayload`, `TempoMethodDetails`, and the REST DTOs
+  (`MppConfigResponse`, `MppRedeemRequest/Response`, `MppTransactionRequest/Response`).
 - **Constants** — `HEADERS`, `CACHE_CONTROL`, `SCHEME_PAYMENT`, `METHOD_INFLOW`, `INTENT_CHARGE`, `PROBLEM_TYPE_BASE`,
   `PROBLEM_TYPES`, `ENDPOINTS`, `MPP_PROTOCOL_VERSION`, `MPP_SDK_VERSION`, plus `readHeader` / `readHeaderAll` /
   `transactionPath`.

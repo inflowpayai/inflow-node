@@ -26,10 +26,10 @@ only configuration you need — the SDK resolves the right endpoint internally (
 This monorepo houses InFlow's open-source Node.js packages, organized by product. Every package, example, and product
 doc folder uses a product prefix (`x402-`, …) so multiple products can coexist without ambiguity.
 
-| Product  | What it does                                                                             | Docs                                                                                                                                                                       |
-| -------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **x402** | x402 protocol integration — facilitator client, seller helpers, buyer wrappers.          | [overview](./docs/x402/README.md) · [architecture](./docs/x402/architecture.md) · [wire format](./docs/x402/protocol-mapping.md) · [extensions](./docs/x402/extensions.md) |
-| **mpp**  | MPP (Machine Payments Protocol) integration — the `inflow` method, seller/buyer drivers. | [overview](./docs/mpp/README.md) · [architecture](./docs/mpp/architecture.md) · [wire format](./docs/mpp/protocol-mapping.md) · [extensions](./docs/mpp/extensions.md)     |
+| Product  | What it does                                                                                  | Docs                                                                                                                                                                       |
+| -------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **x402** | x402 protocol integration — facilitator client, seller helpers, buyer wrappers.               | [overview](./docs/x402/README.md) · [architecture](./docs/x402/architecture.md) · [wire format](./docs/x402/protocol-mapping.md) · [extensions](./docs/x402/extensions.md) |
+| **mpp**  | MPP (Machine Payments Protocol) integration — InFlow and Tempo methods, seller/buyer drivers. | [overview](./docs/mpp/README.md) · [architecture](./docs/mpp/architecture.md) · [wire format](./docs/mpp/protocol-mapping.md) · [extensions](./docs/mpp/extensions.md)     |
 
 ## Packages
 
@@ -44,11 +44,11 @@ All packages publish under the `@inflowpayai` scope on npm and depend on `@x402/
 The **MPP** packages publish under the same scope but declare [`mppx`](https://github.com/wevm/mppx)`@^0.6.28` as their
 peer instead of `@x402/core`:
 
-| Package                                            | npm                                                                                                                   | Role                                                                   |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| [`@inflowpayai/mpp`](./packages/mpp)               | [![npm](https://img.shields.io/npm/v/@inflowpayai/mpp)](https://www.npmjs.com/package/@inflowpayai/mpp)               | Core: the `inflow` `Method` definition, wire types, codec, HTTP client |
-| [`@inflowpayai/mpp-seller`](./packages/mpp-seller) | [![npm](https://img.shields.io/npm/v/@inflowpayai/mpp-seller)](https://www.npmjs.com/package/@inflowpayai/mpp-seller) | `Method.toServer` + InFlow redeem/settle driver — accepting MPP        |
-| [`@inflowpayai/mpp-buyer`](./packages/mpp-buyer)   | [![npm](https://img.shields.io/npm/v/@inflowpayai/mpp-buyer)](https://www.npmjs.com/package/@inflowpayai/mpp-buyer)   | `Method.toClient` + InFlow buyer-endpoint driver — paying via MPP      |
+| Package                                            | npm                                                                                                                   | Role                                                              |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [`@inflowpayai/mpp`](./packages/mpp)               | [![npm](https://img.shields.io/npm/v/@inflowpayai/mpp)](https://www.npmjs.com/package/@inflowpayai/mpp)               | Core: MPP `Method` definitions, wire types, codec, HTTP client    |
+| [`@inflowpayai/mpp-seller`](./packages/mpp-seller) | [![npm](https://img.shields.io/npm/v/@inflowpayai/mpp-seller)](https://www.npmjs.com/package/@inflowpayai/mpp-seller) | `Method.toServer` + InFlow redeem/settle driver — accepting MPP   |
+| [`@inflowpayai/mpp-buyer`](./packages/mpp-buyer)   | [![npm](https://img.shields.io/npm/v/@inflowpayai/mpp-buyer)](https://www.npmjs.com/package/@inflowpayai/mpp-buyer)   | `Method.toClient` + InFlow buyer-endpoint driver — paying via MPP |
 
 ```bash
 # Seller accepting MPP payments

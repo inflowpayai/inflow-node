@@ -4,8 +4,8 @@
 // without a type-level break. Amounts are decimal strings (the server serialises `BigDecimal` as a plain string), never
 // JS `number`.
 
-/** Wire label of a payment method — the `MppMethodId` `@JsonValue`. `'inflow'` is the only method today. */
-export type MppMethodLabel = 'inflow' | (string & {});
+/** Wire label of a payment method — the `MppMethodId` `@JsonValue`. */
+export type MppMethodLabel = 'inflow' | 'tempo' | (string & {});
 
 /** Wire label of an intent — the `MppIntent` `@JsonValue`. `'charge'` is the only intent today. */
 export type MppIntentLabel = 'charge' | (string & {});
@@ -14,7 +14,7 @@ export type MppIntentLabel = 'charge' | (string & {});
  * Settlement rail label as carried on the wire — the server's `MppRail` `@JsonValue` (e.g. `'balance'`). The server's
  * `@JsonCreator` accepts either the label or the uppercase enum name on input.
  */
-export type MppRailLabel = 'balance' | 'instrument' | (string & {});
+export type MppRailLabel = 'balance' | 'blockchain' | 'instrument' | (string & {});
 
 /**
  * ISO-4217-style currency code carried on the wire (e.g. `'USDC'`, `'USDT'`, `'PYUSD'`). Typed as an open string; the
@@ -74,6 +74,53 @@ export interface InflowChallengeRequest {
     instrumentId?: string;
   };
 }
+
+/** Optional Tempo method details carried inside a `tempo` charge request. */
+export interface TempoMethodDetails {
+  /** Tempo EVM chain id. */
+  chainId?: number;
+  /** Whether the server pays transaction fees. The current InFlow seller/server path supports only `false`. */
+  feePayer?: boolean;
+  /** Optional bytes32 memo for the primary transfer. */
+  memo?: string;
+  /** Additional split recipients paid atomically by the Tempo transaction. */
+  splits?: {
+    /** Split amount in base units. */
+    amount: string;
+    /** Optional bytes32 memo for the split transfer. */
+    memo?: string;
+    /** Split recipient address. */
+    recipient: string;
+  }[];
+  /** Supported non-zero submission modes for this challenge. */
+  supportedModes?: ('pull' | 'push')[];
+}
+
+/**
+ * The method-specific request object for the `tempo` method. Amount is a base-unit integer string, `currency` is a
+ * TIP-20 token address, and `recipient` is a Tempo address.
+ */
+export interface TempoChallengeRequest {
+  /** Amount in base units. Required on the wire. */
+  amount: string;
+  /** TIP-20 token address. Required on the wire. */
+  currency?: string;
+  /** Recipient Tempo address. Required on the wire. */
+  recipient?: string;
+  /** Display-only payment description. */
+  description?: string;
+  /** Merchant reference, such as an invoice id. */
+  externalId?: string;
+  /** Tempo-specific challenge parameters. */
+  methodDetails?: TempoMethodDetails;
+}
+
+/** Tempo credential payload for pull, push, and zero-amount proof flows. */
+export type TempoCredentialPayload = (
+  | { type: 'transaction'; signature: string }
+  | { type: 'hash'; hash: string }
+  | { type: 'proof'; signature: string }
+) & { transactionId?: string };
 
 /**
  * The buyer's MPP credential, sent base64url-encoded in `Authorization: Payment <credential>`. Mirrors the server's

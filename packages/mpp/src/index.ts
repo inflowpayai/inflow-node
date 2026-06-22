@@ -7,6 +7,7 @@ export {
   HEADERS,
   INTENT_CHARGE,
   METHOD_INFLOW,
+  METHOD_TEMPO,
   PROBLEM_TYPE_BASE,
   PROBLEM_TYPES,
   SCHEME_PAYMENT,
@@ -44,8 +45,22 @@ export type {
   RequestOptions,
 } from './http-client.js';
 
-export { charge, inflow, inflowChargeRequestSchema, inflowCredentialPayloadSchema } from './methods.js';
-export type { InflowChargeRequestInput, InflowCredentialPayloadInput } from './methods.js';
+export {
+  charge,
+  inflow,
+  inflowChargeRequestSchema,
+  inflowCredentialPayloadSchema,
+  tempo,
+  tempoCharge,
+  tempoChargeRequestSchema,
+  tempoCredentialPayloadSchema,
+} from './methods.js';
+export type {
+  InflowChargeRequestInput,
+  InflowCredentialPayloadInput,
+  TempoChargeRequestInput,
+  TempoCredentialPayloadInput,
+} from './methods.js';
 
 export type {
   CurrencyCode,
@@ -72,6 +87,9 @@ export type {
   MppTransactionRequest,
   MppTransactionResponse,
   MppTransactionState,
+  TempoChallengeRequest,
+  TempoCredentialPayload,
+  TempoMethodDetails,
 } from './types.js';
 
 // Re-exported from the foundation SDK because the `inflow` definition and any future sibling intent (`session`) are

@@ -2,7 +2,7 @@
 // no `./server` subpath; the foundation `Mppx` server handler is re-exported here so a single import gives both the
 // handler and the InFlow method: `import { Mppx, inflow } from '@inflowpayai/mpp-seller'`.
 
-export { inflow } from './methods.server.js';
+export { inflow, tempo } from './methods.server.js';
 
 export { inflowCharges, inflowChargesNodeListener } from './compose.server.js';
 export type { InflowChargePrice } from './compose.server.js';
@@ -12,7 +12,7 @@ export type { InflowConfigClient } from './config-client.js';
 
 export { MppRedeemProblemError, MppUnsupportedCurrencyError } from './errors.js';
 
-export type { InflowSellerParameters, LoadedConfig } from './types.js';
+export type { InflowSellerParameters, LoadedConfig, TempoSellerParameters } from './types.js';
 
 export type { Environment, MppCurrencyRail, MppProblemDetail, MppReceipt } from '@inflowpayai/mpp';
 

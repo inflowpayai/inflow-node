@@ -2,6 +2,7 @@
 // excluded from coverage (see vitest.config.ts).
 
 import type { CurrencyCode, Environment, MppCurrencyRail, MppFeatureFlags } from '@inflowpayai/mpp';
+import type { TempoMethodDetails } from '@inflowpayai/mpp';
 
 /**
  * Constructor parameters for the seller-side {@link inflow} method factory.
@@ -20,6 +21,26 @@ export interface InflowSellerParameters {
   /** Default charge currency, applied as an mppx request default so `charge({ amount })` need not repeat it per call. */
   currency?: CurrencyCode;
   /** Per-request timeout (milliseconds) for the config + redeem calls. Defaults to the core client's 30 000. */
+  timeoutMs?: number;
+  /** Optional `fetch` implementation. Defaults to `globalThis.fetch`. Must conform to the WHATWG fetch API. */
+  fetch?: typeof fetch;
+}
+
+/** Constructor parameters for the seller-side Tempo method factory. */
+export interface TempoSellerParameters {
+  /** InFlow API key, sent as `X-API-KEY` on `POST /v1/mpp/redeem`. */
+  apiKey: string;
+  /** Selects one of the public environments. Defaults to `'production'`. */
+  environment?: Environment;
+  /** Override the environment-derived API base URL. Takes precedence over `environment`. */
+  baseUrl?: string;
+  /** TIP-20 token address used as the default challenge currency. */
+  currency: string;
+  /** Tempo address that receives the primary transfer. */
+  recipient: string;
+  /** Default Tempo method details stamped onto challenges. */
+  methodDetails?: TempoMethodDetails;
+  /** Per-request timeout (milliseconds) for redeem calls. Defaults to the core client's 30 000. */
   timeoutMs?: number;
   /** Optional `fetch` implementation. Defaults to `globalThis.fetch`. Must conform to the WHATWG fetch API. */
   fetch?: typeof fetch;
