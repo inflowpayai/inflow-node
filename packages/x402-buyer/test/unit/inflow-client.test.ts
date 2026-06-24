@@ -11,6 +11,7 @@ import { InflowApiError } from '@inflowpayai/x402';
 
 import { X402AdapterRoutingError, X402ApprovalFailedError } from '../../src/errors.js';
 import { createInflowClient, InflowClient } from '../../src/inflow-client.js';
+import { createInflowSigner } from '../../src/signer.js';
 
 const PROD_BASE = 'https://api.inflowpay.ai';
 const server = setupServer();
@@ -587,5 +588,28 @@ describe('InflowClient.cancelApproval', () => {
       .mockRejectedValueOnce(new Error('auth-fail'));
     const client = await createInflowClient({ getAccessToken });
     await expect(client.cancelApproval('apr_auth')).rejects.toThrow('auth-fail');
+  });
+});
+
+describe('createInflowSigner.getBalances', () => {
+  it('normalizes ledger balance decimal strings, dropping trailing zeros', async () => {
+    installSupported();
+    server.use(
+      http.get(`${PROD_BASE}/v1/balances`, () =>
+        HttpResponse.json({
+          balances: [
+            { currency: 'USDC', available: '0.010000000000000000' },
+            { currency: 'PYUSD', available: '89.197620000000000000' },
+            { currency: 'USDT', available: '0.000000000000000000' },
+          ],
+        }),
+      ),
+    );
+    const signer = await createInflowSigner({ apiKey: 'sk_test' });
+    expect(await signer.getBalances()).toEqual([
+      { currency: 'USDC', available: '0.01' },
+      { currency: 'PYUSD', available: '89.19762' },
+      { currency: 'USDT', available: '0' },
+    ]);
   });
 });

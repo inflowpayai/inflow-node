@@ -1,4 +1,4 @@
-import { InflowApiError, InflowHttpClient } from '@inflowpayai/x402';
+import { InflowApiError, InflowHttpClient, normalizeDecimalString } from '@inflowpayai/x402';
 import type {
   InflowPaymentPayload,
   PaymentRequirements,
@@ -114,7 +114,7 @@ export async function createInflowSigner(options: SignerOptions): Promise<Inflow
     const out: BuyerLedgerBalance[] = [];
     for (const b of list) {
       if (typeof b.currency === 'string' && typeof b.available === 'string') {
-        out.push({ currency: b.currency, available: b.available });
+        out.push({ currency: b.currency, available: normalizeDecimalString(b.available) });
       }
     }
     return out;
