@@ -112,16 +112,32 @@ describe('WWW-Authenticate: Payment render/parse', () => {
     expect(parseChallengeHeaders(`${a}, ${b}`).map((c) => c.id)).toEqual(['a', 'b']);
     expect(parseChallengeHeaders([a, b]).map((c) => c.id)).toEqual(['a', 'b']);
   });
+
+  it('renders opaque last and round-trips it verbatim (slot-6 HMAC binding must survive)', () => {
+    const withOpaque: MppChallenge = { ...challenge, opaque: 'eyJpc3MiOiJpbmZsb3cifQ' };
+    const header = renderChallengeHeader(withOpaque);
+    expect(header.endsWith('opaque="eyJpc3MiOiJpbmZsb3cifQ"')).toBe(true);
+    expect(parseChallengeHeader(header)).toEqual(withOpaque);
+  });
+
+  it('preserves opaque when parsing a seller header (never dropped)', () => {
+    const parsed = parseChallengeHeader(
+      'Payment id="x", realm="r", method="inflow", intent="charge", request="q", opaque="Zm9vYmFy"',
+    );
+    expect(parsed.opaque).toBe('Zm9vYmFy');
+  });
 });
 
 describe('credential / receipt codecs', () => {
-  it('round-trips a credential', () => {
+  it('round-trips a credential, preserving the echoed opaque', () => {
     const credential: MppCredential = {
-      challenge,
+      challenge: { ...challenge, opaque: 'eyJpc3MiOiJpbmZsb3cifQ' },
       payload: { approvalId: 'appr_123' },
       source: 'did:inflow:abc',
     };
-    expect(decodeCredential(encodeCredential(credential))).toEqual(credential);
+    const decoded = decodeCredential(encodeCredential(credential));
+    expect(decoded).toEqual(credential);
+    expect(decoded.challenge.opaque).toBe('eyJpc3MiOiJpbmZsb3cifQ');
   });
 
   it('decodes a receipt', () => {
@@ -133,5 +149,21 @@ describe('credential / receipt codecs', () => {
       timestamp: '2025-01-15T12:05:00Z',
     };
     expect(decodeReceipt(encode(receipt))).toEqual(receipt);
+  });
+
+  it('decodes a receipt carrying settlement amount/currency', () => {
+    const receipt: MppReceipt = {
+      challengeId: 'qB3w',
+      method: 'inflow',
+      reference: 'ref-1',
+      status: 'success',
+      timestamp: '2025-01-15T12:05:00Z',
+      amount: '10.5',
+      currency: 'USDC',
+    };
+    const decoded = decodeReceipt(encode(receipt));
+    expect(decoded).toEqual(receipt);
+    expect(decoded.amount).toBe('10.5');
+    expect(decoded.currency).toBe('USDC');
   });
 });

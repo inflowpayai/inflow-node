@@ -24,13 +24,17 @@ export type CurrencyCode = string;
 
 /**
  * The MPP challenge a seller emits in a `WWW-Authenticate: Payment` header and a buyer parses out of a 402. Mirrors the
- * server's `MppChallenge`. `request` is a base64url-JCS blob the SDK keeps opaque. There is no `opaque` correlation
- * field on the wire — correlation is carried by the server-minted `transactionId` inside the credential payload.
+ * server's `MppChallenge`. `request` is a base64url-JCS blob the SDK keeps opaque. Every field the seller sent —
+ * including the optional `opaque` correlation blob — MUST be preserved verbatim and echoed back inside the credential's
+ * `challenge` so the seller can recompute its HMAC binding (slot 6 of the binding input is `opaque`); dropping it
+ * breaks verification.
  */
 export interface MppChallenge {
   /**
-   * Challenge identifier, HMAC-bound by the foundation SDK (mppx) with the seller's secret. Required. The InFlow server
-   * does not verify this binding on redeem — it correlates by the credential's `transactionId`.
+   * Challenge identifier, HMAC-bound by the seller's issuer (mppx, or InFlow's native issuer) over the challenge
+   * fields. Required. This SDK does not verify the binding — verification is the challenge issuer's job with the
+   * issuer's secret — but it MUST echo `id` (and the fields it binds, including `opaque`) unchanged so that
+   * verification can succeed.
    */
   id: string;
   /** Realm identifying the protection space. Required. */
@@ -51,6 +55,13 @@ export interface MppChallenge {
    * foundation SDK / server, not this package).
    */
   digest?: string;
+  /**
+   * Base64url-encoded JSON correlation blob the issuer may bind into the challenge (slot 6 of the HMAC binding input).
+   * Carried through verbatim: the SDK never reads, decodes, or mutates it — it only preserves it so the seller can
+   * recompute its binding. Dropping this field silently breaks the seller's HMAC verification, so it MUST round-trip
+   * from the parsed challenge into the credential's echoed `challenge`.
+   */
+  opaque?: string;
 }
 
 /**
@@ -154,6 +165,14 @@ export interface MppReceipt {
   status: 'success' | (string & {});
   /** RFC 3339 timestamp of settlement. Required. */
   timestamp: string;
+  /**
+   * Settled amount in base units (smallest denomination), as a decimal string — mirrors the server's `BigDecimal`
+   * serialization. Optional for forward/backward compatibility with receipts issued before settlement details were
+   * carried; present on receipts the InFlow server settles. Lets a seller reconcile what was actually captured.
+   */
+  amount?: string;
+  /** Settled currency/asset identifier (e.g. `'USDC'`), pairing with {@link MppReceipt.amount}. Optional; see `amount`. */
+  currency?: CurrencyCode;
 }
 
 /**

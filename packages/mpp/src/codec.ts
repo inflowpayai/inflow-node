@@ -329,6 +329,7 @@ export function renderChallengeHeader(challenge: MppChallenge): string {
   appendParam(parts, 'expires', challenge.expires, false);
   appendParam(parts, 'description', challenge.description, true);
   appendParam(parts, 'digest', challenge.digest, false);
+  appendParam(parts, 'opaque', challenge.opaque, false);
   return SCHEME_PREFIX + parts.join(', ');
 }
 
@@ -378,6 +379,9 @@ export function parseChallengeHeader(headerValue: string): MppChallenge {
       case 'method':
         fields.method = value;
         break;
+      case 'opaque':
+        fields.opaque = value;
+        break;
       case 'realm':
         fields.realm = value;
         break;
@@ -405,6 +409,7 @@ export function parseChallengeHeader(headerValue: string): MppChallenge {
   if (fields.expires !== undefined) challenge.expires = fields.expires;
   if (fields.description !== undefined) challenge.description = fields.description;
   if (fields.digest !== undefined) challenge.digest = fields.digest;
+  if (fields.opaque !== undefined) challenge.opaque = fields.opaque;
   return challenge;
 }
 
