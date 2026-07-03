@@ -1,5 +1,22 @@
 # @inflowpayai/mpp
 
+## 0.7.0
+
+### Minor Changes
+
+- [#29](https://github.com/inflowpayai/inflow-node/pull/29)
+  [`a81e266`](https://github.com/inflowpayai/inflow-node/commit/a81e266b523b082ddbde9b252ad4f536229e5c27) Thanks
+  [@nkavian](https://github.com/nkavian)! - Preserve the challenge `opaque` blob through parse, render, and the echoed
+  credential `challenge` so a seller can recompute its HMAC challenge binding, and add optional `amount`/`currency`
+  settlement fields to `MppReceipt` for reconciliation.
+
+### Patch Changes
+
+- [#27](https://github.com/inflowpayai/inflow-node/pull/27)
+  [`9b9ac40`](https://github.com/inflowpayai/inflow-node/commit/9b9ac40afb6ed778bf4d9bfc851312fb49d9812a) Thanks
+  [@nkavian](https://github.com/nkavian)! - Tighten static analysis settings and clean up newly enforced TypeScript and
+  ESLint diagnostics.
+
 ## 0.6.0
 
 ### Minor Changes
