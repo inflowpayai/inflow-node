@@ -15,6 +15,8 @@ export type { HeaderBag } from './constants.js';
 export { resolveBaseUrl } from './environment.js';
 export type { Environment, ResolveBaseUrlOptions } from './environment.js';
 
+export { normalizeDecimalString } from './decimal.js';
+
 export { InflowApiError, X402VersionMismatchError } from './errors.js';
 export type { InflowApiErrorInit } from './errors.js';
 
