@@ -1,5 +1,19 @@
 # @inflowpayai/x402-seller
 
+## 0.6.2
+
+### Patch Changes
+
+- [#27](https://github.com/inflowpayai/inflow-node/pull/27)
+  [`9b9ac40`](https://github.com/inflowpayai/inflow-node/commit/9b9ac40afb6ed778bf4d9bfc851312fb49d9812a) Thanks
+  [@nkavian](https://github.com/nkavian)! - Tighten static analysis settings and clean up newly enforced TypeScript and
+  ESLint diagnostics.
+
+- Updated dependencies
+  [[`22ea453`](https://github.com/inflowpayai/inflow-node/commit/22ea453c152757f1f1a8ec7aa73e44edfa3eacc8),
+  [`9b9ac40`](https://github.com/inflowpayai/inflow-node/commit/9b9ac40afb6ed778bf4d9bfc851312fb49d9812a)]:
+  - @inflowpayai/x402@0.8.1
+
 ## 0.6.1
 
 ### Patch Changes

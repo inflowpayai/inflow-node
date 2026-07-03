@@ -1,5 +1,19 @@
 # @inflowpayai/x402-buyer
 
+## 0.7.1
+
+### Patch Changes
+
+- [#26](https://github.com/inflowpayai/inflow-node/pull/26)
+  [`22ea453`](https://github.com/inflowpayai/inflow-node/commit/22ea453c152757f1f1a8ec7aa73e44edfa3eacc8) Thanks
+  [@mnebliienko](https://github.com/mnebliienko)! - Add `normalizeDecimalString` and apply it to buyer ledger balances
+  (`getBalances`), collapsing padded decimal strings like `0.010000000000000000` to `0.01` for display. Facilitator
+  settle responses are left untouched.
+- Updated dependencies
+  [[`22ea453`](https://github.com/inflowpayai/inflow-node/commit/22ea453c152757f1f1a8ec7aa73e44edfa3eacc8),
+  [`9b9ac40`](https://github.com/inflowpayai/inflow-node/commit/9b9ac40afb6ed778bf4d9bfc851312fb49d9812a)]:
+  - @inflowpayai/x402@0.8.1
+
 ## 0.7.0
 
 ### Minor Changes
