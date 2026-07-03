@@ -231,8 +231,8 @@ describe('inflowAccepts property invariants', () => {
           expect(typeof price).toBe('object');
           expect(price).not.toBeNull();
           const obj = price as Record<string, unknown>;
-          expect(typeof obj.asset).toBe('string');
-          expect(typeof obj.amount).toBe('string');
+          expect(typeof obj['asset']).toBe('string');
+          expect(typeof obj['amount']).toBe('string');
         }
         server.resetHandlers();
       }),

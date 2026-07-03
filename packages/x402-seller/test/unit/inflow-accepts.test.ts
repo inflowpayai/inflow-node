@@ -56,8 +56,8 @@ describe('inflowAccepts', () => {
       expect(typeof price).toBe('object');
       expect(price).not.toBeNull();
       const obj = price as Record<string, unknown>;
-      expect(typeof obj.asset).toBe('string');
-      expect(typeof obj.amount).toBe('string');
+      expect(typeof obj['asset']).toBe('string');
+      expect(typeof obj['amount']).toBe('string');
     }
     // USDC on Base has decimals=6, so $0.01 → "10000".
     const usdcBase = out.find(

@@ -128,7 +128,7 @@ describe('native issuance: currency → rail in the minted 402', () => {
     expect(r.status).toBe(402);
     if (r.status !== 402) throw new Error('expected 402');
     const request = decodeChallengeRequest(r.challenge);
-    expect(request.methodDetails).toEqual({ rail: 'instrument', instrumentId: INSTRUMENT });
+    expect(request['methodDetails']).toEqual({ rail: 'instrument', instrumentId: INSTRUMENT });
   });
 
   it('emits no inflow challenge for an unsupported currency (JPY)', async () => {
@@ -192,7 +192,7 @@ describe('native issuance: currency → rail in the minted 402', () => {
     expect(r.status).toBe(402);
     if (r.status !== 402) throw new Error('expected 402');
     const request = decodeChallengeRequest(r.challenge);
-    expect(request.methodDetails).toMatchObject({ feePayer: true, supportedModes: ['pull'] });
+    expect(request['methodDetails']).toMatchObject({ feePayer: true, supportedModes: ['pull'] });
   });
 
   it('mints a Tempo fee-payer challenge from per-charge method details', async () => {
@@ -205,7 +205,7 @@ describe('native issuance: currency → rail in the minted 402', () => {
     expect(r.status).toBe(402);
     if (r.status !== 402) throw new Error('expected 402');
     const request = decodeChallengeRequest(r.challenge);
-    expect(request.methodDetails).toMatchObject({ feePayer: true, supportedModes: ['pull'] });
+    expect(request['methodDetails']).toMatchObject({ feePayer: true, supportedModes: ['pull'] });
   });
 
   it('re-derives the same request across two mints (pure request hook)', async () => {
@@ -253,14 +253,14 @@ describe('stableBinding', () => {
       recipient: UUID,
       methodDetails: { rail: 'instrument' },
     });
-    expect(balance.rail).not.toBe(instrument.rail);
+    expect(balance['rail']).not.toBe(instrument['rail']);
   });
 
   it('defaults the bound rail to balance when methodDetails is absent', () => {
     mockConfig();
     const { method } = makeMppx();
     const binding = method.stableBinding!({ amount: '1', currency: 'USDC', recipient: UUID });
-    expect(binding.rail).toBe('balance');
+    expect(binding['rail']).toBe('balance');
   });
 
   it('binds Tempo chain, memo, split, and metadata fields', () => {
@@ -323,7 +323,7 @@ describe('verify → /v1/mpp/redeem', () => {
     // The credential's server-minted transactionId round-trips to redeem and is used as the idempotency key.
     expect(redeem.idempotencyKey()).toBe('tx-1');
     const body = redeem.body() as { credential: { payload: Record<string, unknown> } };
-    expect(body.credential.payload.transactionId).toBe('tx-1');
+    expect(body.credential.payload['transactionId']).toBe('tx-1');
   });
 
   it('forwards the transactionId idempotency key for Tempo redeem', async () => {
@@ -346,7 +346,7 @@ describe('verify → /v1/mpp/redeem', () => {
 
     expect(redeem.idempotencyKey()).toBe('tx-tempo');
     const body = redeem.body() as { credential: { payload: Record<string, unknown> } };
-    expect(body.credential.payload.transactionId).toBe('tx-tempo');
+    expect(body.credential.payload['transactionId']).toBe('tx-tempo');
   });
 
   it('throws MppRedeemProblemError → framework emits 402 + the RFC 9457 problem body', async () => {
@@ -431,9 +431,9 @@ describe('verify → /v1/mpp/redeem', () => {
     // The SDK does not compute or forward a top-level body digest. The challenge's own `digest` is echoed verbatim
     // inside the credential (wire passthrough), but there is no separate top-level `bodyDigest`.
     expect(body.bodyDigest).toBeUndefined();
-    expect(body.credential.challenge.expires).toBe('2026-05-31T12:00:00Z');
-    expect(body.credential.challenge.description).toBe('pay');
-    expect(body.credential.challenge.digest).toBe('sha-256=Zm9vYmFy');
+    expect(body.credential.challenge['expires']).toBe('2026-05-31T12:00:00Z');
+    expect(body.credential.challenge['description']).toBe('pay');
+    expect(body.credential.challenge['digest']).toBe('sha-256=Zm9vYmFy');
   });
 
   it('throws a verification-failed fallback when redeem returns neither receipt nor problem', async () => {

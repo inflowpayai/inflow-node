@@ -48,7 +48,7 @@ export function inflow(parameters: InflowBuyerParameters) {
       return Credential.serialize({
         challenge,
         payload: credential.payload,
-        ...(credential.source !== undefined ? { source: credential.source } : {}),
+        source: credential.source,
       });
     },
   });
@@ -96,7 +96,7 @@ export function tempo(parameters: InflowBuyerParameters) {
       return Credential.serialize({
         challenge,
         payload: credential.payload,
-        ...(credential.source !== undefined ? { source: credential.source } : {}),
+        source: credential.source,
       });
     },
   });

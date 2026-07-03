@@ -55,8 +55,8 @@ describe('createConfigClient', () => {
     const loaded = await createConfigClient(client()).load();
     expect(loaded.sellerId).toBe('22222222-2222-2222-2222-222222222222');
     expect(loaded.featureFlags.idempotencyKeyEnabled).toBe(true);
-    expect(loaded.currencyRails.USDC).toEqual({ rail: 'balance' });
-    expect(loaded.currencyRails.USD).toEqual({ rail: 'instrument', instrumentId: 'optional' });
+    expect(loaded.currencyRails['USDC']).toEqual({ rail: 'balance' });
+    expect(loaded.currencyRails['USD']).toEqual({ rail: 'instrument', instrumentId: 'optional' });
   });
 
   it('fetches once and memoises across calls', async () => {

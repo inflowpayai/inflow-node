@@ -16,15 +16,15 @@ import { decodeSolanaSecret } from './decode-svm-key.js';
  * that uses a custom test mint (e.g. the InFlow sandbox issues its own USDC under a distinct mint authority).
  */
 const DEFAULT_SOLANA_USDC_MINT_DEVNET = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
-const paymentMint = process.env.SOLANA_PAYMENT_MINT ?? DEFAULT_SOLANA_USDC_MINT_DEVNET;
+const paymentMint = process.env['SOLANA_PAYMENT_MINT'] ?? DEFAULT_SOLANA_USDC_MINT_DEVNET;
 
-const privateKey = process.env.SOLANA_PRIVATE_KEY;
+const privateKey = process.env['SOLANA_PRIVATE_KEY'];
 if (privateKey === undefined || privateKey === '') {
   console.error('Set SOLANA_PRIVATE_KEY in your environment (see .env.example).');
   process.exit(1);
 }
 
-const target = process.env.TARGET_URL ?? 'http://localhost:3000/api/widgets';
+const target = process.env['TARGET_URL'] ?? 'http://localhost:3000/api/widgets';
 
 const bytes = decodeSolanaSecret(privateKey);
 const signer = await createKeyPairSignerFromBytes(bytes);
@@ -75,7 +75,7 @@ core.registerPolicy((_x402Version, reqs) => {
 const http = new x402HTTPClient(core);
 
 console.log(
-  `payment mint pin: ${paymentMint}${process.env.SOLANA_PAYMENT_MINT === undefined ? ' (default Circle devnet USDC)' : ' (from SOLANA_PAYMENT_MINT)'}`,
+  `payment mint pin: ${paymentMint}${process.env['SOLANA_PAYMENT_MINT'] === undefined ? ' (default Circle devnet USDC)' : ' (from SOLANA_PAYMENT_MINT)'}`,
 );
 
 // `paidFetch`: issue the request, parse the 402, sign, retry with the

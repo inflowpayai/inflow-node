@@ -4,7 +4,7 @@ import { Mppx } from 'mppx/express';
 import { Mppx as MppxServer } from 'mppx/server';
 import { inflow, inflowChargesNodeListener } from '@inflowpayai/mpp-seller';
 
-const apiKey = process.env.INFLOW_API_KEY;
+const apiKey = process.env['INFLOW_API_KEY'];
 if (apiKey === undefined || apiKey === '') {
   console.error('Set INFLOW_API_KEY in your environment (see .env.example).');
   process.exit(1);
@@ -20,7 +20,7 @@ if (apiKey === undefined || apiKey === '') {
 // The `methods` array stays inline in each call so mppx can infer the precise method tuple (a hoisted config object
 // would widen it and drop the typed handlers).
 const method = inflow({ apiKey, environment: 'sandbox' });
-const secretKey = process.env.MPP_SECRET_KEY;
+const secretKey = process.env['MPP_SECRET_KEY'];
 const mppx = Mppx.create({ methods: [method], secretKey });
 const core = MppxServer.create({ methods: [method], secretKey });
 
@@ -55,7 +55,7 @@ app.get('/free', (_req, res) => {
   res.json({ ok: true, note: 'no payment required' });
 });
 
-const port = Number(process.env.PORT ?? 3000);
+const port = Number(process.env['PORT'] ?? 3000);
 app.listen(port, () => {
   console.log(`mpp seller listening on http://localhost:${port.toString()}`);
   console.log(`  GET  /api/widgets  (0.01 USDC, single currency)`);

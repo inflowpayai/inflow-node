@@ -7,7 +7,7 @@ import {
   inflowSchemeRegistrations,
 } from '@inflowpayai/x402-seller';
 
-const apiKey = process.env.INFLOW_API_KEY;
+const apiKey = process.env['INFLOW_API_KEY'];
 if (apiKey === undefined || apiKey === '') {
   console.error('Set INFLOW_API_KEY in your environment (see .env.example).');
   process.exit(1);

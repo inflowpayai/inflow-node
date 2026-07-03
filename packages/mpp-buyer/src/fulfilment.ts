@@ -96,7 +96,7 @@ export function createFulfiller(parameters: InflowBuyerParameters): Fulfiller {
           throw new MppPaymentFailedError(current.problem);
         case 'expired':
           throw new MppPaymentExpiredError(current.transactionId);
-        default:
+        case 'pending':
           approvalId = current.approvalId;
           break;
       }
@@ -105,13 +105,13 @@ export function createFulfiller(parameters: InflowBuyerParameters): Fulfiller {
       if (current.transactionId === undefined) {
         throw new MppMalformedCredentialError('pending response carried no transactionId to poll');
       }
-      if (signal.aborted) throw new MppPaymentCancelledError(approvalId);
+      throwIfPaymentCancelled(signal, approvalId);
       if (Date.now() >= deadline) throw new MppPaymentTimeoutError(timeoutMs, current.transactionId);
 
       const advisedMs = current.retryAfterSeconds !== undefined ? current.retryAfterSeconds * 1000 : pollIntervalMs;
       const remainingMs = deadline - Date.now();
       await sleep(Math.max(0, Math.min(advisedMs, remainingMs)), signal);
-      if (signal.aborted) throw new MppPaymentCancelledError(approvalId);
+      throwIfPaymentCancelled(signal, approvalId);
       if (Date.now() >= deadline) throw new MppPaymentTimeoutError(timeoutMs, current.transactionId);
 
       current = await client.getTransaction(current.transactionId, { retries: 0, signal });
@@ -124,6 +124,10 @@ export function createFulfiller(parameters: InflowBuyerParameters): Fulfiller {
   }
 
   return { fulfil, cancelApproval, cleanup };
+}
+
+function throwIfPaymentCancelled(signal: AbortSignal, approvalId: string | undefined): void {
+  if (signal.aborted) throw new MppPaymentCancelledError(approvalId);
 }
 
 /**

@@ -9,7 +9,7 @@ import {
   inflowSchemeRegistrations,
 } from '@inflowpayai/x402-seller';
 
-const apiKey = process.env.INFLOW_API_KEY;
+const apiKey = process.env['INFLOW_API_KEY'];
 if (apiKey === undefined || apiKey === '') {
   console.error('Set INFLOW_API_KEY in your environment (see .env.example).');
   process.exit(1);
@@ -52,7 +52,7 @@ app.get('/api/widgets', (c) => c.json({ widgets: [1, 2, 3] }));
 app.post('/api/upload', (c) => c.json({ status: 'received' }));
 app.get('/free', (c) => c.json({ ok: true, note: 'no payment required' }));
 
-const port = Number(process.env.PORT ?? 3000);
+const port = Number(process.env['PORT'] ?? 3000);
 serve({ fetch: app.fetch, port }, () => {
   console.log(`x402 seller listening on http://localhost:${port.toString()}`);
   console.log(`  GET  /api/widgets  ($0.01)`);

@@ -144,7 +144,7 @@ export class InflowHttpClient {
     }
 
     // boundary read — runtime narrows the discriminated union
-    const bearerProvider = (options as InflowBearerClientOptions).getAccessToken;
+    const bearerProvider = (options as Partial<Record<'getAccessToken', unknown>>).getAccessToken;
     if (bearerProvider !== undefined) {
       if (this.apiKey !== undefined) {
         throw new Error('InflowHttpClient: `apiKey` and `getAccessToken` are mutually exclusive.');
@@ -152,7 +152,7 @@ export class InflowHttpClient {
       if (typeof bearerProvider !== 'function') {
         throw new Error('InflowHttpClient: `getAccessToken` must be a function when provided.');
       }
-      this.getAccessToken = bearerProvider;
+      this.getAccessToken = bearerProvider as () => Promise<string>;
     } else {
       this.getAccessToken = undefined;
     }

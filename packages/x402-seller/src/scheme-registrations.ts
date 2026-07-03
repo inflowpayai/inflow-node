@@ -72,7 +72,8 @@ function inflowPassthroughScheme(scheme: string): SchemeNetworkServer {
   return {
     scheme,
     parsePrice(price: Price, _network: Network): Promise<AssetAmount> {
-      if (typeof price !== 'object' || price === null || !('asset' in price) || !('amount' in price)) {
+      const candidate: unknown = price;
+      if (typeof candidate !== 'object' || candidate === null || !('asset' in candidate) || !('amount' in candidate)) {
         return Promise.reject(
           new Error(
             `inflowPassthroughScheme: parsePrice expected AssetAmount-form price ` +
@@ -82,10 +83,11 @@ function inflowPassthroughScheme(scheme: string): SchemeNetworkServer {
       }
       // Reassemble explicitly so `exactOptionalPropertyTypes` is happy:
       // only attach `extra` when it's actually present.
+      const assetAmount = candidate as AssetAmount;
       const out: AssetAmount =
-        price.extra !== undefined
-          ? { asset: price.asset, amount: price.amount, extra: price.extra }
-          : { asset: price.asset, amount: price.amount };
+        assetAmount.extra !== undefined
+          ? { asset: assetAmount.asset, amount: assetAmount.amount, extra: assetAmount.extra }
+          : { asset: assetAmount.asset, amount: assetAmount.amount };
       return Promise.resolve(out);
     },
     enhancePaymentRequirements(

@@ -65,7 +65,7 @@ describe('errors / header helpers branch coverage', () => {
       endpoint: '/e',
       headers: new Headers({ authorization: 'Bearer secret', 'x-keep': 'yes' }),
     });
-    expect(fromHeaders.headers?.authorization).toBeUndefined();
+    expect(fromHeaders.headers?.['authorization']).toBeUndefined();
     expect(fromHeaders.headers?.['x-keep']).toBe('yes');
 
     const fromRecord = InflowApiError.from({

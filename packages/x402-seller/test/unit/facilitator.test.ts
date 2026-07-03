@@ -56,11 +56,11 @@ describe('createInflowFacilitator', () => {
     // The slimmed shape has no `name` field, no config/refresh/signer
     // methods — those moved to InflowSellerClient.
     const facAsRecord = fac as unknown as Record<string, unknown>;
-    expect(facAsRecord.name).toBeUndefined();
-    expect(facAsRecord.config).toBeUndefined();
-    expect(facAsRecord.refreshConfig).toBeUndefined();
-    expect(facAsRecord.refreshSupported).toBeUndefined();
-    expect(facAsRecord.getSignerAddresses).toBeUndefined();
+    expect(facAsRecord['name']).toBeUndefined();
+    expect(facAsRecord['config']).toBeUndefined();
+    expect(facAsRecord['refreshConfig']).toBeUndefined();
+    expect(facAsRecord['refreshSupported']).toBeUndefined();
+    expect(facAsRecord['getSignerAddresses']).toBeUndefined();
   });
 
   it('is synchronous — does not prime any cache at construction', () => {
