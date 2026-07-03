@@ -6,7 +6,7 @@ import type { SchemeRegistration } from '@x402/express';
 import express from 'express';
 import { createUnauthenticatedInflowFacilitator } from '@inflowpayai/x402-seller';
 
-const sellerAddress = process.env.SELLER_EVM_ADDRESS;
+const sellerAddress = process.env['SELLER_EVM_ADDRESS'];
 if (sellerAddress === undefined || sellerAddress === '') {
   console.error('Set SELLER_EVM_ADDRESS in your environment (see .env.example).');
   process.exit(1);
@@ -89,7 +89,7 @@ app.get('/api/widgets', (_req, res) => {
   res.json({ widgets: [1, 2, 3] });
 });
 
-const port = Number(process.env.PORT ?? 3000);
+const port = Number(process.env['PORT'] ?? 3000);
 app.listen(port, () => {
   console.log(`x402 facilitator-example seller listening on http://localhost:${port.toString()}`);
   console.log(

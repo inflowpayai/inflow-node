@@ -46,7 +46,7 @@ describe('errors', () => {
       headers: { authorization: 'Bearer secret', 'x-trace': 'keep' },
     });
     expect(err.message).toBe('bad amount');
-    expect(err.headers?.authorization).toBeUndefined();
+    expect(err.headers?.['authorization']).toBeUndefined();
     expect(err.headers?.['x-trace']).toBe('keep');
   });
 

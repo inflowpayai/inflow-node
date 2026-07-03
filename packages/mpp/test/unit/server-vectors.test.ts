@@ -79,9 +79,9 @@ describe('server byte-parity vectors', () => {
     const credential = decodeCredential(credentialVector.b64url);
     expect(credential.source).toBe('did:inflow:22222222-2222-2222-2222-222222222222');
     expect(credential.challenge.method).toBe('inflow');
-    expect(credential.payload.approvalId).toBe('appr_0001');
+    expect(credential.payload['approvalId']).toBe('appr_0001');
     // The server-minted transactionId correlation key survives the credential round-trip (native issuance).
-    expect(credential.payload.transactionId).toBe('44444444-4444-4444-4444-444444444444');
+    expect(credential.payload['transactionId']).toBe('44444444-4444-4444-4444-444444444444');
 
     const receiptVector = VECTORS.find((vector) => vector.name === 'receipt_success')!;
     const receipt = decodeReceipt(receiptVector.b64url);

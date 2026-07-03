@@ -160,7 +160,7 @@ export class InflowHttpClient {
     }
 
     // boundary cast — runtime narrows the discriminated union
-    const bearerProvider = (options as InflowBearerClientOptions).getAccessToken;
+    const bearerProvider = (options as Partial<Record<'getAccessToken', unknown>>).getAccessToken;
     if (bearerProvider !== undefined) {
       if (this.apiKey !== undefined) {
         throw new Error('InflowHttpClient: `apiKey` and `getAccessToken` are mutually exclusive.');
@@ -168,7 +168,7 @@ export class InflowHttpClient {
       if (typeof bearerProvider !== 'function') {
         throw new Error('InflowHttpClient: `getAccessToken` must be a function when provided.');
       }
-      this.getAccessToken = bearerProvider;
+      this.getAccessToken = bearerProvider as () => Promise<string>;
     } else {
       this.getAccessToken = undefined;
     }
@@ -385,11 +385,11 @@ function extractCode(body: unknown): string {
   // Prefer the InFlow `errors[0].code` envelope (e.g. "INSUFFICIENT_FUNDS"); fall back to a top-level `code` for
   // non-InFlow responses, then to the generic sentinel.
   const first = firstErrorEntry(body);
-  if (first !== undefined && typeof first.code === 'string' && first.code.length > 0) {
-    return first.code;
+  if (first !== undefined && typeof first['code'] === 'string' && first['code'].length > 0) {
+    return first['code'];
   }
   if (body !== null && typeof body === 'object' && 'code' in body) {
-    const raw = body.code;
+    const raw = body['code'];
     if (typeof raw === 'string' && raw.length > 0) return raw;
   }
   return 'UNEXPECTED_ERROR';

@@ -3,13 +3,13 @@ import { x402Client, x402HTTPClient } from '@x402/core/client';
 import { registerExactEvmScheme } from '@x402/evm/exact/client';
 import { privateKeyToAccount } from 'viem/accounts';
 
-const privateKey = process.env.EVM_PRIVATE_KEY;
+const privateKey = process.env['EVM_PRIVATE_KEY'];
 if (privateKey === undefined || privateKey === '') {
   console.error('Set EVM_PRIVATE_KEY in your environment (see .env.example).');
   process.exit(1);
 }
 
-const target = process.env.TARGET_URL ?? 'http://localhost:3000/api/widgets';
+const target = process.env['TARGET_URL'] ?? 'http://localhost:3000/api/widgets';
 
 const account = privateKeyToAccount(normalizeEvmKey(privateKey));
 

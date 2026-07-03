@@ -104,6 +104,10 @@ function write(value: unknown, out: string[]): void {
       return;
     case 'object':
       break;
+    case 'function':
+    case 'symbol':
+    case 'undefined':
+      throw new MppCodecError('value', `unsupported JSON value of type ${typeof value}`);
     default:
       throw new MppCodecError('value', `unsupported JSON value of type ${typeof value}`);
   }
@@ -339,7 +343,7 @@ export function renderChallengeHeader(challenge: MppChallenge): string {
  * @throws {@link MppCodecError} When the value is not a `Payment` challenge or is missing a required parameter.
  */
 export function parseChallengeHeader(headerValue: string): MppChallenge {
-  const trimmed = (headerValue ?? '').trim();
+  const trimmed = headerValue.trim();
   if (
     trimmed.length < SCHEME_PREFIX.length ||
     trimmed.slice(0, SCHEME_PREFIX.length).toLowerCase() !== SCHEME_PREFIX.toLowerCase()

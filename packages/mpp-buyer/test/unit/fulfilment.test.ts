@@ -68,7 +68,7 @@ describe('fulfilment lifecycle', () => {
 
     expect(auth).toMatch(/^Payment\s+/);
     const back = Credential.deserialize(auth);
-    expect((back.payload as Record<string, unknown>).transactionId).toBe('tx-1');
+    expect((back.payload as Record<string, unknown>)['transactionId']).toBe('tx-1');
     expect(back.source).toBe('did:inflow:payer-1');
   });
 

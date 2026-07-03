@@ -172,8 +172,10 @@ async function settleFakeBackoff<T>(promise: Promise<T>): Promise<T> {
       settled = true;
     },
   );
+  const hasSettled = (): boolean => settled;
   // Cap the drain loop so a broken test can't hang the suite.
-  for (let i = 0; i < 100 && !settled; i += 1) {
+  for (let i = 0; i < 100; i += 1) {
+    if (hasSettled()) break;
     // Yield once so any in-flight fetch resolution callback can run.
     await new Promise<void>((resolve) => setImmediate(resolve));
     if (vi.getTimerCount() > 0) {

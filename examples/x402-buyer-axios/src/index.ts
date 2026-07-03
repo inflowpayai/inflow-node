@@ -4,13 +4,13 @@ import { createInflowClient } from '@inflowpayai/x402-buyer';
 import { x402HTTPClient } from '@x402/core/client';
 import { decodePaymentRequiredHeader, decodePaymentResponseHeader } from '@x402/core/http';
 
-const apiKey = process.env.INFLOW_API_KEY;
+const apiKey = process.env['INFLOW_API_KEY'];
 if (apiKey === undefined || apiKey === '') {
   console.error('Set INFLOW_API_KEY in your environment (see .env.example).');
   process.exit(1);
 }
 
-const target = process.env.TARGET_URL ?? 'http://localhost:3000/api/widgets';
+const target = process.env['TARGET_URL'] ?? 'http://localhost:3000/api/widgets';
 
 // InflowClient extends @x402/core's x402Client. The factory primes the
 // InFlow buyer capability cache before resolving, so the routing
