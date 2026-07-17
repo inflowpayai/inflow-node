@@ -69,6 +69,49 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@24.12.4)(msw@2.14.6(@types/node@24.12.4)(typescript@5.9.3))
 
+  examples/mpp-aep-seller-express:
+    dependencies:
+      '@aep-foundation/core':
+        specifier: ^0.2.0
+        version: 0.2.0
+      '@aep-foundation/express':
+        specifier: ^0.2.0
+        version: 0.2.0(express@5.2.1)
+      '@aep-foundation/service':
+        specifier: ^0.2.0
+        version: 0.2.0
+      '@inflowpayai/mpp-seller':
+        specifier: workspace:^
+        version: link:../../packages/mpp-seller
+      dotenv:
+        specifier: ^16.4.0
+        version: 16.6.1
+      express:
+        specifier: ^5.0.0
+        version: 5.2.1
+      mppx:
+        specifier: ^0.6.28
+        version: 0.6.28(express@5.2.1)(hono@4.12.19)(typescript@5.9.3)(viem@2.50.4(typescript@5.9.3)(zod@4.4.3))
+    devDependencies:
+      '@inflowpayai/mpp':
+        specifier: workspace:^
+        version: link:../../packages/mpp
+      '@types/express':
+        specifier: ^5.0.0
+        version: 5.0.6
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.12.4
+      tsx:
+        specifier: ^4.0.0
+        version: 4.22.2
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@24.12.4)(msw@2.14.6(@types/node@24.12.4)(typescript@5.9.3))
+
   examples/mpp-buyer-fetch:
     dependencies:
       '@inflowpayai/mpp-buyer':
@@ -546,6 +589,20 @@ packages:
 
   '@adraffy/ens-normalize@1.11.1':
     resolution: {integrity: sha512-nhCBV3quEgesuf7c7KYfperqSS14T8bYuvJ8PcLJp6znkZpFc0AuW4qBtr8eKVyPPe/8RSr7sglCWPU5eaxwKQ==}
+
+  '@aep-foundation/core@0.2.0':
+    resolution: {integrity: sha512-Zc6Tyzi/A3z2YOPoND89JVD0xZYi4XzxMEcotCmMWD8epsfOYZ3EmgCVtgadfGYcAkxkzE6MlKQN0yQtG+CfHA==}
+    engines: {node: '>=22.0.0'}
+
+  '@aep-foundation/express@0.2.0':
+    resolution: {integrity: sha512-eUEEhNlaGu55fCxkGy/mS7Grp7WI7hgTzLzNjKOy5/hsMdo1GccvSZ9WL6eMujj5EfYM++lnO5m2muvEzaydhA==}
+    engines: {node: '>=22.0.0'}
+    peerDependencies:
+      express: '>=5'
+
+  '@aep-foundation/service@0.2.0':
+    resolution: {integrity: sha512-fliagmVmYe025srVgCw7LUUn23mSEDTbe7+Bu4ocfTekMSePiZ2LlimVt2kxmZ8peksBML5ttCeaa8kw5VICaA==}
+    engines: {node: '>=22.0.0'}
 
   '@ampproject/remapping@2.3.0':
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
@@ -3116,6 +3173,9 @@ packages:
   jose@5.10.0:
     resolution: {integrity: sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg==}
 
+  jose@6.2.3:
+    resolution: {integrity: sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw==}
+
   joycon@3.1.1:
     resolution: {integrity: sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==}
     engines: {node: '>=10'}
@@ -4223,6 +4283,20 @@ packages:
 snapshots:
 
   '@adraffy/ens-normalize@1.11.1': {}
+
+  '@aep-foundation/core@0.2.0':
+    dependencies:
+      jose: 6.2.3
+
+  '@aep-foundation/express@0.2.0(express@5.2.1)':
+    dependencies:
+      '@aep-foundation/core': 0.2.0
+      '@aep-foundation/service': 0.2.0
+      express: 5.2.1
+
+  '@aep-foundation/service@0.2.0':
+    dependencies:
+      '@aep-foundation/core': 0.2.0
 
   '@ampproject/remapping@2.3.0':
     dependencies:
@@ -6763,6 +6837,8 @@ snapshots:
       '@pkgjs/parseargs': 0.11.0
 
   jose@5.10.0: {}
+
+  jose@6.2.3: {}
 
   joycon@3.1.1: {}
 

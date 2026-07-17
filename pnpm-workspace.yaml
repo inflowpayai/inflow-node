@@ -13,3 +13,8 @@ allowBuilds:
   esbuild: true
   msw: true
   sharp: true
+
+minimumReleaseAgeExclude:
+  - '@aep-foundation/core@0.2.0'
+  - '@aep-foundation/express@0.2.0'
+  - '@aep-foundation/service@0.2.0'
