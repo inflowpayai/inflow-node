@@ -1,0 +1,30 @@
+{
+  "name": "@inflowpayai/example-mpp-aep-seller-express",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Example: sequential AEP authentication and MPP payments via Express.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aep-foundation/core": "^0.2.0",
+    "@aep-foundation/express": "^0.2.0",
+    "@aep-foundation/service": "^0.2.0",
+    "@inflowpayai/mpp-seller": "workspace:^",
+    "dotenv": "^16.4.0",
+    "express": "^5.0.0",
+    "mppx": "^0.6.28"
+  },
+  "devDependencies": {
+    "@inflowpayai/mpp": "workspace:^",
+    "@types/express": "^5.0.0",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
