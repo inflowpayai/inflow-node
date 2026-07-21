@@ -268,8 +268,8 @@ app.listen(3000);
 
 `Mppx.create` requires a `secretKey` (or the `MPP_SECRET_KEY` env var). This is the HMAC secret `mppx` uses to mint and
 bind challenges so a credential can't be replayed against a different challenge. It is **not** your InFlow API key —
-keep both secret, and use distinct values per environment. See the [`mppx` docs](https://github.com/wevm/mppx) for
-details.
+keep both secret, use distinct values per environment, and supply at least 32 bytes. Generate one with
+`openssl rand -base64 32`. See the [`mppx` docs](https://github.com/wevm/mppx) for details.
 
 ### 5.6 Multiple currencies on one route
 

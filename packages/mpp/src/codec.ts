@@ -227,7 +227,33 @@ export function decodeCredential(value: string): MppCredential {
  * @returns The decoded receipt.
  */
 export function decodeReceipt(value: string): MppReceipt {
-  return decode<MppReceipt>(value, 'receipt');
+  const receipt = decode<unknown>(value, 'receipt');
+  if (receipt === null || typeof receipt !== 'object' || Array.isArray(receipt)) {
+    throw new MppCodecError('receipt', 'expected an object');
+  }
+  const record = receipt as Record<string, unknown>;
+  for (const field of ['challengeId', 'method', 'reference', 'timestamp'] as const) {
+    if (typeof record[field] !== 'string' || record[field].length === 0) {
+      throw new MppCodecError('receipt', `expected a non-empty ${field}`);
+    }
+  }
+  if (record['status'] !== 'success') {
+    throw new MppCodecError('receipt', 'expected status to be success');
+  }
+  const settlement = record['settlement'];
+  if (settlement === null || typeof settlement !== 'object' || Array.isArray(settlement)) {
+    throw new MppCodecError('receipt', 'expected settlement to be an object');
+  }
+  const settlementRecord = settlement as Record<string, unknown>;
+  for (const field of ['amount', 'currency'] as const) {
+    if (typeof settlementRecord[field] !== 'string' || settlementRecord[field].length === 0) {
+      throw new MppCodecError('receipt', `expected settlement.${field} to be non-empty`);
+    }
+  }
+  if (Number.isNaN(Date.parse(record['timestamp'] as string))) {
+    throw new MppCodecError('receipt', 'expected timestamp to be RFC 3339');
+  }
+  return receipt as MppReceipt;
 }
 
 /**

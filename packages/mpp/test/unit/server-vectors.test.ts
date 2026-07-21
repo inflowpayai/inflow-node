@@ -51,9 +51,9 @@ const VECTORS: readonly Vector[] = [
   },
   {
     name: 'receipt_success',
-    json: '{"challengeId":"qB3wChallengeId","method":"inflow","reference":"0xdeadbeef","status":"success","timestamp":"2026-05-30T12:05:00Z"}',
+    json: '{"challengeId":"qB3wChallengeId","method":"inflow","reference":"0xdeadbeef","settlement":{"amount":"10.5","currency":"USDC"},"status":"success","timestamp":"2026-05-30T12:05:00Z"}',
     b64url:
-      'eyJjaGFsbGVuZ2VJZCI6InFCM3dDaGFsbGVuZ2VJZCIsIm1ldGhvZCI6ImluZmxvdyIsInJlZmVyZW5jZSI6IjB4ZGVhZGJlZWYiLCJzdGF0dXMiOiJzdWNjZXNzIiwidGltZXN0YW1wIjoiMjAyNi0wNS0zMFQxMjowNTowMFoifQ',
+      'eyJjaGFsbGVuZ2VJZCI6InFCM3dDaGFsbGVuZ2VJZCIsIm1ldGhvZCI6ImluZmxvdyIsInJlZmVyZW5jZSI6IjB4ZGVhZGJlZWYiLCJzZXR0bGVtZW50Ijp7ImFtb3VudCI6IjEwLjUiLCJjdXJyZW5jeSI6IlVTREMifSwic3RhdHVzIjoic3VjY2VzcyIsInRpbWVzdGFtcCI6IjIwMjYtMDUtMzBUMTI6MDU6MDBaIn0',
   },
 ];
 
@@ -87,6 +87,7 @@ describe('server byte-parity vectors', () => {
     const receipt = decodeReceipt(receiptVector.b64url);
     expect(receipt.reference).toBe('0xdeadbeef');
     expect(receipt.method).toBe('inflow');
+    expect(receipt.settlement).toEqual({ amount: '10.5', currency: 'USDC' });
   });
 });
 

@@ -1,4 +1,4 @@
-import { decode, parseChallengeHeader } from '@inflowpayai/mpp';
+import { decode, decodeReceipt, parseChallengeHeader } from '@inflowpayai/mpp';
 import type { MppConfigResponse } from '@inflowpayai/mpp';
 import { Credential, Receipt } from 'mppx';
 import { Mppx } from 'mppx/server';
@@ -13,7 +13,7 @@ const BASE = 'https://mpp.test';
 const UUID = '11111111-1111-1111-1111-111111111111';
 const SELLER = '22222222-2222-2222-2222-222222222222';
 const INSTRUMENT = '33333333-3333-3333-3333-333333333333';
-const SECRET = 'seller-binding-secret';
+const SECRET = 'seller-binding-secret-at-least-32-bytes';
 const TEMPO_ASSET = '0x20c0000000000000000000000000000000000000';
 const TEMPO_RECIPIENT = '0x2222222222222222222222222222222222222222';
 const TEMPO_SPLIT_RECIPIENT = '0x3333333333333333333333333333333333333333';
@@ -69,6 +69,7 @@ function mockRedeemSuccess(method = 'inflow'): { body(): unknown; idempotencyKey
           challengeId: 'c1',
           method,
           reference: 'ref-123',
+          settlement: { amount: '10', currency: 'USDC' },
           status: 'success',
           timestamp: '2026-05-31T00:00:00Z',
         },
@@ -320,6 +321,17 @@ describe('verify → /v1/mpp/redeem', () => {
     expect(receipt.reference).toBe('ref-123');
     expect(receipt.status).toBe('success');
 
+    const receiptHeader = settled.headers.get('Payment-Receipt');
+    if (receiptHeader === null) throw new Error('expected Payment-Receipt header');
+    expect(decodeReceipt(receiptHeader)).toEqual({
+      challengeId: 'c1',
+      method: 'inflow',
+      reference: 'ref-123',
+      settlement: { amount: '10', currency: 'USDC' },
+      status: 'success',
+      timestamp: '2026-05-31T00:00:00Z',
+    });
+
     // The credential's server-minted transactionId round-trips to redeem and is used as the idempotency key.
     expect(redeem.idempotencyKey()).toBe('tx-1');
     const body = redeem.body() as { credential: { payload: Record<string, unknown> } };
@@ -412,6 +424,7 @@ describe('verify → /v1/mpp/redeem', () => {
             challengeId: 'c1',
             method: 'inflow',
             reference: 'ref-9',
+            settlement: { amount: '10', currency: 'USDC' },
             status: 'success',
             timestamp: '2026-05-31T00:00:00Z',
           },

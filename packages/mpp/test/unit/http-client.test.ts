@@ -45,6 +45,7 @@ describe('MppClient endpoints', () => {
         challengeId: 'c1',
         method: 'inflow',
         reference: 'ref_1',
+        settlement: { amount: '10', currency: 'USDC' },
         status: 'success',
         timestamp: '2025-01-15T12:05:00Z',
       },

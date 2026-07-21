@@ -12,7 +12,7 @@
   "dependencies": {
     "@inflowpayai/mpp-buyer": "workspace:^",
     "dotenv": "^16.4.0",
-    "mppx": "^0.6.28"
+    "mppx": "^0.8.12"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

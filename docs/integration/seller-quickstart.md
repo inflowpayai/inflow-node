@@ -170,7 +170,7 @@ pnpm add -D dotenv
 
 ```bash
 INFLOW_API_KEY=your_sandbox_key_here
-MPP_SECRET_KEY=your_hmac_secret_here   # used by mppx to bind challenges; see mppx docs
+MPP_SECRET_KEY=<output of openssl rand -base64 32>
 PORT=3000
 ```
 

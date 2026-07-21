@@ -145,25 +145,24 @@ describe('credential / receipt codecs', () => {
       challengeId: 'qB3w',
       method: 'inflow',
       reference: 'ref-1',
+      settlement: { amount: '10.5', currency: 'USDC' },
       status: 'success',
       timestamp: '2025-01-15T12:05:00Z',
     };
     expect(decodeReceipt(encode(receipt))).toEqual(receipt);
   });
 
-  it('decodes a receipt carrying settlement amount/currency', () => {
-    const receipt: MppReceipt = {
-      challengeId: 'qB3w',
-      method: 'inflow',
-      reference: 'ref-1',
-      status: 'success',
-      timestamp: '2025-01-15T12:05:00Z',
-      amount: '10.5',
-      currency: 'USDC',
-    };
-    const decoded = decodeReceipt(encode(receipt));
-    expect(decoded).toEqual(receipt);
-    expect(decoded.amount).toBe('10.5');
-    expect(decoded.currency).toBe('USDC');
+  it('rejects a receipt without MPP settlement details', () => {
+    expect(() =>
+      decodeReceipt(
+        encode({
+          challengeId: 'qB3w',
+          method: 'inflow',
+          reference: 'ref-1',
+          status: 'success',
+          timestamp: '2025-01-15T12:05:00Z',
+        }),
+      ),
+    ).toThrow(/settlement/);
   });
 });
