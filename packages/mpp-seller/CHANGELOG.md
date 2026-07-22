@@ -1,5 +1,23 @@
 # @inflowpayai/mpp-seller
 
+## 0.6.2
+
+### Patch Changes
+
+- [#31](https://github.com/inflowpayai/inflow-node/pull/31)
+  [`2e041a1`](https://github.com/inflowpayai/inflow-node/commit/2e041a13818b67ea95605926c9360aa07079b47e) Thanks
+  [@nkavian](https://github.com/nkavian)! - Preserve the challenge `opaque` value when forwarding verified credentials
+  for redemption.
+
+- [#31](https://github.com/inflowpayai/inflow-node/pull/31)
+  [`fcf912e`](https://github.com/inflowpayai/inflow-node/commit/fcf912e9163db0779186684a86326df025bd414e) Thanks
+  [@nkavian](https://github.com/nkavian)! - Require mppx 0.8.12 or newer and emit MPP receipts with `challengeId` and
+  nested `settlement.amount` and `settlement.currency` fields.
+- Updated dependencies
+  [[`fcf912e`](https://github.com/inflowpayai/inflow-node/commit/fcf912e9163db0779186684a86326df025bd414e),
+  [`56f6c8b`](https://github.com/inflowpayai/inflow-node/commit/56f6c8b9e9ad169f6bc3ee45d387dc4575946682)]:
+  - @inflowpayai/mpp@0.7.1
+
 ## 0.6.1
 
 ### Patch Changes

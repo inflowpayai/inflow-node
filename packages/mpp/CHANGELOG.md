@@ -1,5 +1,20 @@
 # @inflowpayai/mpp
 
+## 0.7.1
+
+### Patch Changes
+
+- [#31](https://github.com/inflowpayai/inflow-node/pull/31)
+  [`fcf912e`](https://github.com/inflowpayai/inflow-node/commit/fcf912e9163db0779186684a86326df025bd414e) Thanks
+  [@nkavian](https://github.com/nkavian)! - Require mppx 0.8.12 or newer and emit MPP receipts with `challengeId` and
+  nested `settlement.amount` and `settlement.currency` fields.
+
+- [#31](https://github.com/inflowpayai/inflow-node/pull/31)
+  [`56f6c8b`](https://github.com/inflowpayai/inflow-node/commit/56f6c8b9e9ad169f6bc3ee45d387dc4575946682) Thanks
+  [@nkavian](https://github.com/nkavian)! - Validate credential structure during decoding, accept core MPP receipts
+  while preserving method-specific extensions, and reject empty required fields and duplicate parameters when parsing
+  payment challenges.
+
 ## 0.7.0
 
 ### Minor Changes
