@@ -434,7 +434,13 @@ describe('verify → /v1/mpp/redeem', () => {
     const { method, mppx } = makeMppx();
     const minted = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC', recipient: UUID });
     // Also exercise the optional expires/description/digest spreads in the wire-credential mapping.
-    const challenge = { ...minted, digest: 'sha-256=Zm9vYmFy', expires: '2026-05-31T12:00:00Z', description: 'pay' };
+    const challenge = {
+      ...minted,
+      digest: 'sha-256=Zm9vYmFy',
+      expires: '2026-05-31T12:00:00Z',
+      description: 'pay',
+      opaque: 'eyJvcmRlcklkIjoib3JkZXItMTIzIn0',
+    };
 
     await method.verify({
       credential: { challenge, payload: { transactionId: 'tx-4', type: 'balance' }, source: 'did:inflow:p' },
@@ -447,6 +453,7 @@ describe('verify → /v1/mpp/redeem', () => {
     expect(body.credential.challenge['expires']).toBe('2026-05-31T12:00:00Z');
     expect(body.credential.challenge['description']).toBe('pay');
     expect(body.credential.challenge['digest']).toBe('sha-256=Zm9vYmFy');
+    expect(body.credential.challenge['opaque']).toBe('eyJvcmRlcklkIjoib3JkZXItMTIzIn0');
   });
 
   it('throws a verification-failed fallback when redeem returns neither receipt nor problem', async () => {

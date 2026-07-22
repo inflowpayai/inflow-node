@@ -292,6 +292,7 @@ function toWireCredential(credential: Credential.Credential<Record<string, unkno
     ...(source.expires !== undefined ? { expires: source.expires } : {}),
     ...(source.description !== undefined ? { description: source.description } : {}),
     ...(source.digest !== undefined ? { digest: source.digest } : {}),
+    ...(source.opaque !== undefined ? { opaque: source.opaque } : {}),
   };
   return {
     challenge,
