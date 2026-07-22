@@ -106,6 +106,18 @@ describe('WWW-Authenticate: Payment render/parse', () => {
     );
   });
 
+  it('rejects an empty required auth-param', () => {
+    expect(() =>
+      parseChallengeHeader('Payment id="", realm="r", method="inflow", intent="charge", request="e30"'),
+    ).toThrow(MppCodecError);
+  });
+
+  it('rejects duplicate auth-params', () => {
+    expect(() =>
+      parseChallengeHeader('Payment id="x", id="y", realm="r", method="inflow", intent="charge", request="e30"'),
+    ).toThrow(MppCodecError);
+  });
+
   it('parses multiple challenges from one combined value and from an array', () => {
     const a = 'Payment id="a", realm="r", method="inflow", intent="charge", request="q1"';
     const b = 'Payment id="b", realm="r", method="inflow", intent="charge", request="q2"';
@@ -140,6 +152,21 @@ describe('credential / receipt codecs', () => {
     expect(decoded.challenge.opaque).toBe('eyJpc3MiOiJpbmZsb3cifQ');
   });
 
+  it('rejects a credential whose challenge is missing a required field', () => {
+    expect(() =>
+      decodeCredential(
+        encode({
+          challenge: { realm: 'r', method: 'inflow', intent: 'charge', request: 'e30' },
+          payload: {},
+        }),
+      ),
+    ).toThrow(MppCodecError);
+  });
+
+  it('rejects a credential with a non-object payload', () => {
+    expect(() => decodeCredential(encode({ challenge, payload: 'proof' }))).toThrow(MppCodecError);
+  });
+
   it('decodes a receipt', () => {
     const receipt: MppReceipt = {
       challengeId: 'qB3w',
@@ -152,17 +179,19 @@ describe('credential / receipt codecs', () => {
     expect(decodeReceipt(encode(receipt))).toEqual(receipt);
   });
 
-  it('rejects a receipt without MPP settlement details', () => {
+  it('decodes a core receipt without method-specific extensions', () => {
+    const receipt = {
+      method: 'tempo',
+      reference: 'ref-1',
+      status: 'success' as const,
+      timestamp: '2025-01-15T12:05:00Z',
+    };
+    expect(decodeReceipt(encode(receipt))).toEqual(receipt);
+  });
+
+  it('rejects a non-RFC 3339 receipt timestamp', () => {
     expect(() =>
-      decodeReceipt(
-        encode({
-          challengeId: 'qB3w',
-          method: 'inflow',
-          reference: 'ref-1',
-          status: 'success',
-          timestamp: '2025-01-15T12:05:00Z',
-        }),
-      ),
-    ).toThrow(/settlement/);
+      decodeReceipt(encode({ method: 'tempo', reference: 'ref-1', status: 'success', timestamp: 'Jan 29 2026 12:00' })),
+    ).toThrow(MppCodecError);
   });
 });

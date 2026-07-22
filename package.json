@@ -28,6 +28,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
     "typedoc": "typedoc",
+    "conformance": "node scripts/mpp-conformance.mjs",
+    "conformance:update": "node scripts/mpp-conformance.mjs --update",
     "check-exports": "node scripts/check-exports.mjs",
     "verify-publish": "node scripts/verify-publish.mjs",
     "check-publish": "pnpm build && pnpm check-exports && pnpm verify-publish",

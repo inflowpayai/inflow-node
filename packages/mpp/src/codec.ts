@@ -217,7 +217,29 @@ export function decode<T>(value: string, artifact = 'value'): T {
  * @returns The decoded credential.
  */
 export function decodeCredential(value: string): MppCredential {
-  return decode<MppCredential>(value, 'credential');
+  const credential = decode<unknown>(value, 'credential');
+  if (credential === null || typeof credential !== 'object' || Array.isArray(credential)) {
+    throw new MppCodecError('credential', 'expected an object');
+  }
+  const record = credential as Record<string, unknown>;
+  const challenge = record['challenge'];
+  if (challenge === null || typeof challenge !== 'object' || Array.isArray(challenge)) {
+    throw new MppCodecError('credential', 'expected challenge to be an object');
+  }
+  const challengeRecord = challenge as Record<string, unknown>;
+  for (const field of ['id', 'realm', 'method', 'intent', 'request'] as const) {
+    if (typeof challengeRecord[field] !== 'string' || challengeRecord[field].length === 0) {
+      throw new MppCodecError('credential', `expected challenge.${field} to be non-empty`);
+    }
+  }
+  const payload = record['payload'];
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new MppCodecError('credential', 'expected payload to be an object');
+  }
+  if (record['source'] !== undefined && typeof record['source'] !== 'string') {
+    throw new MppCodecError('credential', 'expected source to be a string');
+  }
+  return credential as MppCredential;
 }
 
 /**
@@ -232,7 +254,7 @@ export function decodeReceipt(value: string): MppReceipt {
     throw new MppCodecError('receipt', 'expected an object');
   }
   const record = receipt as Record<string, unknown>;
-  for (const field of ['challengeId', 'method', 'reference', 'timestamp'] as const) {
+  for (const field of ['method', 'reference', 'timestamp'] as const) {
     if (typeof record[field] !== 'string' || record[field].length === 0) {
       throw new MppCodecError('receipt', `expected a non-empty ${field}`);
     }
@@ -240,17 +262,28 @@ export function decodeReceipt(value: string): MppReceipt {
   if (record['status'] !== 'success') {
     throw new MppCodecError('receipt', 'expected status to be success');
   }
-  const settlement = record['settlement'];
-  if (settlement === null || typeof settlement !== 'object' || Array.isArray(settlement)) {
-    throw new MppCodecError('receipt', 'expected settlement to be an object');
+  if (
+    record['challengeId'] !== undefined &&
+    (typeof record['challengeId'] !== 'string' || record['challengeId'].length === 0)
+  ) {
+    throw new MppCodecError('receipt', 'expected challengeId to be non-empty');
   }
-  const settlementRecord = settlement as Record<string, unknown>;
-  for (const field of ['amount', 'currency'] as const) {
-    if (typeof settlementRecord[field] !== 'string' || settlementRecord[field].length === 0) {
-      throw new MppCodecError('receipt', `expected settlement.${field} to be non-empty`);
+  const settlement = record['settlement'];
+  if (settlement !== undefined) {
+    if (settlement === null || typeof settlement !== 'object' || Array.isArray(settlement)) {
+      throw new MppCodecError('receipt', 'expected settlement to be an object');
+    }
+    const settlementRecord = settlement as Record<string, unknown>;
+    for (const field of ['amount', 'currency'] as const) {
+      if (typeof settlementRecord[field] !== 'string' || settlementRecord[field].length === 0) {
+        throw new MppCodecError('receipt', `expected settlement.${field} to be non-empty`);
+      }
     }
   }
-  if (Number.isNaN(Date.parse(record['timestamp'] as string))) {
+  if (
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(record['timestamp'] as string) ||
+    Number.isNaN(Date.parse(record['timestamp'] as string))
+  ) {
     throw new MppCodecError('receipt', 'expected timestamp to be RFC 3339');
   }
   return receipt as MppReceipt;
@@ -380,12 +413,15 @@ export function parseChallengeHeader(headerValue: string): MppChallenge {
   const input = trimmed.slice(SCHEME_PREFIX.length).trim();
 
   const fields: Partial<Record<keyof MppChallenge, string>> = {};
+  const seen = new Set<string>();
   PARAM_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = PARAM_PATTERN.exec(input)) !== null) {
     const key = match[1] ?? match[3];
     const value = match[1] !== undefined ? match[2] : match[4];
     if (key === undefined || value === undefined) continue;
+    if (seen.has(key)) throw new MppCodecError('challenge header', `duplicate parameter '${key}'`);
+    seen.add(key);
     switch (key) {
       case 'description':
         fields.description = unescapeQuotedString(value);
@@ -420,7 +456,7 @@ export function parseChallengeHeader(headerValue: string): MppChallenge {
   }
 
   for (const required of ['id', 'realm', 'method', 'intent', 'request'] as const) {
-    if (fields[required] === undefined) {
+    if (fields[required] === undefined || fields[required].length === 0) {
       throw new MppCodecError('challenge header', `missing required parameter '${required}'`);
     }
   }

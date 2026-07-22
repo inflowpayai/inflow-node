@@ -309,10 +309,10 @@ function toWireCredential(credential: Credential.Credential<Record<string, unkno
  */
 function toMppxReceipt(receipt: MppReceipt): Receipt.from.Parameters {
   return {
-    challengeId: receipt.challengeId,
+    ...(receipt.challengeId !== undefined ? { challengeId: receipt.challengeId } : {}),
     method: receipt.method,
     reference: receipt.reference,
-    settlement: receipt.settlement,
+    ...(receipt.settlement !== undefined ? { settlement: receipt.settlement } : {}),
     status: receipt.status,
     timestamp: receipt.timestamp,
   };

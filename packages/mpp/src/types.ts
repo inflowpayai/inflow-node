@@ -155,14 +155,14 @@ export interface MppCredential {
  * server's `MppReceipt`.
  */
 export interface MppReceipt {
-  /** Challenge id this receipt responds to. Required. */
-  challengeId: string;
+  /** Challenge id this receipt responds to, when supplied by the payment method. */
+  challengeId?: string;
   /** Payment method identifier (e.g. `'inflow'`). Required. */
   method: MppMethodLabel;
   /** Method-specific reference (tx hash, PaymentIntent id, ledger entry id, etc.). Required. */
   reference: string;
-  /** Settlement details recorded by the payment method. Required. */
-  settlement: {
+  /** Settlement details recorded by the payment method. */
+  settlement?: {
     /** Settled amount as a decimal string in the payment method's units. Required. */
     amount: string;
     /** Settled currency or asset identifier. Required. */
