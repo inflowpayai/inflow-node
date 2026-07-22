@@ -39,8 +39,8 @@ pnpm add @inflowpayai/mpp-seller mppx
 
 - `apiKey` → `inflow({ apiKey })` — your InFlow API key; authenticates the InFlow REST calls.
 
-`Mppx.create` additionally takes a `secretKey` (or the `MPP_SECRET_KEY` env var); see the
-[`mppx`](https://github.com/wevm/mppx) docs for what it is and how it's used.
+`Mppx.create` additionally takes a `secretKey` (or the `MPP_SECRET_KEY` env var). It must contain at least 32 bytes;
+generate one with `openssl rand -base64 32`. See the [`mppx`](https://github.com/wevm/mppx) docs for how it is used.
 
 ## Rails — derived from the charge currency
 

@@ -155,24 +155,23 @@ export interface MppCredential {
  * server's `MppReceipt`.
  */
 export interface MppReceipt {
-  /** Challenge id this receipt responds to. Required. */
-  challengeId: string;
+  /** Challenge id this receipt responds to, when supplied by the payment method. */
+  challengeId?: string;
   /** Payment method identifier (e.g. `'inflow'`). Required. */
   method: MppMethodLabel;
   /** Method-specific reference (tx hash, PaymentIntent id, ledger entry id, etc.). Required. */
   reference: string;
+  /** Settlement details recorded by the payment method. */
+  settlement?: {
+    /** Settled amount as a decimal string in the payment method's units. Required. */
+    amount: string;
+    /** Settled currency or asset identifier. Required. */
+    currency: string;
+  };
   /** Settlement status. Only `'success'` is emitted today. Required. */
-  status: 'success' | (string & {});
+  status: 'success';
   /** RFC 3339 timestamp of settlement. Required. */
   timestamp: string;
-  /**
-   * Settled amount in base units (smallest denomination), as a decimal string — mirrors the server's `BigDecimal`
-   * serialization. Optional for forward/backward compatibility with receipts issued before settlement details were
-   * carried; present on receipts the InFlow server settles. Lets a seller reconcile what was actually captured.
-   */
-  amount?: string;
-  /** Settled currency/asset identifier (e.g. `'USDC'`), pairing with {@link MppReceipt.amount}. Optional; see `amount`. */
-  currency?: CurrencyCode;
 }
 
 /**

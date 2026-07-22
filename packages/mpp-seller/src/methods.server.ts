@@ -292,6 +292,7 @@ function toWireCredential(credential: Credential.Credential<Record<string, unkno
     ...(source.expires !== undefined ? { expires: source.expires } : {}),
     ...(source.description !== undefined ? { description: source.description } : {}),
     ...(source.digest !== undefined ? { digest: source.digest } : {}),
+    ...(source.opaque !== undefined ? { opaque: source.opaque } : {}),
   };
   return {
     challenge,
@@ -301,40 +302,19 @@ function toWireCredential(credential: Credential.Credential<Record<string, unkno
 }
 
 /**
- * Map the InFlow {@link MppReceipt} onto mppx's minimal receipt shape (`method`, `reference`, `status`, `timestamp`).
+ * Map the InFlow {@link MppReceipt} onto mppx's receipt shape while retaining InFlow's method-specific fields.
  *
  * @param receipt - The InFlow receipt.
  * @returns Parameters for `Receipt.from`.
- * @throws {@link MppRedeemProblemError} When the receipt carries a non-`success` status (a contract violation): mppx's
- *   receipt schema models only successful settlement, so we surface a payment error rather than stamp a false success.
  */
 function toMppxReceipt(receipt: MppReceipt): Receipt.from.Parameters {
-  if (receipt.status !== 'success') {
-    throw new MppRedeemProblemError(unexpectedStatusProblem(receipt.status));
-  }
   return {
+    ...(receipt.challengeId !== undefined ? { challengeId: receipt.challengeId } : {}),
     method: receipt.method,
     reference: receipt.reference,
-    // The guard above proves this is `'success'`; the assertion only narrows the open `'success' | (string & {})` wire
-    // union (which TS can't narrow by inequality) to the literal mppx's receipt schema requires.
-    status: receipt.status as 'success',
+    ...(receipt.settlement !== undefined ? { settlement: receipt.settlement } : {}),
+    status: receipt.status,
     timestamp: receipt.timestamp,
-  };
-}
-
-/**
- * Synthesise a verification-failed problem for a redeem receipt whose `status` is not `success` — the InFlow server
- * emits only success receipts, so any other value is a contract violation surfaced as a typed payment error.
- *
- * @param status - The unexpected receipt status.
- * @returns A minimal RFC 9457 problem.
- */
-function unexpectedStatusProblem(status: string): MppProblemDetail {
-  return {
-    type: PROBLEM_TYPES.VERIFICATION_FAILED,
-    title: 'Verification Failed',
-    status: 402,
-    detail: `The PSP redeem receipt carried an unexpected status: ${status}.`,
   };
 }
 

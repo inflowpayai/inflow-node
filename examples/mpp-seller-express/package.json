@@ -13,7 +13,7 @@
     "@inflowpayai/mpp-seller": "workspace:^",
     "dotenv": "^16.4.0",
     "express": "^5.0.0",
-    "mppx": "^0.6.28"
+    "mppx": "^0.8.12"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
