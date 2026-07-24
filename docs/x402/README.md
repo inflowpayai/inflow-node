@@ -130,16 +130,11 @@ scheme the caller registered above — same client, two paths.
 ## Multi-facilitator setup
 
 ```ts
-paymentMiddlewareFromConfig(
-  {
-    /* routes */
-  },
-  [
-    inflow,
-    cdp, // e.g. Coinbase CDP facilitator
-    polygon, // any other FacilitatorClient
-  ],
-);
+paymentMiddlewareFromConfig({/* routes */}, [
+  inflow,
+  cdp, // e.g. Coinbase CDP facilitator
+  polygon, // any other FacilitatorClient
+]);
 ```
 
 First claimer in the `facilitatorClients` array of a `(scheme, network)` pair (via `getSupported()`) wins verify/settle

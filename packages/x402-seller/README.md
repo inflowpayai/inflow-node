@@ -89,16 +89,11 @@ Pass multiple facilitator clients in the array — first claimer of a `(scheme, 
 routing (foundation's declaration-order resolution):
 
 ```ts
-paymentMiddlewareFromConfig(
-  {
-    /* routes */
-  },
-  [
-    inflow, // claims (balance, inflow), (exact, eip155:8453), …
-    cdp, // claims whatever inflow doesn't
-    partnerFacilitator,
-  ],
-);
+paymentMiddlewareFromConfig({/* routes */}, [
+  inflow, // claims (balance, inflow), (exact, eip155:8453), …
+  cdp, // claims whatever inflow doesn't
+  partnerFacilitator,
+]);
 ```
 
 ## See also

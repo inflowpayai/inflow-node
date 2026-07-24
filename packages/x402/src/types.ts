@@ -129,11 +129,7 @@ export interface Permit2PayloadData {
  * for forward- compatible schemes the SDK hasn't yet enumerated.
  */
 export type InflowPaymentPayloadData =
-  | BalancePayloadData
-  | ExactPayloadData
-  | Permit2PayloadData
-  | InstrumentPayloadData
-  | Record<string, unknown>;
+  BalancePayloadData | ExactPayloadData | Permit2PayloadData | InstrumentPayloadData | Record<string, unknown>;
 
 /**
  * The signed payment envelope a buyer sends to the seller in the `PAYMENT-SIGNATURE` header (base64 JSON). Narrow on
