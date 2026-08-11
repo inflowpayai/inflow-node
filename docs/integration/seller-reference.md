@@ -407,9 +407,7 @@ intentionally — later claimers of an already-claimed pair are silently ignored
 
 ```ts
 paymentMiddlewareFromConfig(
-  {
-    /* routes */
-  },
+  {/* routes */},
   [
     inflow, // claims (balance, inflow:1), (exact, eip155:8453), …
     cdp, // e.g. Coinbase CDP facilitator — claims what InFlow didn't

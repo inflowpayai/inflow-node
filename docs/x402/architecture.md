@@ -136,16 +136,11 @@ The foundation middleware resolves overlapping `(scheme, network)` claims by **d
 ignored. Sellers control resolution by ordering the array:
 
 ```ts
-paymentMiddlewareFromConfig(
-  {
-    /* routes */
-  },
-  [
-    inflow, // wins on (balance, inflow) and any (exact, *)
-    cdp, // wins only on entries inflow doesn't claim
-    partnerNetwork,
-  ],
-);
+paymentMiddlewareFromConfig({/* routes */}, [
+  inflow, // wins on (balance, inflow) and any (exact, *)
+  cdp, // wins only on entries inflow doesn't claim
+  partnerNetwork,
+]);
 ```
 
 The buyer side uses a different but parallel rule: `InflowClient.createPaymentPayload` checks the InFlow buyer

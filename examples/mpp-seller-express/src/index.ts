@@ -9,6 +9,7 @@ if (apiKey === undefined || apiKey === '') {
   console.error('Set INFLOW_API_KEY in your environment (see .env.example).');
   process.exit(1);
 }
+const baseUrl = process.env['INFLOW_BASE_URL'];
 
 // Build the `inflow` method (which primes `GET /v1/mpp/config` once) and the binding `secretKey` a single time, then
 // stand up two instances over them — they expose different APIs:
@@ -19,7 +20,11 @@ if (apiKey === undefined || apiKey === '') {
 // `Mppx.create` only reads its argument, so sharing the method object is safe and avoids a second `/config` fetch.
 // The `methods` array stays inline in each call so mppx can infer the precise method tuple (a hoisted config object
 // would widen it and drop the typed handlers).
-const method = inflow({ apiKey, environment: 'sandbox' });
+const method = inflow({
+  apiKey,
+  environment: 'sandbox',
+  ...(baseUrl === undefined || baseUrl === '' ? {} : { baseUrl }),
+});
 const secretKey = process.env['MPP_SECRET_KEY'];
 const mppx = Mppx.create({ methods: [method], secretKey });
 const core = MppxServer.create({ methods: [method], secretKey });

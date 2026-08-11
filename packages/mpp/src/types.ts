@@ -128,9 +128,7 @@ export interface TempoChallengeRequest {
 
 /** Tempo credential payload for pull, push, and zero-amount proof flows. */
 export type TempoCredentialPayload = (
-  | { type: 'transaction'; signature: string }
-  | { type: 'hash'; hash: string }
-  | { type: 'proof'; signature: string }
+  { type: 'transaction'; signature: string } | { type: 'hash'; hash: string } | { type: 'proof'; signature: string }
 ) & { transactionId?: string };
 
 /**
