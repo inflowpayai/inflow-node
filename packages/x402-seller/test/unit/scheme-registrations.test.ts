@@ -89,6 +89,24 @@ describe('inflowSchemeRegistrations', () => {
       expect(typeof reg.server.enhancePaymentRequirements).toBe('function');
     }
   });
+
+  it('declares the foundation payment-flow defaults required by newer x402 releases', async () => {
+    const registrations = await inflowSchemeRegistrations(fakeSellerClient());
+
+    for (const registration of registrations) {
+      const server = registration.server as unknown as {
+        defaultAssetTransferMethod: string;
+        paymentFlows: Record<string, { supported: readonly string[]; default: string }>;
+      };
+      expect(server.defaultAssetTransferMethod).toBe('default');
+      expect(server.paymentFlows).toEqual({
+        default: {
+          supported: ['upfront'],
+          default: 'upfront',
+        },
+      });
+    }
+  });
 });
 
 describe('inflowSchemeRegistrations — passthrough scheme.parsePrice', () => {

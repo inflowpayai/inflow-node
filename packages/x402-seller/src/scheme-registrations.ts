@@ -69,8 +69,18 @@ export async function inflowSchemeRegistrations(client: InflowSellerClient): Pro
 // bypassed `inflowAccepts`, and we can't safely guess the asset's
 // decimals here.
 function inflowPassthroughScheme(scheme: string): SchemeNetworkServer {
-  return {
+  // Keep these fields in the runtime object even when compiling against an
+  // older foundation release. @x402/core >=2.22 requires them, while older
+  // releases safely ignore the additive properties.
+  const server = {
     scheme,
+    defaultAssetTransferMethod: 'default',
+    paymentFlows: {
+      default: {
+        supported: ['upfront'],
+        default: 'upfront',
+      },
+    } as const,
     parsePrice(price: Price, _network: Network): Promise<AssetAmount> {
       const candidate: unknown = price;
       if (typeof candidate !== 'object' || candidate === null || !('asset' in candidate) || !('amount' in candidate)) {
@@ -98,4 +108,6 @@ function inflowPassthroughScheme(scheme: string): SchemeNetworkServer {
       return Promise.resolve(paymentRequirements);
     },
   };
+
+  return server;
 }
