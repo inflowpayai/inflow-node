@@ -14,7 +14,7 @@
     "@inflowpayai/mpp-seller": "workspace:^",
     "dotenv": "^16.4.0",
     "hono": "^4.12.25",
-    "mppx": "^0.8.12"
+    "mppx": "^0.8.17"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

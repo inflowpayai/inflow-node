@@ -90,6 +90,7 @@ export function inflow(parameters: InflowSellerParameters): Method.Server<typeof
   const defaults = buildDefaults(parameters);
 
   return Method.toServer(inflowCharge, {
+    canOffer: parameters.canOffer,
     defaults,
 
     async request({ request }) {
@@ -148,6 +149,7 @@ export function tempo(
   void config.load().catch(() => undefined);
 
   return Method.toServer(tempoCharge, {
+    canOffer: parameters.canOffer,
     defaults: buildTempoDefaults(parameters),
 
     request({ request }) {

@@ -20,3 +20,4 @@ export type { Environment, MppCurrencyRail, MppProblemDetail, MppReceipt } from 
 // and HMAC binding; `Expires` builds per-charge `expires` timestamps; `Receipt` is re-exported for the manual path.
 export { Mppx, Expires } from 'mppx/server';
 export { Receipt } from 'mppx';
+export * as Discovery from 'mppx/discovery';

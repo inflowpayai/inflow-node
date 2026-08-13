@@ -4,10 +4,11 @@ import { Credential, Receipt } from 'mppx';
 import { Mppx } from 'mppx/server';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { MppRedeemProblemError, MppUnsupportedCurrencyError } from '../../src/errors.js';
 import { inflow, tempo } from '../../src/methods.server.js';
+import type { InflowSellerParameters, TempoSellerParameters } from '../../src/types.js';
 
 const BASE = 'https://mpp.test';
 const UUID = '11111111-1111-1111-1111-111111111111';
@@ -134,6 +135,62 @@ describe('native issuance: currency → rail in the minted 402', () => {
     if (r.status !== 402) throw new Error('expected 402');
     const request = decodeChallengeRequest(r.challenge);
     expect(request['methodDetails']).toEqual({ rail: 'instrument', instrumentId: INSTRUMENT });
+  });
+
+  it('exposes request-aware canOffer gating for composed InFlow offers', async () => {
+    mockConfig();
+    const canOffer = vi.fn<NonNullable<InflowSellerParameters['canOffer']>>(
+      ({ input, request }) => input.headers.get('x-payment-currency') === request.currency,
+    );
+    const { method, mppx } = makeMppx(inflow({ apiKey: 'sk_test', baseUrl: BASE, canOffer }));
+    const handler = mppx.compose([method, { amount: '1', currency: 'USDC' }]);
+
+    await expect(
+      handler(new Request('https://app.test/r', { headers: { 'x-payment-currency': 'USD' } })),
+    ).rejects.toThrow('No payment offers are available for this request');
+
+    const response = await handler(new Request('https://app.test/r', { headers: { 'x-payment-currency': 'USDC' } }));
+    expect(response.status).toBe(402);
+    expect(canOffer).toHaveBeenCalledTimes(2);
+    expect(canOffer.mock.calls[1]?.[0].request.currency).toBe('USDC');
+  });
+
+  it('forwards canOffer on direct methods and gates composed Tempo offers', async () => {
+    mockConfig();
+    const inflowCanOffer = vi.fn<NonNullable<InflowSellerParameters['canOffer']>>(() => true);
+    expect(inflow({ apiKey: 'sk_test', baseUrl: BASE, canOffer: inflowCanOffer }).canOffer).toBe(inflowCanOffer);
+
+    const tempoCanOffer = vi.fn<NonNullable<TempoSellerParameters['canOffer']>>(
+      ({ input }) => input.headers.get('x-enable-tempo') === 'yes',
+    );
+    const { method, mppx } = makeTempoMppx(
+      tempo({
+        apiKey: 'sk_test',
+        baseUrl: BASE,
+        canOffer: tempoCanOffer,
+        currency: TEMPO_ASSET,
+        recipient: TEMPO_RECIPIENT,
+      }),
+    );
+    expect(method.canOffer).toBe(tempoCanOffer);
+    const handler = mppx.compose([method, { amount: '100' }]);
+
+    await expect(handler(new Request('https://app.test/r'))).rejects.toThrow(
+      'No payment offers are available for this request',
+    );
+    const response = await handler(new Request('https://app.test/r', { headers: { 'x-enable-tempo': 'yes' } }));
+    expect(response.status).toBe(402);
+    expect(tempoCanOffer).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps composed offers eligible when canOffer is omitted', async () => {
+    mockConfig();
+    const { method, mppx } = makeMppx();
+    expect(method.canOffer).toBeUndefined();
+
+    const response = await mppx.compose([method, { amount: '1', currency: 'USDC' }])(new Request('https://app.test/r'));
+
+    expect(response.status).toBe(402);
   });
 
   it('emits no inflow challenge for an unsupported currency (JPY)', async () => {
