@@ -490,6 +490,9 @@ importers:
 
   packages/mpp:
     devDependencies:
+      '@inflowpayai/mpp-internal':
+        specifier: workspace:*
+        version: link:../mpp-internal
       '@vitest/coverage-v8':
         specifier: ^2.1.0
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(msw@2.14.6(@types/node@24.13.3)(typescript@5.9.3)))
@@ -519,12 +522,17 @@ importers:
         specifier: ^2.4.0
         version: 2.14.6(@types/node@24.13.3)(typescript@5.9.3)
 
+  packages/mpp-internal: {}
+
   packages/mpp-seller:
     dependencies:
       '@inflowpayai/mpp':
         specifier: workspace:^
         version: link:../mpp
     devDependencies:
+      '@inflowpayai/mpp-internal':
+        specifier: workspace:*
+        version: link:../mpp-internal
       '@vitest/coverage-v8':
         specifier: ^2.1.0
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(msw@2.14.6(@types/node@24.13.3)(typescript@5.9.3)))

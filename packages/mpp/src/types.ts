@@ -153,6 +153,8 @@ export interface MppCredential {
  * server's `MppReceipt`.
  */
 export interface MppReceipt {
+  /** Method specifications may add JSON-compatible top-level receipt fields. */
+  [extension: string]: unknown;
   /** Challenge id this receipt responds to, when supplied by the payment method. */
   challengeId?: string;
   /** Payment method identifier (e.g. `'inflow'`). Required. */
@@ -185,6 +187,10 @@ export interface MppProblemDetail {
   status: number;
   /** Human-readable explanation specific to this occurrence. Required. */
   detail: string;
+  /** Optional one-line hint with actionable remediation guidance. */
+  hint?: string;
+  /** Optional structured context carried by the problem type implementation. */
+  details?: Record<string, unknown>;
   /** Additional problem-type-specific context. */
   extensions?: Record<string, unknown>;
 }
