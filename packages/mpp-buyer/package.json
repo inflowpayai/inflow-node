@@ -16,6 +16,14 @@
       },
       "default": "./dist/index.js"
     },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "node": {
+        "import": "./dist/mcp/index.js",
+        "require": "./dist/mcp/index.cjs"
+      },
+      "default": "./dist/mcp/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -40,14 +48,19 @@
     "@inflowpayai/mpp": "workspace:^"
   },
   "peerDependencies": {
+    "@modelcontextprotocol/sdk": ">=1.25.0",
     "mppx": "^0.8.12"
   },
   "peerDependenciesMeta": {
+    "@modelcontextprotocol/sdk": {
+      "optional": true
+    },
     "mppx": {
       "optional": false
     }
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.0",
     "@vitest/coverage-v8": "^2.1.0",
     "mppx": "^0.8.12",
     "msw": "^2.4.0"
