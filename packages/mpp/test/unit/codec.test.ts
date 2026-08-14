@@ -91,6 +91,45 @@ describe('WWW-Authenticate: Payment render/parse', () => {
     expect(parseChallengeHeader(renderChallengeHeader(challenge))).toEqual(challenge);
   });
 
+  it('round-trips render → parse, un-escaping the challenge identifier', () => {
+    const challengeWithEscapedId = { ...challenge, id: 'a"\\b' };
+    const rendered = renderChallengeHeader(challengeWithEscapedId);
+    expect(rendered).toContain('id="a\\"\\\\b"');
+    expect(parseChallengeHeader(rendered).id).toBe(challengeWithEscapedId.id);
+  });
+
+  it('parses escaped challenge-id values in quoted headers', () => {
+    const parsed = parseChallengeHeader(
+      'Payment id="a\\"b", realm="r", method="inflow", intent="charge", request="e30"',
+    );
+    expect(parsed.id).toBe('a"b');
+  });
+
+  it('parses escaped backslashes in challenge identifiers', () => {
+    const parsed = parseChallengeHeader(
+      'Payment id="a\\\\b", realm="r", method="inflow", intent="charge", request="e30"',
+    );
+    expect(parsed.id).toBe('a\\b');
+  });
+
+  it('parses unquoted challenge identifiers and descriptions', () => {
+    const parsed = parseChallengeHeader(
+      'Payment id=challenge-id, realm=r, method=inflow, intent=charge, request=e30, description=plain',
+    );
+    expect(parsed.id).toBe('challenge-id');
+    expect(parsed.description).toBe('plain');
+  });
+
+  it('rejects control characters in the challenge identifier', () => {
+    const controlInput = `Payment id="a${String.fromCharCode(0x0d)}bad", realm="r", method="inflow", intent="charge", request="e30"`;
+    expect(() => parseChallengeHeader(controlInput)).toThrow(MppCodecError);
+  });
+
+  it('rejects control characters in an unquoted challenge identifier', () => {
+    const controlInput = `Payment id=a${String.fromCharCode(0x01)}bad, realm=r, method=inflow, intent=charge, request=e30`;
+    expect(() => parseChallengeHeader(controlInput)).toThrow(MppCodecError);
+  });
+
   it('matches the Payment scheme case-insensitively', () => {
     const parsed = parseChallengeHeader('payment id="x", realm="r", method="inflow", intent="charge", request="q"');
     expect(parsed.id).toBe('x');
@@ -110,6 +149,23 @@ describe('WWW-Authenticate: Payment render/parse', () => {
     expect(() =>
       parseChallengeHeader('Payment id="", realm="r", method="inflow", intent="charge", request="e30"'),
     ).toThrow(MppCodecError);
+  });
+
+  it('unescapes a quoted challenge id before returning it', () => {
+    const parsed = parseChallengeHeader(
+      'Payment id="challenge\\-id", realm="r", method="inflow", intent="charge", request="e30"',
+    );
+    expect(parsed.id).toBe('challenge-id');
+  });
+
+  it('refuses to render a challenge with an empty id', () => {
+    expect(() => renderChallengeHeader({ ...challenge, id: '' })).toThrow(MppCodecError);
+  });
+
+  it('reports a codec error when untyped input omits the challenge id', () => {
+    expect(() => renderChallengeHeader({ ...challenge, id: undefined } as unknown as MppChallenge)).toThrow(
+      MppCodecError,
+    );
   });
 
   it('rejects duplicate auth-params', () => {
