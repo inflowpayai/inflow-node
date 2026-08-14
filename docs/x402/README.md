@@ -12,7 +12,7 @@ middleware as a facilitator, generate your route's `accepts[]` from your seller 
 | [`@inflowpayai/x402-seller`](../../packages/x402-seller) | Facilitator client + seller client + `inflowAccepts` helper  | Accepting x402 payments as a seller.               |
 | [`@inflowpayai/x402-buyer`](../../packages/x402-buyer)   | `InflowClient` — foundation `x402Client` subclass for buyers | Paying via x402, with or without on-chain signers. |
 
-All packages publish under the `@inflowpayai` scope and depend on `@x402/core@^2.12.0` as a peer.
+All packages publish under the `@inflowpayai` scope and depend on `@x402/core@^2.22.0` as a peer.
 
 The SDK does **not** ship a seller middleware. Sellers use the foundation V2 middleware (`paymentMiddlewareFromConfig`
 from `@x402/express`, `@x402/hono`, `@x402/fastify`, or `@x402/next`) directly and pass the InFlow facilitator into its
@@ -66,8 +66,8 @@ For Hono, swap `@x402/express` for `@x402/hono`; everything else is the same. Fo
 (`paymentMiddlewareFromConfig(app, routes, [inflow], await inflowSchemeRegistrations(client))`). For Next 16, use
 `@x402/next`'s `paymentProxyFromConfig` from a root-level `proxy.ts` file (Next 16 renamed the convention from
 `middleware.ts`); see [`examples/x402-seller-next`](../../examples/x402-seller-next) for the complete shape including
-the `proxy.ts` placement, route-handler structure, and the required `next` pin (`~16.0.10`, to match
-`@x402/next@2.12.0`'s peer range).
+the `proxy.ts` placement, route-handler structure, and the required `next` pin (`~16.2.6`, to match
+`@x402/next@2.22.0`'s peer range).
 
 The pieces:
 
@@ -80,8 +80,9 @@ The pieces:
 - `inflowAccepts(client, options)` expands the seller's config into foundation `PaymentOption[]` (asset contract +
   atomic amount pre- resolved). Splat into a route's `accepts` array.
 - `inflowSchemeRegistrations(client)` returns the passthrough `SchemeRegistration[]` covering every `(scheme, network)`
-  the seller's config can emit. Pass as the third arg to `paymentMiddlewareFromConfig`; the foundation refuses to boot
-  otherwise.
+  and asset transfer method the seller's config can emit. Each registration preserves the authorization flow (verify
+  before the handler, settle after it). Pass as the third arg to `paymentMiddlewareFromConfig`; the foundation refuses
+  to boot otherwise.
 
 ## Quickstart — buyer (`fetch`)
 

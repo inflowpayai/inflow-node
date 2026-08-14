@@ -185,7 +185,11 @@ paymentMiddlewareFromConfig(
 ```
 
 The registrations are passthrough — they don't sign or settle anything themselves; the InFlow facilitator handles both.
-They exist solely to satisfy the middleware's scheme-knowledge check at boot.
+They satisfy the middleware's scheme-knowledge check at boot and declare the foundation's lifecycle contract. For each
+`(scheme, network)`, the helper aggregates exactly the `assetTransferMethod` values emitted by config; methods that omit
+that field use the foundation's SDK-only `default` sentinel. Every resulting entry supports only the `authorization`
+flow, preserving verify-before-handler and settle-after-handler behavior. The helper never enables `upfront` or `escrow`
+implicitly.
 
 ## Orphan approvals
 

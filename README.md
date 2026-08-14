@@ -33,7 +33,7 @@ doc folder uses a product prefix (`x402-`, …) so multiple products can coexist
 
 ## Packages
 
-All packages publish under the `@inflowpayai` scope on npm and depend on `@x402/core@^2.12.0` as a peer.
+All packages publish under the `@inflowpayai` scope on npm and depend on `@x402/core@^2.22.0` as a peer.
 
 | Package                                              | npm                                                                                                                     | Role                                                         |
 | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
