@@ -6,7 +6,7 @@ and decimals.
 ## Wire-shape types
 
 Every type the SDK reads or writes is defined in `@inflowpayai/x402` and is wire-shape-compatible with
-`@x402/core@^2.12.0`'s V2 types. Wire types come from `@x402/core/types`; foundation route configuration and
+`@x402/core@^2.22.0`'s V2 types. Wire types come from `@x402/core/types`; foundation route configuration and
 `PaymentOption[]` (returned by `inflowAccepts`) come from `@x402/core/http`. The following table maps the names the SDK
 exposes to the corresponding upstream V2 names.
 
