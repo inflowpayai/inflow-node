@@ -1,5 +1,17 @@
 # @inflowpayai/x402
 
+## 0.9.0
+
+### Minor Changes
+
+- [#40](https://github.com/inflowpayai/inflow-node/pull/40)
+  [`c95b2ea`](https://github.com/inflowpayai/inflow-node/commit/c95b2eaa3db29aa91a551a54898761343cecf98c) Thanks
+  [@nkavian](https://github.com/nkavian)! - Require the hardened x402 foundation 2.22 release across the SDK suite,
+  including its protections for encoded separators, bare wildcard prefixes, and encoded line terminators in route
+  matching. Seller scheme registrations now declare authorization-only payment flows for exactly the asset transfer
+  methods emitted by InFlow seller config, preserving the existing verify-before-handler and settle-after-handler
+  behavior while adopting the current foundation contract.
+
 ## 0.8.1
 
 ### Patch Changes

@@ -1,5 +1,41 @@
 # @inflowpayai/mpp-buyer
 
+## 0.7.0
+
+### Minor Changes
+
+- [#38](https://github.com/inflowpayai/inflow-node/pull/38)
+  [`d1cbebe`](https://github.com/inflowpayai/inflow-node/commit/d1cbebe9ad2e61ecfa23331b5cbaf9be5a035859) Thanks
+  [@mnebliienko](https://github.com/mnebliienko)! - Expose the mppx in-place MCP client wrapper through the optional
+  `@inflowpayai/mpp-buyer/mcp` entrypoint.
+
+- [#42](https://github.com/inflowpayai/inflow-node/pull/42)
+  [`fd4727f`](https://github.com/inflowpayai/inflow-node/commit/fd4727f3771fa9fef4617bca3be03b3cf3447d9e) Thanks
+  [@nkavian](https://github.com/nkavian)! - Advertise settlement rails by intent and currency, require an explicit rail
+  when the available choice is ambiguous, and validate InFlow subscription terms against the server contract.
+  Subscription seller helpers accept multiple plans in one currency, subscription receipts preserve the server-issued
+  identifier and seller reconciliation metadata, and clients can derive stable option fingerprints without volatile
+  challenge or expiration fields.
+
+### Patch Changes
+
+- [#34](https://github.com/inflowpayai/inflow-node/pull/34)
+  [`0d70feb`](https://github.com/inflowpayai/inflow-node/commit/0d70feb8c1543c88a5095f17aed33f565ea6a1a3) Thanks
+  [@mnebliienko](https://github.com/mnebliienko)! - Require mppx 0.8.17 for current discovery and composed-offer
+  behavior.
+
+  Expose request-aware `canOffer` hooks on the InFlow and Tempo seller method constructors.
+
+  Re-export discovery helpers so buyers can normalize legacy metadata and sellers can emit canonical
+  `x-payment-info.offers[]` documents. Document server-wide `selectOffers` policy alongside method-level gating.
+
+- Updated dependencies
+  [[`ec39b71`](https://github.com/inflowpayai/inflow-node/commit/ec39b711d355026c6d4c71d8cc472f83e78b0ba3),
+  [`0d70feb`](https://github.com/inflowpayai/inflow-node/commit/0d70feb8c1543c88a5095f17aed33f565ea6a1a3),
+  [`06a6eaa`](https://github.com/inflowpayai/inflow-node/commit/06a6eaa338fae4e8a321677e682077cf06409b53),
+  [`fd4727f`](https://github.com/inflowpayai/inflow-node/commit/fd4727f3771fa9fef4617bca3be03b3cf3447d9e)]:
+  - @inflowpayai/mpp@0.8.0
+
 ## 0.6.2
 
 ### Patch Changes
