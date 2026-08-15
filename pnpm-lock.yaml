@@ -90,8 +90,8 @@ importers:
         specifier: ^5.0.0
         version: 5.2.1
       mppx:
-        specifier: ^0.8.12
-        version: 0.8.12(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3))
+        specifier: ^0.8.17
+        version: 0.8.17(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3))
     devDependencies:
       '@inflowpayai/mpp':
         specifier: workspace:^
@@ -121,8 +121,8 @@ importers:
         specifier: ^16.4.0
         version: 16.6.1
       mppx:
-        specifier: ^0.8.12
-        version: 0.8.12(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3))
+        specifier: ^0.8.17
+        version: 0.8.17(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3))
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
@@ -143,8 +143,8 @@ importers:
         specifier: ^16.4.0
         version: 16.6.1
       mppx:
-        specifier: ^0.8.12
-        version: 0.8.12(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3))
+        specifier: ^0.8.17
+        version: 0.8.17(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3))
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
@@ -168,8 +168,8 @@ importers:
         specifier: ^5.0.0
         version: 5.2.1
       mppx:
-        specifier: ^0.8.12
-        version: 0.8.12(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3))
+        specifier: ^0.8.17
+        version: 0.8.17(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3))
     devDependencies:
       '@types/express':
         specifier: ^5.0.0
@@ -199,8 +199,8 @@ importers:
         specifier: ^4.12.25
         version: 4.12.31
       mppx:
-        specifier: ^0.8.12
-        version: 0.8.12(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3))
+        specifier: ^0.8.17
+        version: 0.8.17(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3))
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
@@ -497,8 +497,8 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(msw@2.14.6(@types/node@24.13.3)(typescript@5.9.3)))
       mppx:
-        specifier: ^0.8.12
-        version: 0.8.12(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3))
+        specifier: ^0.8.17
+        version: 0.8.17(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3))
       msw:
         specifier: ^2.4.0
         version: 2.14.6(@types/node@24.13.3)(typescript@5.9.3)
@@ -516,8 +516,8 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(msw@2.14.6(@types/node@24.13.3)(typescript@5.9.3)))
       mppx:
-        specifier: ^0.8.12
-        version: 0.8.12(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3))
+        specifier: ^0.8.17
+        version: 0.8.17(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3))
       msw:
         specifier: ^2.4.0
         version: 2.14.6(@types/node@24.13.3)(typescript@5.9.3)
@@ -537,8 +537,8 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(msw@2.14.6(@types/node@24.13.3)(typescript@5.9.3)))
       mppx:
-        specifier: ^0.8.12
-        version: 0.8.12(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3))
+        specifier: ^0.8.17
+        version: 0.8.17(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3))
       msw:
         specifier: ^2.4.0
         version: 2.14.6(@types/node@24.13.3)(typescript@5.9.3)
@@ -2179,8 +2179,8 @@ packages:
       typescript:
         optional: true
 
-  '@stripe/stripe-js@9.9.0':
-    resolution: {integrity: sha512-Vwqe6Q5cU4i82tPyAv2BpaW/fQSNdOSO4/J8EeDLPp5/oIZiMmdB+Hgh863zFH+rtoxpuWGvD1L7QPh8k1Rdvw==}
+  '@stripe/stripe-js@9.12.1':
+    resolution: {integrity: sha512-KLXPvjA0BfS4dQnW+ddHjwtIXMnIfKYxqmeNMmQCfKjvYog0cSG+Z7ZvK4RH1+bV90GC07nUztWDRWmJLi5HZQ==}
     engines: {node: '>=12.16'}
 
   '@swc/helpers@0.5.15':
@@ -3205,8 +3205,8 @@ packages:
     resolution: {integrity: sha512-JmXMZ6wuvDmLiHEml9ykzqO6lwFbof0GG4IkcGaENdCRDDmMVnny7s5HsIgHCbaq0w2MyPhDqkhTUgS2LU2PHA==}
     engines: {node: '>=0.8.19'}
 
-  incur@0.4.19:
-    resolution: {integrity: sha512-xSH6Y79oIeLwwiOp51MjXTyBzcNmP/gOQN+pCrjqG04UdAawZkKoqs6lpTto5c8ht1fGnGz8PADRJqdpf8mD2A==}
+  incur@0.4.26:
+    resolution: {integrity: sha512-63lwOc8+o1VeFkIW3sWWMrDSP5Dd1NsvucUWyxLUk+DoNRiNl7cj481nlLdlboXkq+tqYPBSlV/7XbylS2S4BA==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -3512,8 +3512,8 @@ packages:
   mlly@1.8.2:
     resolution: {integrity: sha512-d+ObxMQFmbt10sretNDytwt85VrbkhhUA/JBGm1MPaWJ65Cl4wOgLaB1NYvJSZ0Ef03MMEU/0xpPMXUIQ29UfA==}
 
-  mppx@0.8.12:
-    resolution: {integrity: sha512-aLtXfnOZ92E2aYsBNAo6StO7osQvBoSyzLc82pyrVKRn2VGhgVcMiqDIhSq0NWWhjrl8UQAjqU1Q8Qpt9WFSrw==}
+  mppx@0.8.17:
+    resolution: {integrity: sha512-6cfaqzsiMh947CqPJPnJBwUJv4yveRRIA52PrxEjNM/36Le7sOpKG9fh5PU9fmTEkfjf0O5vFPGo4tx6tlrRUw==}
     hasBin: true
     peerDependencies:
       '@modelcontextprotocol/sdk': '>=1.25.0'
@@ -3638,6 +3638,14 @@ packages:
 
   ox@0.14.30:
     resolution: {integrity: sha512-LI11uu+8iiM1B3CLckgd++YF1a0A2k5wDoM9ZeQMiL21BOzQs6L//BLS6hb1HSEKCyycdDIQLsVQx9MjpcC0hA==}
+    peerDependencies:
+      typescript: '>=5.4.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
+  ox@0.14.33:
+    resolution: {integrity: sha512-rooA/4o7bBof4Ge2VH/eovfNPb/AEEYyrNj03wggc55g5HZD8Pjs/OeWhttgjic3dDcqn0r29bDuvQEdTiUemQ==}
     peerDependencies:
       typescript: '>=5.4.0'
     peerDependenciesMeta:
@@ -4067,6 +4075,10 @@ packages:
   strip-json-comments@3.1.1:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==}
     engines: {node: '>=8'}
+
+  structured-headers@2.0.3:
+    resolution: {integrity: sha512-4g5yxhlDMClRwCcfKfLeS7Z8yAVdOWGDADwm80Poh1iReU2KVKLGBlqwpHWJ2qovq0+ZIf1atAEO1eua2o9Rgg==}
+    engines: {node: '>=18', npm: '>=6'}
 
   styled-jsx@5.1.6:
     resolution: {integrity: sha512-qSVyDTeMotdvQYoHWLNGwRFJHC+i+ZvdBRYosOFgC+Wg1vx4frN2/RG/NA7SYqqvKNLf39P2LSRA2pu6n0XYZA==}
@@ -5878,7 +5890,7 @@ snapshots:
     transitivePeerDependencies:
       - fastestsmallesttextencoderdecoder
 
-  '@stripe/stripe-js@9.9.0': {}
+  '@stripe/stripe-js@9.12.1': {}
 
   '@swc/helpers@0.5.15':
     dependencies:
@@ -7104,7 +7116,7 @@ snapshots:
 
   imurmurhash@0.1.4: {}
 
-  incur@0.4.19:
+  incur@0.4.26:
     dependencies:
       '@cfworker/json-schema': 4.1.1
       '@modelcontextprotocol/server': 2.0.0-alpha.4
@@ -7478,12 +7490,13 @@ snapshots:
       pkg-types: 1.3.1
       ufo: 1.6.4
 
-  mppx@0.8.12(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3)):
+  mppx@0.8.17(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.31)(typescript@5.9.3)(viem@2.55.4(typescript@5.9.3)(zod@4.4.3)):
     dependencies:
-      '@stripe/stripe-js': 9.9.0
+      '@stripe/stripe-js': 9.12.1
       eventsource-parser: 3.1.0
-      incur: 0.4.19
-      ox: 0.14.30(typescript@5.9.3)(zod@4.4.3)
+      incur: 0.4.26
+      ox: 0.14.33(typescript@5.9.3)(zod@4.4.3)
+      structured-headers: 2.0.3
       viem: 2.55.4(typescript@5.9.3)(zod@4.4.3)
       zod: 4.4.3
     optionalDependencies:
@@ -7658,6 +7671,21 @@ snapshots:
       - zod
 
   ox@0.14.30(typescript@5.9.3)(zod@4.4.3):
+    dependencies:
+      '@adraffy/ens-normalize': 1.11.1
+      '@noble/ciphers': 1.3.0
+      '@noble/curves': 1.9.1
+      '@noble/hashes': 1.8.0
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      abitype: 1.3.0(typescript@5.9.3)(zod@4.4.3)
+      eventemitter3: 5.0.1
+    optionalDependencies:
+      typescript: 5.9.3
+    transitivePeerDependencies:
+      - zod
+
+  ox@0.14.33(typescript@5.9.3)(zod@4.4.3):
     dependencies:
       '@adraffy/ens-normalize': 1.11.1
       '@noble/ciphers': 1.3.0
@@ -8101,6 +8129,8 @@ snapshots:
   strip-bom@3.0.0: {}
 
   strip-json-comments@3.1.1: {}
+
+  structured-headers@2.0.3: {}
 
   styled-jsx@5.1.6(react@19.2.6):
     dependencies:

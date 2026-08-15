@@ -1,8 +1,16 @@
 // Public parameter and capability types for `@inflowpayai/mpp-seller`. Interfaces only — no runtime — so this module is
 // excluded from coverage (see vitest.config.ts).
 
-import type { CurrencyCode, Environment, MppCurrencyRail, MppFeatureFlags } from '@inflowpayai/mpp';
+import type {
+  charge as inflowCharge,
+  CurrencyCode,
+  Environment,
+  MppCurrencyRail,
+  MppFeatureFlags,
+  tempoCharge,
+} from '@inflowpayai/mpp';
 import type { TempoMethodDetails } from '@inflowpayai/mpp';
+import type { Method } from 'mppx';
 
 /**
  * Constructor parameters for the seller-side {@link inflow} method factory.
@@ -24,6 +32,8 @@ export interface InflowSellerParameters {
   timeoutMs?: number;
   /** Optional `fetch` implementation. Defaults to `globalThis.fetch`. Must conform to the WHATWG fetch API. */
   fetch?: typeof fetch;
+  /** Decides whether a configured InFlow offer is available for a composed HTTP request. */
+  canOffer?: Method.CanOfferFn<typeof inflowCharge>;
 }
 
 /** Constructor parameters for the seller-side Tempo method factory. */
@@ -44,6 +54,8 @@ export interface TempoSellerParameters {
   timeoutMs?: number;
   /** Optional `fetch` implementation. Defaults to `globalThis.fetch`. Must conform to the WHATWG fetch API. */
   fetch?: typeof fetch;
+  /** Decides whether a configured Tempo offer is available for a composed HTTP request. */
+  canOffer?: Method.CanOfferFn<typeof tempoCharge>;
 }
 
 /**

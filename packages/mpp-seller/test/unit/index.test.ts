@@ -20,4 +20,28 @@ describe('public barrel', () => {
     expect('computeBodyDigest' in pkg).toBe(false);
     expect('verifyBodyDigest' in pkg).toBe(false);
   });
+
+  it('generates canonical discovery offers for payable proxy routes', () => {
+    const document = pkg.Discovery.generateProxy({
+      routes: [
+        {
+          method: 'GET',
+          path: '/paid',
+          payment: { amount: '10', currency: 'USDC', method: 'inflow' },
+        },
+      ],
+    });
+
+    expect(document).toMatchObject({
+      paths: {
+        '/paid': {
+          get: {
+            'x-payment-info': {
+              offers: [{ amount: '10', currency: 'USDC', method: 'inflow' }],
+            },
+          },
+        },
+      },
+    });
+  });
 });

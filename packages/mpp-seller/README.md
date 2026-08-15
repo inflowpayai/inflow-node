@@ -30,6 +30,8 @@ pnpm add @inflowpayai/mpp-seller mppx
   capability map yourself. Returns an `InflowConfigClient`.
 - `Mppx` and `Expires` (re-exported from `mppx/server`) and `Receipt` (from `mppx`) — a single import gives the
   foundation server handler and the InFlow methods.
+- `Discovery` (from `mppx/discovery`) — generates canonical OpenAPI `x-payment-info.offers[]` metadata and parses both
+  canonical and legacy discovery documents.
 - Types: `InflowSellerParameters`, `TempoSellerParameters`, `LoadedConfig`, `InflowChargePrice`, plus the core
   re-exports `Environment`, `MppCurrencyRail`, `MppProblemDetail`, `MppReceipt`.
 - Errors: `MppUnsupportedCurrencyError` (charge currency has no rail in the PSP config), `MppRedeemProblemError`
@@ -61,7 +63,19 @@ to prime or inspect the config yourself.
 import { Mppx, inflow } from '@inflowpayai/mpp-seller';
 
 const mppx = Mppx.create({
-  methods: [inflow({ apiKey: process.env.INFLOW_API_KEY!, environment: 'sandbox' })],
+  methods: [
+    inflow({
+      apiKey: process.env.INFLOW_API_KEY!,
+      environment: 'sandbox',
+      // Method-level policy: hide this offer from callers that do not meet route-specific requirements.
+      canOffer: ({ input }) => input.headers.get('x-market') !== 'blocked',
+    }),
+  ],
+  // Server-level policy: select a stable, ordered subset after every method's canOffer gate runs.
+  selectOffers: (offers, { request }) =>
+    request.headers.get('x-usdc-only') === 'true'
+      ? offers.filter((offer) => offer.request.currency === 'USDC')
+      : offers,
   secretKey: process.env.MPP_SECRET_KEY,
 });
 
@@ -71,6 +85,12 @@ export async function handler(req: Request) {
   return r.withReceipt(Response.json({ data: '…' }));
 }
 ```
+
+`canOffer` and `selectOffers` control which challenges are issued for a request; they are not authorization checks. An
+already-issued credential can still be redeemed after an offer becomes ineligible. Enforce access policy separately.
+When `canOffer` rejects every offer, the composed handler rejects with
+`No payment offers are available for this request`. A `selectOffers` hook must return at least one offer. Map policy
+failures to the response appropriate for your application at its HTTP boundary.
 
 This package ships no middleware of its own; use `mppx`'s framework adapters (`mppx/express`, `mppx/hono`,
 `mppx/nextjs`, `mppx/elysia`) or the manual mode above. See

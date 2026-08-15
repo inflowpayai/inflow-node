@@ -27,3 +27,4 @@ export type {
 // '@inflowpayai/mpp-buyer'`. `Receipt` is re-exported for the manual path (`Receipt.fromResponse`).
 export { Mppx } from 'mppx/client';
 export { Receipt } from 'mppx';
+export * as Discovery from 'mppx/discovery';

@@ -30,6 +30,8 @@ missing. `@inflowpayai/mpp` comes along as a normal dependency.
   the InFlow methods.
 - `McpClient` from the optional `@inflowpayai/mpp-buyer/mcp` entrypoint — wraps an MCP SDK client in place so existing
   references handle payment-required tool results and errors. Install `@modelcontextprotocol/sdk` when using it.
+- `Discovery` (from `mppx/discovery`) — parses canonical `x-payment-info.offers[]` metadata and normalizes the legacy
+  flat discovery shape to a one-element offer array. Runtime `402` challenges remain authoritative.
 - Types: `InflowBuyerParameters`, `FulfilOptions`, plus the core re-exports `Environment`, `InflowClientOptions` /
   `InflowAnonymousClientOptions` / `InflowBearerClientOptions`, `InflowPaymentOptions`, `MppCredential`.
 - Errors: `MppPaymentFailedError` (carries the server's `MppProblemDetail`), `MppPaymentExpiredError`,

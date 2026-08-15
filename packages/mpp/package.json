@@ -37,7 +37,7 @@
   },
   "license": "MIT",
   "peerDependencies": {
-    "mppx": "^0.8.12"
+    "mppx": "^0.8.17"
   },
   "peerDependenciesMeta": {
     "mppx": {
@@ -47,7 +47,7 @@
   "devDependencies": {
     "@inflowpayai/mpp-internal": "workspace:*",
     "@vitest/coverage-v8": "^2.1.0",
-    "mppx": "^0.8.12",
+    "mppx": "^0.8.17",
     "msw": "^2.4.0"
   },
   "publishConfig": {
