@@ -43,6 +43,7 @@ export interface FulfilOptions {
  * @internal
  */
 export interface Fulfiller {
+  authorizeSubscription(subscriptionId: string, challenge: FulfilChallenge): Promise<MppCredential>;
   /**
    * Drive a parsed challenge through `POST /v1/transactions/mpp` → poll `GET /v1/transactions/{id}/mpp` and return the
    * server-produced credential when the transaction reaches `ready`.
@@ -75,4 +76,5 @@ export interface FulfilChallenge {
   expires?: string;
   description?: string;
   digest?: string;
+  opaque?: string;
 }

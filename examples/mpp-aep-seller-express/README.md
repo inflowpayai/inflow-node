@@ -47,6 +47,7 @@ pnpm start
 | ----------------------------------------------------- | --------------------------------------------------------------- |
 | `GET /api/widgets`                                    | AEP API key, then 0.01 USDC MPP charge                          |
 | `POST /api/upload`                                    | AEP API key, then 0.10 USDC MPP charge; echoes the request body |
+| `GET /api/subscribe`                                  | AEP API key, then 1.00 USDC monthly MPP subscription            |
 | `GET /free`                                           | No AEP or MPP enforcement                                       |
 | `GET /.well-known/aep`, `/aep/*`, `GET /openapi.json` | AEP discovery, lifecycle, and OpenAPI documents                 |
 
@@ -67,6 +68,7 @@ node packages/cli/dist/cli.js aep grant http://127.0.0.1:3000 --grant-type api-k
 node packages/cli/dist/cli.js aep fetch http://127.0.0.1:3000/api/widgets --format json
 node packages/cli/dist/cli.js mpp pay http://127.0.0.1:3000/api/widgets --format json
 node packages/cli/dist/cli.js mpp pay http://127.0.0.1:3000/api/upload --method POST --data '{"widget":"one"}' --header 'X-Caller-Header: retained' --format json
+node packages/cli/dist/cli.js mpp subscribe http://127.0.0.1:3000/api/subscribe --format json
 ```
 
 The first `aep fetch` uses the API-key Grant path and stops with the downstream payment-required result. Re-running it

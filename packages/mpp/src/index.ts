@@ -2,10 +2,12 @@
 
 export {
   CACHE_CONTROL,
+  CREDENTIAL_AUTHORIZATION_ID,
   CREDENTIAL_TRANSACTION_ID,
   ENDPOINTS,
   HEADERS,
   INTENT_CHARGE,
+  INTENT_SUBSCRIPTION,
   METHOD_INFLOW,
   METHOD_TEMPO,
   PROBLEM_TYPE_BASE,
@@ -14,6 +16,7 @@ export {
   readHeader,
   readHeaderAll,
   transactionPath,
+  subscriptionAuthorizationPath,
 } from './constants.js';
 export type { HeaderBag } from './constants.js';
 
@@ -50,14 +53,23 @@ export {
   inflow,
   inflowChargeRequestSchema,
   inflowCredentialPayloadSchema,
+  inflowSubscriptionRequestSchema,
+  subscription,
   tempo,
   tempoCharge,
   tempoChargeRequestSchema,
   tempoCredentialPayloadSchema,
 } from './methods.js';
+
+export {
+  subscriptionOptionFingerprint,
+  subscriptionOptionFingerprints,
+  type SubscriptionOptionFingerprint,
+} from './subscription-option.js';
 export type {
   InflowChargeRequestInput,
   InflowCredentialPayloadInput,
+  InflowSubscriptionRequestInput,
   TempoChargeRequestInput,
   TempoCredentialPayloadInput,
 } from './methods.js';
@@ -72,6 +84,7 @@ export type {
   MppCurrencyRail,
   MppFeatureFlags,
   MppIntentLabel,
+  MppIntentCurrencyRails,
   MppMethodConfig,
   MppMethodLabel,
   MppProblemDetail,
@@ -87,6 +100,9 @@ export type {
   MppTransactionRequest,
   MppTransactionResponse,
   MppTransactionState,
+  SubscriptionPeriodLabel,
+  SubscriptionAuthorizationRequest,
+  SubscriptionAuthorizationResponse,
   TempoChallengeRequest,
   TempoCredentialPayload,
   TempoMethodDetails,

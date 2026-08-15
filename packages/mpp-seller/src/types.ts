@@ -7,6 +7,7 @@ import type {
   Environment,
   MppCurrencyRail,
   MppFeatureFlags,
+  MppIntentCurrencyRails,
   tempoCharge,
 } from '@inflowpayai/mpp';
 import type { TempoMethodDetails } from '@inflowpayai/mpp';
@@ -65,12 +66,10 @@ export interface TempoSellerParameters {
  * reads them. The binding `secretKey` is likewise never carried in config.
  */
 export interface LoadedConfig {
-  /**
-   * Currency → rail capability for the `inflow` method (from the method config's `methodDetails.currencyRails`). The
-   * SDK derives a charge's rail from its currency via this map: crypto → `balance`, fiat → `instrument`. A currency
-   * absent here cannot be charged via `inflow`.
-   */
+  /** Compatibility capabilities for servers that do not advertise an intent matrix. */
   currencyRails: Record<string, MppCurrencyRail>;
+  /** Intent and currency capabilities. Each currency may offer multiple settlement rails. */
+  intentCurrencyRails: MppIntentCurrencyRails;
   /** Bootstrap feature flags gating the `Idempotency-Key` header on redeem. */
   featureFlags: MppFeatureFlags;
   /** The authenticated seller's user id, used as the `recipient` on every minted challenge. */

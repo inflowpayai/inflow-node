@@ -23,6 +23,12 @@ function config(overrides: Partial<MppConfigResponse> = {}): MppConfigResponse {
         id: 'inflow',
         label: 'InFlow',
         methodDetails: {
+          intentCurrencyRails: {
+            charge: {
+              USDC: [{ rail: 'balance' }],
+              USD: [{ rail: 'instrument', instrumentId: 'optional' }],
+            },
+          },
           currencyRails: {
             USDC: { rail: 'balance' },
             USD: { rail: 'instrument', instrumentId: 'optional' },
@@ -57,6 +63,7 @@ describe('createConfigClient', () => {
     expect(loaded.featureFlags.idempotencyKeyEnabled).toBe(true);
     expect(loaded.currencyRails['USDC']).toEqual({ rail: 'balance' });
     expect(loaded.currencyRails['USD']).toEqual({ rail: 'instrument', instrumentId: 'optional' });
+    expect(loaded.intentCurrencyRails['charge']?.['USDC']).toEqual([{ rail: 'balance' }]);
   });
 
   it('fetches once and memoises across calls', async () => {
@@ -72,5 +79,6 @@ describe('createConfigClient', () => {
     mockConfig(config({ supportedMethods: [] }));
     const loaded = await createConfigClient(client()).load();
     expect(loaded.currencyRails).toEqual({});
+    expect(loaded.intentCurrencyRails).toEqual({});
   });
 });

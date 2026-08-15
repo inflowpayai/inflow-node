@@ -1,5 +1,5 @@
 import { METHOD_INFLOW } from '@inflowpayai/mpp';
-import type { MppClient, MppConfigResponse, MppCurrencyRail } from '@inflowpayai/mpp';
+import type { MppClient, MppConfigResponse, MppCurrencyRail, MppIntentCurrencyRails } from '@inflowpayai/mpp';
 
 import type { LoadedConfig } from './types.js';
 
@@ -35,6 +35,7 @@ export function createConfigClient(client: MppClient): InflowConfigClient {
     const config = await client.getConfig();
     return {
       currencyRails: extractCurrencyRails(config),
+      intentCurrencyRails: extractIntentCurrencyRails(config),
       featureFlags: config.featureFlags,
       sellerId: config.sellerId,
     };
@@ -59,4 +60,9 @@ export function createConfigClient(client: MppClient): InflowConfigClient {
 function extractCurrencyRails(config: MppConfigResponse): Record<string, MppCurrencyRail> {
   const method = config.supportedMethods.find((entry) => entry.id === METHOD_INFLOW);
   return method?.methodDetails?.currencyRails ?? {};
+}
+
+function extractIntentCurrencyRails(config: MppConfigResponse): MppIntentCurrencyRails {
+  const method = config.supportedMethods.find((entry) => entry.id === METHOD_INFLOW);
+  return method?.methodDetails?.['intentCurrencyRails'] ?? {};
 }

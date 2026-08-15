@@ -15,16 +15,17 @@ pnpm dev
 
 The server listens on `http://localhost:3000` and serves these routes:
 
-| Route               | Price                      | Notes                                                                           |
-| ------------------- | -------------------------- | ------------------------------------------------------------------------------- |
-| `GET /api/widgets`  | `0.01 USDC`                | Single currency via the Hono adapter's `charge`. Crypto → `balance` rail.       |
-| `POST /api/upload`  | `0.10 USDC`                | Single currency via `charge`. Crypto → `balance` rail.                          |
-| `GET /api/checkout` | `1.0 USD` or `0.0095 USDC` | Multi-currency: one challenge per price (USD → `instrument`, USDC → `balance`). |
-| `GET /free`         | —                          | Not gated; passes through.                                                      |
+| Route                | Price                      | Notes                                                                           |
+| -------------------- | -------------------------- | ------------------------------------------------------------------------------- |
+| `GET /api/widgets`   | `0.01 USDC`                | Single currency via the Hono adapter's `charge`. Crypto → `balance` rail.       |
+| `POST /api/upload`   | `0.10 USDC`                | Single currency via `charge`. Crypto → `balance` rail.                          |
+| `GET /api/subscribe` | `1.00 USDC` monthly        | Recurring subscription on the `balance` rail.                                   |
+| `GET /api/checkout`  | `1.0 USD` or `0.0095 USDC` | Multi-currency: one challenge per price (USD → `instrument`, USDC → `balance`). |
+| `GET /free`          | —                          | Not gated; passes through.                                                      |
 
 The Hono adapter (`mppx/hono`) exposes only the single-currency `charge` — it strips `compose`. The multi-currency
-`GET /api/checkout` route therefore runs on a second, core `mppx/server` instance (`core`, sharing the same method +
-`secretKey`); since Hono is fetch-native, it drives InFlow's `inflowCharges` Web-fetch handler directly off `c.req.raw`.
+`GET /api/checkout` and `GET /api/subscribe` therefore use core `mppx/server` instances; Hono drives the InFlow
+Web-fetch handlers directly from `c.req.raw`.
 
 Hit it with the matching buyer example:
 

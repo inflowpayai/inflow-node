@@ -84,6 +84,22 @@ describe('MppClient endpoints', () => {
     server.use(http.get(`${BASE}/v1/transactions/tx-1/mpp`, () => HttpResponse.json(pending)));
     await expect(client().getTransaction('tx-1')).resolves.toEqual(pending);
   });
+
+  it('POST /v1/subscriptions/{id}/authorize requests a buyer-scoped credential', async () => {
+    let seenKey: string | null = null;
+    server.use(
+      http.post(`${BASE}/v1/subscriptions/sub%2F1/authorize`, ({ request }) => {
+        seenKey = request.headers.get('x-api-key');
+        return HttpResponse.json({ credential: 'credential', expires: '2027-01-01T00:00:00Z' });
+      }),
+    );
+    const challenge = { id: 'c1', realm: 'seller', method: 'inflow', intent: 'subscription', request: 'e30' } as const;
+    await expect(client().authorizeSubscription('sub/1', { challenge })).resolves.toEqual({
+      credential: 'credential',
+      expires: '2027-01-01T00:00:00Z',
+    });
+    expect(seenKey).toBe('sk_test_123');
+  });
 });
 
 describe('error mapping', () => {

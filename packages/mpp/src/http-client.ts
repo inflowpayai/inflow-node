@@ -1,6 +1,6 @@
 import { sanitizeMppProblemDetail } from '@inflowpayai/mpp-internal';
 
-import { ENDPOINTS, HEADERS, readHeader, transactionPath } from './constants.js';
+import { ENDPOINTS, HEADERS, readHeader, subscriptionAuthorizationPath, transactionPath } from './constants.js';
 import type { Environment } from './environment.js';
 import { resolveBaseUrl } from './environment.js';
 import { InflowApiError } from './errors.js';
@@ -12,6 +12,8 @@ import type {
   MppSupportedResponse,
   MppTransactionRequest,
   MppTransactionResponse,
+  SubscriptionAuthorizationRequest,
+  SubscriptionAuthorizationResponse,
 } from './types.js';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -497,9 +499,9 @@ export class MppClient {
   }
 
   /**
-   * Seller: verify the payment, claim the single-use slot (keyed on `transactionId`), and settle (`POST
-   * /v1/mpp/redeem`). The server correlates by the credential's `transactionId`; redemption is not HMAC-bound. Always
-   * returns HTTP 200; inspect `receipt`/`receiptHeader` (success) vs `problem` (failure) on the result.
+   * Seller: verify and redeem a credential (`POST /v1/mpp/redeem`). The server validates the credential's
+   * method-specific binding and claims its single-use authorization or transaction slot before settlement. Always
+   * returns HTTP 200; inspect `receipt`/`receiptHeader` (success) versus `problem` (failure) on the result.
    *
    * @param body - The credential to redeem.
    * @param options - Per-call overrides, including an optional `Idempotency-Key`.
@@ -507,6 +509,18 @@ export class MppClient {
    */
   async redeem(body: MppRedeemRequest, options: MppRequestOptions = {}): Promise<MppRedeemResponse> {
     return this.http.post<MppRedeemResponse>(ENDPOINTS.REDEEM, body, withIdempotency(options));
+  }
+
+  async authorizeSubscription(
+    subscriptionId: string,
+    body: SubscriptionAuthorizationRequest,
+    options: RequestOptions = {},
+  ): Promise<SubscriptionAuthorizationResponse> {
+    return this.http.post<SubscriptionAuthorizationResponse>(
+      subscriptionAuthorizationPath(subscriptionId),
+      body,
+      options,
+    );
   }
 
   /**

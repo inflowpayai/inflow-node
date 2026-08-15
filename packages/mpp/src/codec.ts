@@ -268,6 +268,12 @@ export function decodeReceipt(value: string): MppReceipt {
   ) {
     throw new MppCodecError('receipt', 'expected challengeId to be non-empty');
   }
+  if (
+    record['subscriptionId'] !== undefined &&
+    (typeof record['subscriptionId'] !== 'string' || record['subscriptionId'].length === 0)
+  ) {
+    throw new MppCodecError('receipt', 'expected subscriptionId to be non-empty');
+  }
   const settlement = record['settlement'];
   if (settlement !== undefined) {
     if (settlement === null || typeof settlement !== 'object' || Array.isArray(settlement)) {

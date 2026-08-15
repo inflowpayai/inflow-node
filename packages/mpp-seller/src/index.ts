@@ -4,13 +4,24 @@
 
 export { inflow, tempo } from './methods.server.js';
 
-export { inflowCharges, inflowChargesNodeListener } from './compose.server.js';
-export type { InflowChargePrice } from './compose.server.js';
+export {
+  inflowCharges,
+  inflowChargesNodeListener,
+  inflowSubscriptions,
+  inflowSubscriptionsNodeListener,
+} from './compose.server.js';
+export type { InflowChargePrice, InflowSubscriptionPlan } from './compose.server.js';
 
 export { createConfigClient } from './config-client.js';
 export type { InflowConfigClient } from './config-client.js';
 
-export { MppRedeemProblemError, MppUnsupportedCurrencyError } from './errors.js';
+export {
+  MppAmbiguousRailError,
+  MppInstrumentRequiredError,
+  MppRedeemProblemError,
+  MppUnsupportedCurrencyError,
+  MppUnsupportedRailError,
+} from './errors.js';
 
 export type { InflowSellerParameters, LoadedConfig, TempoSellerParameters } from './types.js';
 
