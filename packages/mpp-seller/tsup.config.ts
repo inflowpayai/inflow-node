@@ -9,4 +9,5 @@ export default defineConfig({
   target: 'node22',
   treeshake: true,
   splitting: false,
+  noExternal: ['@inflowpayai/mpp-internal'],
 });

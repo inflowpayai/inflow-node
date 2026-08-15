@@ -1,3 +1,5 @@
+import { sanitizeMppProblemDetail } from '@inflowpayai/mpp-internal';
+
 import { ENDPOINTS, HEADERS, readHeader, transactionPath } from './constants.js';
 import type { Environment } from './environment.js';
 import { resolveBaseUrl } from './environment.js';
@@ -405,24 +407,7 @@ function extractCode(body: unknown): string {
  * @returns The problem detail, or `undefined`.
  */
 function extractProblem(body: unknown): MppProblemDetail | undefined {
-  if (body === null || typeof body !== 'object') return undefined;
-  const source = 'problem' in body ? body.problem : body;
-  if (source === null || typeof source !== 'object') return undefined;
-  const candidate = source as Record<string, unknown>;
-  const { type, title, status, detail, extensions } = candidate;
-  if (
-    typeof type === 'string' &&
-    typeof title === 'string' &&
-    typeof status === 'number' &&
-    typeof detail === 'string'
-  ) {
-    const problem: MppProblemDetail = { type, title, status, detail };
-    if (extensions !== null && typeof extensions === 'object') {
-      problem.extensions = extensions as Record<string, unknown>;
-    }
-    return problem;
-  }
-  return undefined;
+  return sanitizeMppProblemDetail(body);
 }
 
 /**

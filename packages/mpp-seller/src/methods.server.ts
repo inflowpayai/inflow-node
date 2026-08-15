@@ -6,6 +6,7 @@ import {
   PROBLEM_TYPES,
   tempoCharge,
 } from '@inflowpayai/mpp';
+import { UNSAFE_OBJECT_KEYS, sanitizeJsonValue } from '@inflowpayai/mpp-internal';
 import type {
   InflowChargeRequestInput,
   MppChallenge,
@@ -22,6 +23,20 @@ import type { Credential } from 'mppx';
 import { createConfigClient } from './config-client.js';
 import { MppRedeemProblemError, MppUnsupportedCurrencyError } from './errors.js';
 import type { InflowSellerParameters, LoadedConfig, TempoSellerParameters } from './types.js';
+
+const MAX_RECEIPT_EXTENSION_DEPTH = 16;
+const MAX_RECEIPT_EXTENSION_ENTRIES = 256;
+const MAX_RECEIPT_EXTENSIONS_LENGTH = 16_384;
+const RECEIPT_EXTENSION_KEYS: ReadonlySet<string> = new Set([
+  'challengeId',
+  'challenge',
+  'extensions',
+  'method',
+  'reference',
+  'settlement',
+  'status',
+  'timestamp',
+]);
 
 /** The resolved `methodDetails` selector the request hook attaches: rail (derived from currency) + optional instrument. */
 interface ResolvedMethodDetails {
@@ -308,6 +323,8 @@ function toWireCredential(credential: Credential.Credential<Record<string, unkno
  * @returns Parameters for `Receipt.from`.
  */
 function toMppxReceipt(receipt: MppReceipt): Receipt.from.Parameters {
+  const extensionFields = toReceiptExtensions(receipt);
+
   return {
     ...(receipt.challengeId !== undefined ? { challengeId: receipt.challengeId } : {}),
     method: receipt.method,
@@ -315,7 +332,34 @@ function toMppxReceipt(receipt: MppReceipt): Receipt.from.Parameters {
     ...(receipt.settlement !== undefined ? { settlement: receipt.settlement } : {}),
     status: receipt.status,
     timestamp: receipt.timestamp,
+    ...extensionFields,
   };
+}
+
+/**
+ * Return method-specific fields from the PSP receipt while filtering non-extension and framework keys.
+ *
+ * @param receipt - Wire receipt from /v1/mpp/redeem.
+ * @returns The retained extension-like top-level fields.
+ */
+function toReceiptExtensions(receipt: MppReceipt): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const budget = { entries: MAX_RECEIPT_EXTENSION_ENTRIES };
+  for (const [key, value] of Object.entries(receipt)) {
+    if (RECEIPT_EXTENSION_KEYS.has(key) || UNSAFE_OBJECT_KEYS.has(key)) continue;
+    if (value !== undefined) {
+      const sanitized = sanitizeSellerReceiptExtensionValue(value, 0, budget);
+      if (sanitized !== undefined) {
+        const candidate = { ...out, [key]: sanitized };
+        if (JSON.stringify(candidate).length <= MAX_RECEIPT_EXTENSIONS_LENGTH) out[key] = sanitized;
+      }
+    }
+  }
+  return out;
+}
+
+function sanitizeSellerReceiptExtensionValue(value: unknown, depth: number, budget: { entries: number }): unknown {
+  return sanitizeJsonValue(value, depth, budget, MAX_RECEIPT_EXTENSION_DEPTH);
 }
 
 /**

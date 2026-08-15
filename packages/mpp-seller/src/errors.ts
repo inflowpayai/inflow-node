@@ -1,12 +1,13 @@
-import type { MppProblemDetail } from '@inflowpayai/mpp';
+import { PROBLEM_TYPES, type MppProblemDetail } from '@inflowpayai/mpp';
+import { sanitizeMppProblemDetail } from '@inflowpayai/mpp-internal';
 import { Errors } from 'mppx';
 
 /**
  * Thrown from the `inflow` method's `verify` hook when `POST /v1/mpp/redeem` returns a failure (a `problem` instead of
  * a `receipt`). It extends mppx's {@link Errors.PaymentError} so the framework treats it as a payment failure and
  * renders the RFC 9457 problem body with the correct HTTP status, rather than collapsing it into a generic
- * `VerificationFailedError`. The server-returned {@link MppProblemDetail} is reflected verbatim — `type`, `title`,
- * `status`, `detail`, and any `extensions` — so callers and buyers see the PSP's exact failure reason.
+ * `VerificationFailedError`. Valid server-returned problem fields are preserved after sanitization; malformed responses
+ * become a fixed verification-failed problem instead of retaining untrusted raw data.
  */
 export class MppRedeemProblemError extends Errors.PaymentError {
   override readonly name = 'MppRedeemProblemError';
@@ -21,11 +22,12 @@ export class MppRedeemProblemError extends Errors.PaymentError {
 
   /** @param problem - The RFC 9457 problem the PSP returned on the redeem response. */
   constructor(problem: MppProblemDetail) {
-    super(problem.detail);
-    this.problem = problem;
-    this.type = problem.type;
-    this.title = problem.title;
-    this.status = problem.status;
+    const sanitized = sanitizeMppProblemDetail(problem) ?? malformedProblem();
+    super(sanitized.detail);
+    this.problem = sanitized;
+    this.type = sanitized.type;
+    this.title = sanitized.title;
+    this.status = sanitized.status;
   }
 
   /**
@@ -41,10 +43,22 @@ export class MppRedeemProblemError extends Errors.PaymentError {
       title: this.title,
       status: this.status,
       detail: this.problem.detail,
+      ...(this.problem.hint !== undefined ? { hint: this.problem.hint } : {}),
+      ...(this.problem.details !== undefined ? { details: this.problem.details } : {}),
       ...(challengeId !== undefined ? { challengeId } : {}),
       ...(this.problem.extensions ?? {}),
     };
   }
+}
+
+/** Return a fixed safe problem when a runtime caller supplies a contract-violating problem object. */
+function malformedProblem(): MppProblemDetail {
+  return {
+    type: PROBLEM_TYPES.VERIFICATION_FAILED,
+    title: 'Payment Verification Failed',
+    status: 402,
+    detail: 'The PSP redeem response carried a malformed problem.',
+  };
 }
 
 /**

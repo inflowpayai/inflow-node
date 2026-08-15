@@ -57,7 +57,10 @@ function mockConfig(body: MppConfigResponse = config()): void {
 }
 
 /** A success redeem handler that records the request body + headers it received. */
-function mockRedeemSuccess(method = 'inflow'): { body(): unknown; idempotencyKey(): string | null } {
+function mockRedeemSuccess(
+  method = 'inflow',
+  extensions: Record<string, unknown> = {},
+): { body(): unknown; idempotencyKey(): string | null } {
   let captured: unknown;
   let key: string | null = null;
   server.use(
@@ -72,6 +75,7 @@ function mockRedeemSuccess(method = 'inflow'): { body(): unknown; idempotencyKey
           settlement: { amount: '10', currency: 'USDC' },
           status: 'success',
           timestamp: '2026-05-31T00:00:00Z',
+          ...extensions,
         },
         receiptHeader: 'ignored-by-mppx',
       });
@@ -336,6 +340,91 @@ describe('verify → /v1/mpp/redeem', () => {
     expect(redeem.idempotencyKey()).toBe('tx-1');
     const body = redeem.body() as { credential: { payload: Record<string, unknown> } };
     expect(body.credential.payload['transactionId']).toBe('tx-1');
+  });
+
+  it('keeps method-specific receipt extension fields when mapping to mppx', async () => {
+    mockConfig();
+    mockRedeemSuccess('inflow', {
+      chainId: 1001,
+      providerReceiptId: 'prov-1',
+    });
+    const { mppx } = makeMppx();
+
+    const challenge = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC', recipient: UUID });
+    const authorization = Credential.serialize({
+      challenge,
+      payload: { transactionId: 'tx-ext', type: 'balance', approvalId: 'appr-ext' },
+      source: 'did:inflow:payer',
+    });
+
+    const r = await mppx.charge({ amount: '10', currency: 'USDC', recipient: UUID })(
+      new Request('https://app.test/r', { headers: { Authorization: authorization } }),
+    );
+    expect(r.status).toBe(200);
+    if (r.status !== 200) throw new Error('expected 200');
+
+    const settled = r.withReceipt(new Response('ok'));
+    const receiptHeader = settled.headers.get('Payment-Receipt');
+    if (receiptHeader === null) throw new Error('expected Payment-Receipt header');
+    expect(decodeReceipt(receiptHeader)).toEqual({
+      challengeId: 'c1',
+      method: 'inflow',
+      reference: 'ref-123',
+      settlement: { amount: '10', currency: 'USDC' },
+      status: 'success',
+      timestamp: '2026-05-31T00:00:00Z',
+      chainId: 1001,
+      providerReceiptId: 'prov-1',
+    });
+  });
+
+  it('drops prototype-mutating receipt extension keys before composing the receipt', async () => {
+    mockConfig();
+    let deeplyNested: Record<string, unknown> = { safe: 'bottom' };
+    for (let depth = 0; depth < 18; depth += 1) deeplyNested = { nested: deeplyNested };
+    const unsafeExtensions = {
+      ...(JSON.parse(
+        '{"__proto__":{"polluted":true},"constructor":"spoofed","prototype":"spoofed","providerReceiptId":"prov-safe","nested":{"__proto__":{"polluted":true},"safe":"kept"},"items":[{"__proto__":{"polluted":true},"safe":"kept"},1,true,null]}',
+      ) as Record<string, unknown>),
+      deeplyNested,
+      overBudget: Array.from({ length: 257 }, () => 'value'),
+      wide: Object.fromEntries(Array.from({ length: 257 }, (_, index) => [`key-${index}`, 'value'])),
+    };
+    mockRedeemSuccess('inflow', {
+      ...unsafeExtensions,
+      nestedReceiptId: 'nested-safe',
+    });
+    const { mppx } = makeMppx();
+
+    const challenge = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC', recipient: UUID });
+    const authorization = Credential.serialize({
+      challenge,
+      payload: { transactionId: 'tx-safe-ext', type: 'balance' },
+      source: 'did:inflow:payer',
+    });
+    const r = await mppx.charge({ amount: '10', currency: 'USDC', recipient: UUID })(
+      new Request('https://app.test/r', { headers: { Authorization: authorization } }),
+    );
+    expect(r.status).toBe(200);
+    if (r.status !== 200) throw new Error('expected 200');
+
+    const receiptHeader = r.withReceipt(new Response('ok')).headers.get('Payment-Receipt');
+    if (receiptHeader === null) throw new Error('expected Payment-Receipt header');
+    const receipt = decodeReceipt(receiptHeader);
+    expect(receipt).toMatchObject({
+      providerReceiptId: 'prov-safe',
+      nestedReceiptId: 'nested-safe',
+      nested: { safe: 'kept' },
+      items: [{ safe: 'kept' }, 1, true, null],
+    });
+    expect(Object.hasOwn(receipt, '__proto__')).toBe(false);
+    expect(Object.hasOwn(receipt, 'constructor')).toBe(false);
+    expect(Object.hasOwn(receipt, 'prototype')).toBe(false);
+    expect(JSON.stringify(receipt)).not.toContain('"__proto__"');
+    expect(JSON.stringify(receipt)).not.toContain('deeplyNested');
+    expect(JSON.stringify(receipt)).not.toContain('overBudget');
+    expect(JSON.stringify(receipt)).not.toContain('"wide"');
+    expect(Object.prototype).not.toHaveProperty('polluted');
   });
 
   it('forwards the transactionId idempotency key for Tempo redeem', async () => {
