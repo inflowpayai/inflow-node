@@ -60,7 +60,7 @@ route — build the response yourself from the lower-level primitives below.
 
 ## 4. The primitives that make it possible
 
-These exist in the installed SDKs (verified against `@x402/core@2.12.0` and `mppx@0.6.28`).
+These exist in the installed SDKs (verified against `@x402/core@2.22.0` and `mppx@0.6.28`).
 
 ### x402 (`@inflowpayai/x402-seller` + `@x402/core`)
 

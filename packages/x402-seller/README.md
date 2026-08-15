@@ -27,8 +27,9 @@ pnpm add @inflowpayai/x402-seller @x402/express @x402/core
 - `inflowAccepts(client, options)` — async helper. Returns a foundation `PaymentOption[]` ready to splat into a route's
   `accepts` field. The prices are pre-resolved to `AssetAmount` form (asset contract address + atomic-unit amount).
 - `inflowSchemeRegistrations(client)` — async helper. Reads the seller's `/v1/x402/config` and returns one passthrough
-  `SchemeRegistration` per `(scheme, network)` pair the server can emit. Pass these as the third argument to
-  `paymentMiddlewareFromConfig`; the foundation refuses to boot without registrations covering every advertised scheme.
+  `SchemeRegistration` per `(scheme, network)` pair the server can emit, with authorization-only payment flows for the
+  exact asset transfer methods declared by config. Pass these as the third argument to `paymentMiddlewareFromConfig`;
+  the foundation refuses to boot without registrations covering every advertised scheme.
 - `X402PriceParseError` — typed error thrown by `inflowAccepts` when a price string doesn't parse.
 
 ### Price formats

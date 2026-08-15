@@ -1,4 +1,5 @@
 import type { AssetAmount, Network, PaymentRequirements, Price, SupportedKind } from '@x402/core/types';
+import { resolvePaymentFlow } from '@x402/core/server';
 import { describe, expect, it } from 'vitest';
 
 import type { InflowSellerClient } from '../../src/seller-client.js';
@@ -24,6 +25,20 @@ function fakeSellerClient(config: typeof SAMPLE_CONFIG = SAMPLE_CONFIG): InflowS
  */
 function pairs(registrations: readonly InflowSchemeRegistration[]): Array<[string, Network]> {
   return registrations.map((r) => [r.server.scheme, r.network]);
+}
+
+function registrationFor(
+  registrations: readonly InflowSchemeRegistration[],
+  scheme: string,
+  network: Network,
+): InflowSchemeRegistration {
+  const registration = registrations.find(
+    (candidate) => candidate.server.scheme === scheme && candidate.network === network,
+  );
+  if (registration === undefined) {
+    throw new Error(`Missing registration for ${scheme} on ${network}`);
+  }
+  return registration;
 }
 
 describe('inflowSchemeRegistrations', () => {
@@ -78,6 +93,9 @@ describe('inflowSchemeRegistrations', () => {
       ['exact', 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp'],
       ['balance', 'inflow:1'],
     ]);
+    const exact = registrationFor(registrations, 'exact', 'eip155:8453');
+    expect(exact.server.defaultAssetTransferMethod).toBe('eip3009');
+    expect(Object.keys(exact.server.paymentFlows)).toEqual(['eip3009', 'permit2', 'default']);
   });
 
   it('each registration exposes a passthrough server with parsePrice + enhancePaymentRequirements hooks', async () => {
@@ -88,6 +106,88 @@ describe('inflowSchemeRegistrations', () => {
       expect(typeof reg.server.parsePrice).toBe('function');
       expect(typeof reg.server.enhancePaymentRequirements).toBe('function');
     }
+  });
+
+  it('declares authorization-only payment flows for exactly the transfer methods emitted by seller config', async () => {
+    const registrations = await inflowSchemeRegistrations(fakeSellerClient());
+
+    const base = registrationFor(registrations, 'exact', 'eip155:8453');
+    expect(base.server.defaultAssetTransferMethod).toBe('eip3009');
+    expect(base.server.paymentFlows).toEqual({
+      eip3009: { supported: ['authorization'], default: 'authorization' },
+      permit2: { supported: ['authorization'], default: 'authorization' },
+    });
+
+    const solana = registrationFor(registrations, 'exact', 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp');
+    expect(solana.server.defaultAssetTransferMethod).toBe('solana');
+    expect(solana.server.paymentFlows).toEqual({
+      solana: { supported: ['authorization'], default: 'authorization' },
+    });
+
+    const balance = registrationFor(registrations, 'balance', 'inflow:1');
+    expect(balance.server.defaultAssetTransferMethod).toBe('default');
+    expect(balance.server.paymentFlows).toEqual({
+      default: { supported: ['authorization'], default: 'authorization' },
+    });
+  });
+
+  it('derives a non-blockchain transfer method from PaymentMethodInfo.extra', async () => {
+    const registrations = await inflowSchemeRegistrations(
+      fakeSellerClient({
+        ...SAMPLE_CONFIG,
+        paymentMethods: [
+          {
+            ...SAMPLE_CONFIG.paymentMethods[0]!,
+            extra: { assetTransferMethod: 'ledger-v2' },
+          },
+        ],
+      }),
+    );
+
+    const balance = registrationFor(registrations, 'balance', 'inflow:1');
+    expect(balance.server.defaultAssetTransferMethod).toBe('ledger-v2');
+    expect(balance.server.paymentFlows).toEqual({
+      'ledger-v2': { supported: ['authorization'], default: 'authorization' },
+    });
+  });
+
+  it('stores __proto__ as an own transfer-method key without invoking its setter', async () => {
+    const registrations = await inflowSchemeRegistrations(
+      fakeSellerClient({
+        ...SAMPLE_CONFIG,
+        paymentMethods: [
+          {
+            ...SAMPLE_CONFIG.paymentMethods[0]!,
+            extra: { assetTransferMethod: '__proto__' },
+          },
+        ],
+      }),
+    );
+
+    const balance = registrationFor(registrations, 'balance', 'inflow:1');
+    expect(Object.hasOwn(balance.server.paymentFlows, '__proto__')).toBe(true);
+    expect(balance.server.paymentFlows['__proto__']).toEqual({
+      supported: ['authorization'],
+      default: 'authorization',
+    });
+  });
+
+  it('uses a null-prototype payment-flow table so inherited keys are rejected descriptively', async () => {
+    const registrations = await inflowSchemeRegistrations(fakeSellerClient());
+    const balance = registrationFor(registrations, 'balance', 'inflow:1');
+
+    expect(Object.getPrototypeOf(balance.server.paymentFlows)).toBeNull();
+    expect(() =>
+      resolvePaymentFlow(balance.server, {
+        scheme: 'balance',
+        network: 'inflow:1',
+        asset: 'USD',
+        amount: '1',
+        payTo: 'acct_test',
+        maxTimeoutSeconds: 60,
+        extra: { assetTransferMethod: 'toString' },
+      }),
+    ).toThrow(/does not support assetTransferMethod "toString"/);
   });
 });
 

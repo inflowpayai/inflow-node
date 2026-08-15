@@ -54,7 +54,7 @@ any code, and follow only that protocol's section of this guide.
 | -------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | Spec                       | [x402 protocol](https://docs.x402.org)                                 | IETF "Payment" HTTP auth scheme ([paymentauth.org](https://paymentauth.org)) |
 | Seller package             | `@inflowpayai/x402-seller`                                             | `@inflowpayai/mpp-seller`                                                    |
-| Peer SDK                   | `@x402/core@^2.12.0` + a framework adapter (`@x402/express` etc.)      | [`mppx@^0.6.28`](https://github.com/wevm/mppx)                               |
+| Peer SDK                   | `@x402/core@^2.22.0` + a framework adapter (`@x402/express` etc.)      | [`mppx@^0.6.28`](https://github.com/wevm/mppx)                               |
 | Wiring                     | Global middleware listing priced routes                                | Per-route `charge()` handler                                                 |
 | Challenge transport        | `PAYMENT-REQUIRED` response header (base64 JSON)                       | `WWW-Authenticate: Payment …` response header(s)                             |
 | Buyer's paid retry         | `PAYMENT-SIGNATURE` request header                                     | `Authorization: Payment <credential>` request header                         |

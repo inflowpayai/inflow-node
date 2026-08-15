@@ -1,7 +1,10 @@
-import { SCHEMES } from '@inflowpayai/x402';
+import { EXTRA_KEYS, SCHEMES } from '@inflowpayai/x402';
+import { getExtra } from '@inflowpayai/x402/extras';
+import { SDK_DEFAULT_ASSET_TRANSFER_METHOD } from '@x402/core/server';
 import type {
   AssetAmount,
   Network,
+  PaymentFlowConfig,
   PaymentRequirements,
   Price,
   SchemeNetworkServer,
@@ -21,6 +24,13 @@ export interface InflowSchemeRegistration {
   server: SchemeNetworkServer;
 }
 
+interface RegistrationAccumulator {
+  network: string;
+  scheme: string;
+  assetTransferMethods: [string, ...string[]];
+  seenAssetTransferMethods: Set<string>;
+}
+
 /**
  * Build the passthrough `SchemeRegistration[]` for every `(scheme, network)` pair the seller's `/v1/x402/config` can
  * emit. Pass the result as the third argument to `paymentMiddlewareFromConfig` — the foundation refuses to boot
@@ -29,37 +39,53 @@ export interface InflowSchemeRegistration {
  */
 export async function inflowSchemeRegistrations(client: InflowSellerClient): Promise<InflowSchemeRegistration[]> {
   const config = await client.config();
-  const registrations: InflowSchemeRegistration[] = [];
-  const seen = new Set<string>();
+  const registrations = new Map<string, RegistrationAccumulator>();
 
-  function add(scheme: string, network: string): void {
+  function add(scheme: string, network: string, assetTransferMethod: unknown): void {
     const key = `${scheme}|${network}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    registrations.push({
-      // Boundary cast to the foundation's `${string}:${string}` Network
-      // type. Every value passing through (CAIP-2 chain ids and
-      // `'inflow:1'`) is CAIP-2 shaped at runtime.
-      network: network as Network,
-      server: inflowPassthroughScheme(scheme),
-    });
+    // Foundation uses the SDK-only `default` sentinel when requirements
+    // omit an on-wire assetTransferMethod. Non-string config values are
+    // likewise ignored by foundation's resolver, so model them as omitted.
+    const method = typeof assetTransferMethod === 'string' ? assetTransferMethod : SDK_DEFAULT_ASSET_TRANSFER_METHOD;
+    const registration = registrations.get(key);
+    if (registration === undefined) {
+      registrations.set(key, {
+        network,
+        scheme,
+        assetTransferMethods: [method],
+        seenAssetTransferMethods: new Set([method]),
+      });
+      return;
+    }
+
+    if (!registration.seenAssetTransferMethods.has(method)) {
+      registration.seenAssetTransferMethods.add(method);
+      registration.assetTransferMethods.push(method);
+    }
   }
 
   // On-chain entries: `'exact'` scheme on every distinct asset.network.
   // Multiple assets per network (USDC + USDT on the same chain) collapse
-  // to a single registration thanks to `seen`.
+  // to a single registration while preserving every advertised transfer
+  // method in config declaration order.
   for (const asset of config.assets) {
-    add(SCHEMES.EXACT, asset.network);
+    add(SCHEMES.EXACT, asset.network, asset.assetTransferMethod);
   }
 
   // Non-blockchain entries: scheme + network from each payment method
   // (e.g. `'balance' / 'inflow:1'`). Every scheme the server publishes
   // registers; the SDK does not enumerate an allowlist.
   for (const method of config.paymentMethods) {
-    add(method.scheme, method.network);
+    add(method.scheme, method.network, getExtra<unknown>(method.extra, EXTRA_KEYS.ASSET_TRANSFER_METHOD));
   }
 
-  return registrations;
+  return [...registrations.values()].map((registration) => ({
+    // Boundary cast to the foundation's `${string}:${string}` Network
+    // type. Every value passing through (CAIP-2 chain ids and
+    // `'inflow:1'`) is CAIP-2 shaped at runtime.
+    network: registration.network as Network,
+    server: inflowPassthroughScheme(registration.scheme, registration.assetTransferMethods),
+  }));
 }
 
 // Passthrough `SchemeNetworkServer`: declares `scheme` so
@@ -68,9 +94,27 @@ export async function inflowSchemeRegistrations(client: InflowSellerClient): Pro
 // deliberate — non-`AssetAmount` prices reach this only when a route
 // bypassed `inflowAccepts`, and we can't safely guess the asset's
 // decimals here.
-function inflowPassthroughScheme(scheme: string): SchemeNetworkServer {
+function inflowPassthroughScheme(
+  scheme: string,
+  assetTransferMethods: readonly [string, ...string[]],
+): SchemeNetworkServer {
+  // Foundation resolves this table with direct property access. Keep it
+  // prototype-free so names such as `toString` cannot resolve to inherited
+  // Object.prototype members and produce a misleading payment-flow error.
+  const paymentFlows = Object.assign(
+    Object.create(null) as Record<string, PaymentFlowConfig>,
+    Object.fromEntries(
+      assetTransferMethods.map((assetTransferMethod) => [
+        assetTransferMethod,
+        { supported: ['authorization'], default: 'authorization' },
+      ]),
+    ),
+  );
+
   return {
     scheme,
+    defaultAssetTransferMethod: assetTransferMethods[0],
+    paymentFlows,
     parsePrice(price: Price, _network: Network): Promise<AssetAmount> {
       const candidate: unknown = price;
       if (typeof candidate !== 'object' || candidate === null || !('asset' in candidate) || !('amount' in candidate)) {
