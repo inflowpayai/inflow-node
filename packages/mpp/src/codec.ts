@@ -315,11 +315,12 @@ const NEXT_CHALLENGE = /^Payment\s/i;
  * raw CR/LF are rejected — they would corrupt the header or open a header-injection vector. Matches the server's
  * `escapeQuotedString`.
  *
- * @param value - The raw description text.
+ * @param value - The raw parameter text.
+ * @param field - Field name for diagnostics.
  * @returns The escaped text, safe to place inside a quoted-string.
  * @throws {@link MppCodecError} When the value contains a disallowed control character.
  */
-function escapeQuotedString(value: string): string {
+function escapeQuotedString(value: string, field: string): string {
   let out = '';
   for (let i = 0; i < value.length; i += 1) {
     const code = value.charCodeAt(i);
@@ -327,7 +328,7 @@ function escapeQuotedString(value: string): string {
     if (ch === '\r' || ch === '\n' || (code < 0x20 && ch !== '\t')) {
       throw new MppCodecError(
         'challenge header',
-        `description contains a disallowed control character (0x${code.toString(16)})`,
+        `${field} contains a disallowed control character (0x${code.toString(16)})`,
       );
     }
     if (ch === '\\' || ch === '"') out += '\\';
@@ -343,8 +344,8 @@ function escapeQuotedString(value: string): string {
  * @param value - The escaped quoted-string contents.
  * @returns The decoded text.
  */
-function unescapeQuotedString(value: string): string {
-  if (!value.includes('\\')) return value;
+function unescapeQuotedString(value: string, field: string): string {
+  if (!value.includes('\\')) return validateQuotedHeaderValue(value, field);
   let out = '';
   for (let i = 0; i < value.length; i += 1) {
     const ch = value[i] as string;
@@ -355,7 +356,25 @@ function unescapeQuotedString(value: string): string {
       out += ch;
     }
   }
-  return out;
+  return validateQuotedHeaderValue(out, field);
+}
+
+function parseChallengeValue(value: string, quoted: boolean, field: string): string {
+  return quoted ? unescapeQuotedString(value, field) : validateQuotedHeaderValue(value, field);
+}
+
+function validateQuotedHeaderValue(value: string, field: string): string {
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i);
+    const ch = value[i] as string;
+    if (ch === '\r' || ch === '\n' || (code < 0x20 && ch !== '\t')) {
+      throw new MppCodecError(
+        'challenge header',
+        `${field} contains a disallowed control character (0x${code.toString(16)})`,
+      );
+    }
+  }
+  return value;
 }
 
 /**
@@ -364,11 +383,17 @@ function unescapeQuotedString(value: string): string {
  * @param parts - Accumulated `key="value"` fragments.
  * @param key - Param name.
  * @param value - Param value, or `undefined` to skip.
- * @param escape - When true, RFC 7235 quoted-string escape the value (only for server-controlled-display fields).
+ * @param escape - When true, RFC 7235 quoted-string escape the value.
  */
-function appendParam(parts: string[], key: string, value: string | undefined, escape: boolean): void {
+function appendParam(
+  parts: string[],
+  key: string,
+  value: string | undefined,
+  escape: boolean,
+  field: string = key,
+): void {
   if (value === undefined) return;
-  parts.push(`${key}="${escape ? escapeQuotedString(value) : value}"`);
+  parts.push(`${key}="${escape ? escapeQuotedString(value, field) : value}"`);
 }
 
 /**
@@ -379,8 +404,11 @@ function appendParam(parts: string[], key: string, value: string | undefined, es
  * @returns The header value, e.g. `Payment id="…", realm="…", method="inflow", intent="charge", request="…"`.
  */
 export function renderChallengeHeader(challenge: MppChallenge): string {
+  if (typeof challenge.id !== 'string' || challenge.id.length === 0) {
+    throw new MppCodecError('challenge header', "required parameter 'id' must be non-empty");
+  }
   const parts: string[] = [];
-  appendParam(parts, 'id', challenge.id, false);
+  appendParam(parts, 'id', challenge.id, true, 'id');
   appendParam(parts, 'realm', challenge.realm, false);
   appendParam(parts, 'method', challenge.method, false);
   appendParam(parts, 'intent', challenge.intent, false);
@@ -419,12 +447,13 @@ export function parseChallengeHeader(headerValue: string): MppChallenge {
   while ((match = PARAM_PATTERN.exec(input)) !== null) {
     const key = match[1] ?? match[3];
     const value = match[1] !== undefined ? match[2] : match[4];
+    const quoted = match[1] !== undefined;
     if (key === undefined || value === undefined) continue;
     if (seen.has(key)) throw new MppCodecError('challenge header', `duplicate parameter '${key}'`);
     seen.add(key);
     switch (key) {
       case 'description':
-        fields.description = unescapeQuotedString(value);
+        fields.description = parseChallengeValue(value, quoted, 'description');
         break;
       case 'digest':
         fields.digest = value;
@@ -433,7 +462,7 @@ export function parseChallengeHeader(headerValue: string): MppChallenge {
         fields.expires = value;
         break;
       case 'id':
-        fields.id = value;
+        fields.id = parseChallengeValue(value, quoted, 'id');
         break;
       case 'intent':
         fields.intent = value;
