@@ -28,6 +28,8 @@ missing. `@inflowpayai/mpp` comes along as a normal dependency.
 - `tempoContextSchema` — the empty per-call context schema for Tempo charges.
 - `Mppx` (re-exported from `mppx/client`) and `Receipt` (from `mppx`) — a single import gives the foundation client and
   the InFlow methods.
+- `McpClient` from the optional `@inflowpayai/mpp-buyer/mcp` entrypoint — wraps an MCP SDK client in place so existing
+  references handle payment-required tool results and errors. Install `@modelcontextprotocol/sdk` when using it.
 - Types: `InflowBuyerParameters`, `FulfilOptions`, plus the core re-exports `Environment`, `InflowClientOptions` /
   `InflowAnonymousClientOptions` / `InflowBearerClientOptions`, `InflowPaymentOptions`, `MppCredential`.
 - Errors: `MppPaymentFailedError` (carries the server's `MppProblemDetail`), `MppPaymentExpiredError`,
@@ -44,6 +46,40 @@ Mppx.create({ methods: [inflow({ apiKey, environment: 'sandbox' })] });
 
 const res = await fetch('https://api.example.com/widgets');
 // 402 → InFlow fulfils the challenge → request is replayed with `Authorization: Payment …`
+```
+
+For MCP tools, install the optional SDK and use the same InFlow method with the foundation wrapper:
+
+```bash
+pnpm add @inflowpayai/mpp-buyer mppx @modelcontextprotocol/sdk
+```
+
+The wrapper modifies and returns the original MCP client. Free tools pass through normally. For a paid tool, it handles
+the payment challenge and retries the tool call with the resulting credential. `onPaymentRequired` receives the selected
+challenge: return `true` to continue or `false` to reject the payment. If the hook is omitted, compatible payments
+proceed automatically, so provide it unless automatic payment is intentional.
+
+```ts
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { inflow } from '@inflowpayai/mpp-buyer';
+import { McpClient } from '@inflowpayai/mpp-buyer/mcp';
+
+const client = new Client({ name: 'buyer', version: '1.0.0' });
+await client.connect(transport);
+
+McpClient.wrap(client, {
+  methods: [inflow({ apiKey, environment: 'sandbox' })],
+  onPaymentRequired: async (challenge) => approve(challenge),
+});
+
+const result = await client.callTool({ name: 'paid-tool', arguments: {} });
+console.log(result.content, result.receipt);
+```
+
+For an instrument-rail challenge, pass the buyer-selected instrument as per-call context:
+
+```ts
+await client.callTool({ name: 'paid-tool', arguments: {} }, undefined, { context: { instrumentId } });
 ```
 
 The transparent path above is [`examples/mpp-buyer-fetch`](../../examples/mpp-buyer-fetch); the explicit, non-polyfill
