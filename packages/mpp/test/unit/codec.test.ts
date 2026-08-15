@@ -13,7 +13,7 @@ import {
   renderChallengeHeader,
 } from '../../src/codec.js';
 import { MppCodecError } from '../../src/errors.js';
-import type { MppChallenge, MppCredential, MppReceipt } from '../../src/types.js';
+import type { InflowChallengeRequest, MppChallenge, MppCredential, MppReceipt } from '../../src/types.js';
 
 describe('canonicalize (RFC 8785 JCS)', () => {
   it('sorts object keys by UTF-16 code unit and drops null/undefined properties', () => {
@@ -248,6 +248,54 @@ describe('credential / receipt codecs', () => {
   it('rejects a non-RFC 3339 receipt timestamp', () => {
     expect(() =>
       decodeReceipt(encode({ method: 'tempo', reference: 'ref-1', status: 'success', timestamp: 'Jan 29 2026 12:00' })),
+    ).toThrow(MppCodecError);
+  });
+});
+
+describe('subscription intent wire contract', () => {
+  it('round-trips a subscription challenge header (intent=subscription)', () => {
+    const sub: MppChallenge = { id: 'sub1', realm: 'inflow', method: 'inflow', intent: 'subscription', request: 'e30' };
+    expect(parseChallengeHeader(renderChallengeHeader(sub))).toEqual(sub);
+  });
+
+  it('encodes/decodes an inflow subscription challenge request with the period fields', () => {
+    const request: InflowChallengeRequest = {
+      amount: '10',
+      currency: 'USDC',
+      recipient: 'r',
+      methodDetails: { rail: 'balance' },
+      periodUnit: 'month',
+      periodCount: 1,
+      subscriptionExpires: '2027-01-01T00:00:00Z',
+      externalId: 'plan_pro',
+    };
+    expect(decode<InflowChallengeRequest>(encode(request))).toEqual(request);
+  });
+
+  it('decodes a subscription receipt carrying its identifier and seller reconciliation metadata', () => {
+    const receipt: MppReceipt = {
+      externalId: 'seller-plan-42',
+      method: 'inflow',
+      reference: 'txn-1',
+      settlement: { amount: '10', currency: 'USDC' },
+      status: 'success',
+      timestamp: '2027-01-01T00:00:00Z',
+      subscriptionId: 'sub_abc',
+    };
+    expect(decodeReceipt(encode(receipt))).toEqual(receipt);
+  });
+
+  it('rejects a receipt with an empty subscriptionId', () => {
+    expect(() =>
+      decodeReceipt(
+        encode({
+          method: 'inflow',
+          reference: 'r',
+          status: 'success',
+          timestamp: '2027-01-01T00:00:00Z',
+          subscriptionId: '',
+        }),
+      ),
     ).toThrow(MppCodecError);
   });
 });

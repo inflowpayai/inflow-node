@@ -15,10 +15,11 @@ import {
   storedApiKeyGrantType,
 } from '@aep-foundation/service';
 import type { AepServiceCredentialStore } from '@aep-foundation/service';
-import { inflow } from '@inflowpayai/mpp-seller';
+import { inflow, inflowSubscriptionsNodeListener } from '@inflowpayai/mpp-seller';
 import express from 'express';
 import type { Request, RequestHandler } from 'express';
 import { Mppx } from 'mppx/express';
+import { Mppx as MppxServer } from 'mppx/server';
 
 export interface CreateMppAepSellerAppOptions {
   apiKey: string;
@@ -61,6 +62,21 @@ export function createMppAepSellerApp(options: CreateMppAepSellerAppOptions) {
     ...(options.baseUrl === undefined ? { environment: 'sandbox' } : { baseUrl: options.baseUrl }),
   });
   const mppx = Mppx.create({ methods: [method], secretKey: options.mppSecretKey });
+  const subscriptionMethod = inflow.subscription({
+    apiKey: options.apiKey,
+    ...(options.baseUrl === undefined ? { environment: 'sandbox' } : { baseUrl: options.baseUrl }),
+  });
+  const subscriptionCore = MppxServer.create({ methods: [subscriptionMethod], secretKey: options.mppSecretKey });
+  const subscribe = inflowSubscriptionsNodeListener(subscriptionCore, [
+    {
+      amount: '1.00',
+      currency: 'USDC',
+      periodUnit: 'month',
+      periodCount: 1,
+      subscriptionExpires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      externalId: 'example-monthly-plan',
+    },
+  ]);
   const authenticateAep = createExpressAepProtectedResourceHandler(service, options.listenUrl);
   const requireAep: RequestHandler = (request, response, next) =>
     authenticateAep(request, response, () => {
@@ -85,6 +101,12 @@ export function createMppAepSellerApp(options: CreateMppAepSellerAppOptions) {
   app.post('/api/upload', requireAep, mppx.charge({ amount: '0.10', currency: 'USDC' }), (request, response) => {
     options.onProtectedHandler?.(request);
     response.json({ received: request.body });
+  });
+  app.get('/api/subscribe', requireAep, async (request, response) => {
+    const result = await subscribe(request, response);
+    if (result.status === 402) return;
+    options.onProtectedHandler?.(request);
+    response.json({ subscribed: true });
   });
   app.get('/free', (_request, response) => {
     response.json({ ok: true, note: 'no AEP authentication or payment required' });

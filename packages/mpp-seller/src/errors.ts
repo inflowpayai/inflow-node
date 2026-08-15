@@ -62,19 +62,47 @@ function malformedProblem(): MppProblemDetail {
 }
 
 /**
- * Thrown when a charge's currency is not advertised in the PSP's `currencyRails` map (e.g. `JPY` against a USD/USDC
- * PSP). The seller SDK never invents a rail: an unsupported currency cannot produce an `inflow` challenge, so the
- * `request` hook fails fast with this error rather than emitting a malformed header. When `inflow` is the only method
- * on the route, the charge cannot be satisfied.
+ * Thrown when a request's intent and currency have no advertised settlement rail. The seller SDK never invents a rail,
+ * so the `request` hook fails fast with this error rather than emitting a malformed header. When `inflow` is the only
+ * method on the route, the charge cannot be satisfied.
  */
 export class MppUnsupportedCurrencyError extends Error {
   override readonly name = 'MppUnsupportedCurrencyError';
-  /** The unsupported charge currency. */
+  /** The unsupported currency. */
   readonly currency: string;
 
-  /** @param currency - The charge currency absent from `currencyRails`. */
+  /** @param currency - The unsupported currency. */
   constructor(currency: string) {
-    super(`inflow: currency "${currency}" is not supported by this PSP (absent from config.currencyRails)`);
+    super(`inflow: currency "${currency}" is not supported for this intent by the PSP`);
     this.currency = currency;
+  }
+}
+
+/** Thrown when an advertised instrument rail requires an instrument identifier and the request omits it. */
+export class MppInstrumentRequiredError extends Error {
+  override readonly name = 'MppInstrumentRequiredError';
+
+  constructor(currency: string, intent: string) {
+    super(`inflow: methodDetails.instrumentId is required for currency "${currency}" and intent "${intent}"`);
+  }
+}
+
+/** Thrown when a currency and intent offer multiple rails but the request does not select one. */
+export class MppAmbiguousRailError extends Error {
+  override readonly name = 'MppAmbiguousRailError';
+
+  constructor(currency: string, intent: string) {
+    super(
+      `inflow: currency "${currency}" offers multiple rails for intent "${intent}"; methodDetails.rail is required`,
+    );
+  }
+}
+
+/** Thrown when a request selects a rail not advertised for its currency and intent. */
+export class MppUnsupportedRailError extends Error {
+  override readonly name = 'MppUnsupportedRailError';
+
+  constructor(currency: string, intent: string, rail: string) {
+    super(`inflow: rail "${rail}" is not supported for currency "${currency}" and intent "${intent}"`);
   }
 }

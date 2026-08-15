@@ -1,6 +1,12 @@
 import { Method, z } from 'mppx';
 
-import { CREDENTIAL_TRANSACTION_ID, INTENT_CHARGE, METHOD_INFLOW, METHOD_TEMPO } from './constants.js';
+import {
+  CREDENTIAL_TRANSACTION_ID,
+  INTENT_CHARGE,
+  INTENT_SUBSCRIPTION,
+  METHOD_INFLOW,
+  METHOD_TEMPO,
+} from './constants.js';
 
 // The shared MPP Method definitions (`inflow`, `tempo`). The foundation SDK (mppx) mints + HMAC-binds challenges
 // locally with the seller's secret; InFlow is the PSP that issues and settles credentials via its REST endpoints and
@@ -21,6 +27,11 @@ import { CREDENTIAL_TRANSACTION_ID, INTENT_CHARGE, METHOD_INFLOW, METHOD_TEMPO }
 // are wrappers (`z.optional(...)`) rather than the chainable methods of classic zod.
 const decimalString = z.string().check(z.regex(/^-?\d+(\.\d+)?$/));
 
+const positiveDecimalString = z.string().check(
+  z.regex(/^\d+(\.\d+)?$/),
+  z.refine((value) => /[1-9]/.test(value), 'Amount must be positive'),
+);
+
 const bytes32Hex = z.string().check(z.regex(/^0x[0-9a-fA-F]{64}$/));
 
 const hexAddress = z.string().check(z.regex(/^0x[0-9a-fA-F]{40}$/));
@@ -30,6 +41,16 @@ const hexString = z.string().check(z.regex(/^0x[0-9a-fA-F]+$/));
 const integerString = z.string().check(z.regex(/^(0|[1-9]\d*)$/));
 
 const nonEmptyString = z.string().check(z.minLength(1));
+
+const subscriptionExternalId = z.string().check(
+  z.minLength(1),
+  z.maxLength(128),
+  z.refine((value) => value.trim().length > 0, 'externalId must not be blank'),
+);
+
+const subscriptionPeriodCount = z
+  .number()
+  .check(z.refine((value) => Number.isSafeInteger(value) && value > 0, 'periodCount must be a positive safe integer'));
 
 // Rails wire as the `MppRail` lowercase `@JsonValue` label (consistent with `method`/`intent`). The server's
 // `@JsonCreator` also accepts the uppercase enum name on input. The `inflow` method serves two rails: `balance`
@@ -83,6 +104,35 @@ export const inflowChargeRequestSchema = z.object({
   methodDetails: inflowMethodDetailsSchema,
 });
 
+/** Recurring period unit for a subscription challenge — mirrors the server's `SubscriptionPeriod` `@JsonValue` labels. */
+const subscriptionPeriodLabel = z.enum(['minute', 'hour', 'day', 'week', 'month', 'quarter', 'year']);
+
+/**
+ * Schema for the `inflow` subscription request — the `charge` request plus the recurring terms. Byte-compatible with
+ * the server's `InflowChallengeRequest` when the enclosing challenge's `intent` is `subscription`: `periodUnit` is the
+ * `SubscriptionPeriod` label, `periodCount` a positive integer, `subscriptionExpires` an RFC 3339 timestamp, and
+ * `externalId` optional seller reconciliation metadata that is not used for lookup or authorization. The four
+ * subscription fields are top-level siblings of `amount`/`currency`/`methodDetails`, and (being NON_NULL on the server)
+ * JCS-encode in sorted-key order for byte parity.
+ */
+export const inflowSubscriptionRequestSchema = z
+  .object({
+    amount: positiveDecimalString,
+    currency: nonEmptyString,
+    recipient: z.optional(z.guid()),
+    methodDetails: inflowMethodDetailsSchema,
+    periodUnit: subscriptionPeriodLabel,
+    periodCount: subscriptionPeriodCount,
+    subscriptionExpires: z.datetime(),
+    externalId: z.optional(subscriptionExternalId),
+  })
+  .check(
+    z.refine(({ periodCount, periodUnit }) => periodUnit !== 'minute' || periodCount >= 5, {
+      message: 'periodCount must be at least 5 for minute.',
+      path: ['periodCount'],
+    }),
+  );
+
 /**
  * Schema for the `inflow` credential proof payload (`MppCredential.payload`). The proof is rail-specific and produced
  * server-side — `balance` or `instrument` only (no blockchain `transactionHash`) — so the shape is an open record
@@ -121,6 +171,9 @@ export const tempoCredentialPayloadSchema = z.object({
 /** Inferred type of a validated {@link inflowChargeRequestSchema} value. */
 export type InflowChargeRequestInput = z.infer<typeof inflowChargeRequestSchema>;
 
+/** Inferred type of a validated {@link inflowSubscriptionRequestSchema} value. */
+export type InflowSubscriptionRequestInput = z.infer<typeof inflowSubscriptionRequestSchema>;
+
 /** Inferred type of a validated {@link inflowCredentialPayloadSchema} value. */
 export type InflowCredentialPayloadInput = z.infer<typeof inflowCredentialPayloadSchema>;
 
@@ -145,6 +198,21 @@ export const charge = Method.from({
   },
 });
 
+/**
+ * The `inflow` subscription Method definition — a sibling intent on the `inflow` method (see docs/mpp/extensions.md).
+ * Shares the `inflow` credential payload; differs only in its request schema (the recurring terms).
+ */
+export const subscription = Method.from({
+  intent: INTENT_SUBSCRIPTION,
+  name: METHOD_INFLOW,
+  schema: {
+    request: inflowSubscriptionRequestSchema,
+    credential: {
+      payload: inflowCredentialPayloadSchema,
+    },
+  },
+});
+
 /** The `tempo` charge Method definition. */
 export const tempoCharge = Method.from({
   intent: INTENT_CHARGE,
@@ -161,7 +229,8 @@ export const tempoCharge = Method.from({
  * The `inflow` Method namespace. Defaults to {@link charge} and exposes it as `inflow.charge`, leaving room for a
  * sibling `inflow.session` to be added later without changing the import surface (see docs/mpp/extensions.md).
  */
-export const inflow: typeof charge & { readonly charge: typeof charge } = Object.assign(charge, { charge });
+export const inflow: typeof charge & { readonly charge: typeof charge; readonly subscription: typeof subscription } =
+  Object.assign(charge, { charge, subscription });
 
 /** The `tempo` Method namespace. Defaults to {@link tempoCharge} and exposes it as `tempo.charge`. */
 export const tempo: typeof tempoCharge & { readonly charge: typeof tempoCharge } = Object.assign(tempoCharge, {

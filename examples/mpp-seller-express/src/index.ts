@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import { Mppx } from 'mppx/express';
 import { Mppx as MppxServer } from 'mppx/server';
-import { inflow, inflowChargesNodeListener } from '@inflowpayai/mpp-seller';
+import { inflow, inflowChargesNodeListener, inflowSubscriptionsNodeListener } from '@inflowpayai/mpp-seller';
 
 const apiKey = process.env['INFLOW_API_KEY'];
 if (apiKey === undefined || apiKey === '') {
@@ -28,6 +28,12 @@ const method = inflow({
 const secretKey = process.env['MPP_SECRET_KEY'];
 const mppx = Mppx.create({ methods: [method], secretKey });
 const core = MppxServer.create({ methods: [method], secretKey });
+const subscriptionMethod = inflow.subscription({
+  apiKey,
+  environment: 'sandbox',
+  ...(baseUrl === undefined || baseUrl === '' ? {} : { baseUrl }),
+});
+const subscriptionCore = MppxServer.create({ methods: [subscriptionMethod], secretKey });
 
 const app = express();
 app.use(express.json());
@@ -39,6 +45,22 @@ app.get('/api/widgets', mppx.charge({ amount: '0.01', currency: 'USDC' }), (_req
 
 app.post('/api/upload', mppx.charge({ amount: '0.10', currency: 'USDC' }), (_req, res) => {
   res.json({ status: 'received' });
+});
+
+const subscribe = inflowSubscriptionsNodeListener(subscriptionCore, [
+  {
+    amount: '1.00',
+    currency: 'USDC',
+    periodUnit: 'month',
+    periodCount: 1,
+    subscriptionExpires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+    externalId: 'example-monthly-plan',
+  },
+]);
+app.get('/api/subscribe', async (req, res) => {
+  const result = await subscribe(req, res);
+  if (result.status === 402) return;
+  res.json({ subscribed: true });
 });
 
 // Multi-currency: one WWW-Authenticate challenge per price. USD settles on the `instrument` rail, USDC on `balance`;
@@ -65,6 +87,7 @@ app.listen(port, () => {
   console.log(`mpp seller listening on http://localhost:${port.toString()}`);
   console.log(`  GET  /api/widgets  (0.01 USDC, single currency)`);
   console.log(`  POST /api/upload   (0.10 USDC, single currency)`);
+  console.log(`  GET  /api/subscribe (1.00 USDC each month)`);
   console.log(`  GET  /api/checkout (1.0 USD on instrument, or 0.0095 USDC on balance)`);
   console.log(`  GET  /free         (no payment)`);
 });

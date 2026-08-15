@@ -6,7 +6,13 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { MppRedeemProblemError, MppUnsupportedCurrencyError } from '../../src/errors.js';
+import {
+  MppAmbiguousRailError,
+  MppInstrumentRequiredError,
+  MppRedeemProblemError,
+  MppUnsupportedCurrencyError,
+  MppUnsupportedRailError,
+} from '../../src/errors.js';
 import { inflow, tempo } from '../../src/methods.server.js';
 import type { InflowSellerParameters, TempoSellerParameters } from '../../src/types.js';
 
@@ -39,13 +45,22 @@ function config(overrides: Partial<MppConfigResponse> = {}): MppConfigResponse {
         id: 'inflow',
         label: 'InFlow',
         methodDetails: {
+          intentCurrencyRails: {
+            charge: {
+              USDC: [{ rail: 'balance' }],
+              USD: [{ rail: 'instrument', instrumentId: 'optional' }],
+            },
+            subscription: {
+              USDC: [{ rail: 'balance' }],
+            },
+          },
           currencyRails: {
             USDC: { rail: 'balance' },
             USD: { rail: 'instrument', instrumentId: 'optional' },
           },
         },
         supportedCurrencies: ['USDC', 'USD'],
-        supportedIntents: ['charge'],
+        supportedIntents: ['charge', 'subscription'],
       },
     ],
     ...overrides,
@@ -95,6 +110,18 @@ function makeMppx(method = inflow({ apiKey: 'sk_test', baseUrl: BASE })) {
 function makeTempoMppx(
   method = tempo({ apiKey: 'sk_test', baseUrl: BASE, currency: TEMPO_ASSET, recipient: TEMPO_RECIPIENT }),
 ) {
+  return { method, mppx: Mppx.create({ methods: [method], secretKey: SECRET, realm: REALM }) };
+}
+
+const SUB = {
+  amount: '9.99',
+  currency: 'USDC',
+  periodUnit: 'month',
+  periodCount: 1,
+  subscriptionExpires: '2027-01-01T00:00:00Z',
+} as const;
+
+function makeSubMppx(method = inflow.subscription({ apiKey: 'sk_test', baseUrl: BASE })) {
   return { method, mppx: Mppx.create({ methods: [method], secretKey: SECRET, realm: REALM }) };
 }
 
@@ -198,6 +225,107 @@ describe('native issuance: currency → rail in the minted 402', () => {
     const { mppx } = makeMppx();
     await expect(
       mppx.charge({ amount: '1', currency: 'JPY', recipient: UUID })(new Request('https://app.test/r')),
+    ).rejects.toBeInstanceOf(MppUnsupportedCurrencyError);
+  });
+
+  it('requires an explicit rail when a currency offers multiple charge rails', async () => {
+    mockConfig(
+      config({
+        supportedMethods: [
+          {
+            id: 'inflow',
+            label: 'InFlow',
+            methodDetails: {
+              intentCurrencyRails: { charge: { USD: [{ rail: 'balance' }, { rail: 'instrument' }] } },
+              currencyRails: {},
+            },
+            supportedCurrencies: ['USD'],
+            supportedIntents: ['charge'],
+          },
+        ],
+      }),
+    );
+    const { mppx } = makeMppx();
+
+    await expect(
+      mppx.charge({ amount: '1', currency: 'USD', recipient: UUID })(new Request('https://app.test/r')),
+    ).rejects.toBeInstanceOf(MppAmbiguousRailError);
+  });
+
+  it('uses an explicitly selected advertised rail when a currency offers multiple charge rails', async () => {
+    mockConfig(
+      config({
+        supportedMethods: [
+          {
+            id: 'inflow',
+            label: 'InFlow',
+            methodDetails: {
+              intentCurrencyRails: { charge: { USD: [{ rail: 'balance' }, { rail: 'instrument' }] } },
+              currencyRails: {},
+            },
+            supportedCurrencies: ['USD'],
+            supportedIntents: ['charge'],
+          },
+        ],
+      }),
+    );
+    const { mppx } = makeMppx();
+    const result = await mppx.charge({
+      amount: '1',
+      currency: 'USD',
+      recipient: UUID,
+      methodDetails: { rail: 'balance' },
+    })(new Request('https://app.test/r'));
+
+    expect(result.status).toBe(402);
+    if (result.status !== 402) throw new Error('expected 402');
+    expect(decodeChallengeRequest(result.challenge)['methodDetails']).toEqual({ rail: 'balance' });
+  });
+
+  it('rejects an explicitly selected rail not advertised for the currency and intent', async () => {
+    mockConfig();
+    const { mppx } = makeMppx();
+
+    await expect(
+      mppx.charge({
+        amount: '1',
+        currency: 'USDC',
+        recipient: UUID,
+        methodDetails: { rail: 'instrument' },
+      })(new Request('https://app.test/r')),
+    ).rejects.toBeInstanceOf(MppUnsupportedRailError);
+  });
+
+  it('requires an instrument identifier when the selected capability requires one', async () => {
+    mockConfig(
+      config({
+        supportedMethods: [
+          {
+            id: 'inflow',
+            label: 'InFlow',
+            methodDetails: {
+              intentCurrencyRails: { charge: { USD: [{ rail: 'instrument', instrumentId: 'required' }] } },
+              currencyRails: {},
+            },
+            supportedCurrencies: ['USD'],
+            supportedIntents: ['charge'],
+          },
+        ],
+      }),
+    );
+    const { mppx } = makeMppx();
+
+    await expect(
+      mppx.charge({ amount: '1', currency: 'USD', recipient: UUID })(new Request('https://app.test/r')),
+    ).rejects.toBeInstanceOf(MppInstrumentRequiredError);
+  });
+
+  it('does not fall back to the charge compatibility map when the intent matrix omits a subscription currency', async () => {
+    mockConfig();
+    const { mppx } = makeSubMppx();
+
+    await expect(
+      mppx.compose(['inflow/subscription', { ...SUB, currency: 'USD' }])(new Request('https://app.test/r')),
     ).rejects.toBeInstanceOf(MppUnsupportedCurrencyError);
   });
 
@@ -623,6 +751,89 @@ describe('verify → /v1/mpp/redeem', () => {
         request: challenge.request,
       } as unknown as VerifyArg),
     ).rejects.toMatchObject({ problem: { type: 'https://paymentauth.org/problems/verification-failed' } });
+  });
+});
+
+describe('inflow subscription: issuance, binding, verify', () => {
+  it('mints a balance-rail subscription challenge carrying the recurring terms', async () => {
+    mockConfig();
+    const { mppx } = makeSubMppx();
+    const r = await mppx.compose(['inflow/subscription', SUB])(new Request('https://app.test/r'));
+    expect(r.status).toBe(402);
+    if (r.status !== 402) throw new Error('expected 402');
+    expect(decodeChallengeRequest(r.challenge)).toMatchObject({
+      amount: '9.99',
+      currency: 'USDC',
+      recipient: SELLER,
+      methodDetails: { rail: 'balance' },
+      periodUnit: 'month',
+      periodCount: 1,
+      subscriptionExpires: '2027-01-01T00:00:00Z',
+    });
+  });
+
+  it('binds the recurring terms alongside the core fields', () => {
+    mockConfig();
+    const { method } = makeSubMppx();
+    const binding = method.stableBinding!({
+      amount: '9.99',
+      currency: 'USDC',
+      recipient: UUID,
+      methodDetails: { rail: 'balance' },
+      periodUnit: 'month',
+      periodCount: 1,
+      subscriptionExpires: '2027-01-01T00:00:00Z',
+      externalId: 'plan_pro',
+    });
+    expect(binding).toEqual({
+      amount: '9.99',
+      currency: 'USDC',
+      recipient: UUID,
+      rail: 'balance',
+      periodUnit: 'month',
+      periodCount: 1,
+      subscriptionExpires: '2027-01-01T00:00:00Z',
+      externalId: 'plan_pro',
+    });
+  });
+
+  it('verify reflects the receipt and preserves the server-issued subscriptionId', async () => {
+    mockConfig();
+    let idempotencyKey: string | null = null;
+    server.use(
+      http.post(`${BASE}/v1/mpp/redeem`, ({ request }) => {
+        idempotencyKey = request.headers.get('idempotency-key');
+        return HttpResponse.json({
+          receipt: {
+            challengeId: 'c1',
+            method: 'inflow',
+            reference: 'ref-sub',
+            externalId: 'seller-plan-42',
+            settlement: { amount: '9.99', currency: 'USDC' },
+            status: 'success',
+            timestamp: '2027-01-01T00:00:00Z',
+            subscriptionId: 'sub_abc',
+          },
+        });
+      }),
+    );
+    const { mppx } = makeSubMppx();
+    const challenge = await mppx.challenge.inflow.subscription(SUB);
+    const authorization = Credential.serialize({
+      challenge,
+      payload: { authorizationId: 'auth-sub', transactionId: 'tx-sub', type: 'balance', approvalId: 'appr-1' },
+      source: 'did:inflow:payer',
+    });
+    const r = await mppx.compose(['inflow/subscription', SUB])(
+      new Request('https://app.test/r', { headers: { Authorization: authorization } }),
+    );
+    expect(r.status).toBe(200);
+    if (r.status !== 200) throw new Error('expected 200');
+    const settled = r.withReceipt(new Response('ok'));
+    const header = settled.headers.get('Payment-Receipt');
+    if (header === null) throw new Error('expected Payment-Receipt header');
+    expect(decodeReceipt(header)).toMatchObject({ externalId: 'seller-plan-42', subscriptionId: 'sub_abc' });
+    expect(idempotencyKey).toBe('auth-sub');
   });
 });
 

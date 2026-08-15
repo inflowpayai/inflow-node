@@ -1,9 +1,11 @@
 import {
   charge as inflowCharge,
+  CREDENTIAL_AUTHORIZATION_ID,
   CREDENTIAL_TRANSACTION_ID,
   encode,
   MppClient,
   PROBLEM_TYPES,
+  subscription as inflowSubscription,
   tempoCharge,
 } from '@inflowpayai/mpp';
 import { UNSAFE_OBJECT_KEYS, sanitizeJsonValue } from '@inflowpayai/mpp-internal';
@@ -21,7 +23,13 @@ import { Method, Receipt } from 'mppx';
 import type { Credential } from 'mppx';
 
 import { createConfigClient } from './config-client.js';
-import { MppRedeemProblemError, MppUnsupportedCurrencyError } from './errors.js';
+import {
+  MppAmbiguousRailError,
+  MppInstrumentRequiredError,
+  MppRedeemProblemError,
+  MppUnsupportedCurrencyError,
+  MppUnsupportedRailError,
+} from './errors.js';
 import type { InflowSellerParameters, LoadedConfig, TempoSellerParameters } from './types.js';
 
 const MAX_RECEIPT_EXTENSION_DEPTH = 16;
@@ -55,10 +63,10 @@ interface ResolvedMethodDetails {
  *
  * - **`defaults`** pin the seller's `currency` so `charge({ amount })` need not repeat it.
  * - **`request`** is a _pure_ function of the request + cached `/config`: it sets the `recipient` to the authenticated
- *   seller (the config's `sellerId`) and derives the rail from the charge currency (`currencyRails`: crypto →
- *   `balance`, fiat → `instrument`), failing fast for an unsupported currency. Purity is required — mppx re-derives the
- *   request at verify, and a non-deterministic hook would trip the binding mismatch check. No randomness, no remote
- *   calls (the cached config is primed at construction), no transaction id minted here.
+ *   seller (the config's `sellerId`) and selects a rail advertised for the request's intent and currency, failing fast
+ *   for unsupported or ambiguous capabilities. Purity is required — mppx re-derives the request at verify, and a
+ *   non-deterministic hook would trip the binding mismatch check. No randomness, no remote calls (the cached config is
+ *   primed at construction), no transaction id minted here.
  * - **`stableBinding`** opts `rail`/`instrumentId` into the bound set (default binding is only amount/currency/recipient)
  *   so a `balance` credential cannot be redeemed on an `instrument` route, or vice-versa.
  * - **`verify`** forwards the submitted credential to `/v1/mpp/redeem` and reflects the result: a receipt becomes an mppx
@@ -72,7 +80,9 @@ interface ResolvedMethodDetails {
  *   key.
  * @returns The `inflow` server method to pass into `Mppx.create({ methods: [...] })`.
  */
-export function inflow(parameters: InflowSellerParameters): Method.Server<typeof inflowCharge, { currency?: string }> {
+function inflowChargeMethod(
+  parameters: InflowSellerParameters,
+): Method.Server<typeof inflowCharge, { currency?: string }> {
   const client = new MppClient({
     apiKey: parameters.apiKey,
     ...(parameters.environment !== undefined ? { environment: parameters.environment } : {}),
@@ -95,7 +105,7 @@ export function inflow(parameters: InflowSellerParameters): Method.Server<typeof
 
     async request({ request }) {
       const loaded = await config.load();
-      return { ...request, recipient: loaded.sellerId, methodDetails: deriveMethodDetails(request, loaded) };
+      return { ...request, recipient: loaded.sellerId, methodDetails: deriveMethodDetails(request, loaded, 'charge') };
     },
 
     stableBinding(request) {
@@ -115,6 +125,78 @@ export function inflow(parameters: InflowSellerParameters): Method.Server<typeof
     },
   });
 }
+
+/**
+ * The seller-side `inflow` **subscription** method — the recurring sibling of the charge intent (see
+ * docs/mpp/extensions.md). `Mppx.create({ methods: [inflow.subscription(...)], secretKey
+ * }).compose('inflow/subscription', { amount, currency, periodUnit, periodCount, subscriptionExpires })` mints the
+ * subscription `WWW-Authenticate: Payment` challenge locally; `verify` delegates access authorization and any renewal
+ * settlement to `POST /v1/mpp/redeem`.
+ *
+ * The `request`/`verify` hooks are identical to charge; `stableBinding` additionally binds the recurring terms
+ * (`periodUnit`, `periodCount`, `subscriptionExpires`, `externalId`) so a credential cannot be redeemed against altered
+ * subscription terms. Subscriptions settle on the balance rail (enforced server-side).
+ *
+ * @param parameters - Auth, environment, and seller defaults ({@link InflowSellerParameters}).
+ * @returns The `inflow` subscription server method to pass into `Mppx.create({ methods: [...] })`.
+ */
+function inflowSubscriptionMethod(
+  parameters: InflowSellerParameters,
+): Method.Server<typeof inflowSubscription, { currency?: string }> {
+  const client = new MppClient({
+    apiKey: parameters.apiKey,
+    ...(parameters.environment !== undefined ? { environment: parameters.environment } : {}),
+    ...(parameters.baseUrl !== undefined ? { baseUrl: parameters.baseUrl } : {}),
+    ...(parameters.timeoutMs !== undefined ? { timeoutMs: parameters.timeoutMs } : {}),
+    ...(parameters.fetch !== undefined ? { fetch: parameters.fetch } : {}),
+  });
+  const config = createConfigClient(client);
+
+  void config.load().catch(() => undefined);
+
+  return Method.toServer(inflowSubscription, {
+    defaults: buildDefaults(parameters),
+
+    async request({ request }) {
+      const loaded = await config.load();
+      return {
+        ...request,
+        recipient: loaded.sellerId,
+        methodDetails: deriveMethodDetails(request, loaded, 'subscription'),
+      };
+    },
+
+    stableBinding(request) {
+      const rail = request.methodDetails?.rail ?? 'balance';
+      const instrumentId = request.methodDetails?.instrumentId;
+      return {
+        amount: request.amount,
+        currency: request.currency,
+        recipient: request.recipient,
+        rail,
+        periodUnit: request.periodUnit,
+        periodCount: request.periodCount,
+        subscriptionExpires: request.subscriptionExpires,
+        ...(request.externalId !== undefined ? { externalId: request.externalId } : {}),
+        ...(instrumentId !== undefined ? { instrumentId } : {}),
+      };
+    },
+
+    async verify({ credential }) {
+      return redeem(credential, client, await config.load());
+    },
+  });
+}
+
+/**
+ * The seller-side `inflow` method namespace: `inflow(...)` and `inflow.charge(...)` build the charge method, and
+ * `inflow.subscription(...)` builds the recurring method. Register the ones a route needs, e.g. `Mppx.create({ methods:
+ * [inflow(p), inflow.subscription(p)], secretKey })`.
+ */
+export const inflow: typeof inflowChargeMethod & {
+  readonly charge: typeof inflowChargeMethod;
+  readonly subscription: typeof inflowSubscriptionMethod;
+} = Object.assign(inflowChargeMethod, { charge: inflowChargeMethod, subscription: inflowSubscriptionMethod });
 
 /**
  * The seller-side `tempo` method, built as a **native mppx server method** — the Tempo analog of {@link inflow}.
@@ -210,27 +292,43 @@ function buildTempoDefaults(parameters: TempoSellerParameters): { currency: stri
 }
 
 /**
- * Derive the `methodDetails` selector for a charge: look the charge currency up in the PSP's `currencyRails` and pin
- * the advertised rail (carrying `instrumentId` when the seller supplied one). Pure function of request + cached config,
- * so mppx's verify-time re-derivation reproduces the same value.
+ * Derive the `methodDetails` selector from the PSP's intent and currency capability matrix. Pure function of request +
+ * cached config, so mppx's verify-time re-derivation reproduces the same value.
  *
  * @param request - The (defaulted) charge request.
  * @param loaded - The cached config.
  * @returns The resolved rail/instrument selector.
- * @throws {@link MppUnsupportedCurrencyError} When the currency is absent from `currencyRails` (or maps to a rail this
- *   SDK does not serve) — the SDK never invents a rail.
+ * @throws {@link MppUnsupportedCurrencyError} When the intent and currency combination is absent.
  */
-function deriveMethodDetails(request: InflowChargeRequestInput, loaded: LoadedConfig): ResolvedMethodDetails {
-  // `currency` is a required, schema-validated string by the time the hook runs (mppx validates the request first).
-  const rail = loaded.currencyRails[request.currency]?.rail;
-  // `inflow` serves exactly two off-chain rails; a currency mapped to no (or any other) rail is not serviceable.
-  if (rail !== 'balance' && rail !== 'instrument') {
+function deriveMethodDetails(
+  request: InflowChargeRequestInput,
+  loaded: LoadedConfig,
+  intent: 'charge' | 'subscription',
+): ResolvedMethodDetails {
+  const legacyCapability = loaded.currencyRails[request.currency];
+  const hasIntentMatrix = Object.keys(loaded.intentCurrencyRails).length > 0;
+  const advertised = hasIntentMatrix
+    ? (loaded.intentCurrencyRails[intent]?.[request.currency] ?? [])
+    : legacyCapability === undefined
+      ? []
+      : [legacyCapability];
+  if (advertised.length === 0) {
     throw new MppUnsupportedCurrencyError(request.currency);
   }
+  const requestedRail = request.methodDetails?.rail;
+  if (requestedRail === undefined && advertised.length > 1) {
+    throw new MppAmbiguousRailError(request.currency, intent);
+  }
+  const selected =
+    requestedRail === undefined ? advertised.at(0) : advertised.find((capability) => capability.rail === requestedRail);
+  if (selected === undefined || (selected.rail !== 'balance' && selected.rail !== 'instrument')) {
+    throw new MppUnsupportedRailError(request.currency, intent, requestedRail ?? 'unknown');
+  }
   const instrumentId = request.methodDetails?.instrumentId;
-  // `rail` is the open `MppRailLabel`; after the guard it is exactly one of the two literals. Re-state it as the narrow
-  // union (no cast) so the resolved selector is strictly typed.
-  const resolvedRail: 'balance' | 'instrument' = rail === 'balance' ? 'balance' : 'instrument';
+  const resolvedRail: 'balance' | 'instrument' = selected.rail === 'balance' ? 'balance' : 'instrument';
+  if (resolvedRail === 'instrument' && selected.instrumentId === 'required' && instrumentId === undefined) {
+    throw new MppInstrumentRequiredError(request.currency, intent);
+  }
   return {
     rail: resolvedRail,
     ...(instrumentId !== undefined ? { instrumentId } : {}),
@@ -276,10 +374,11 @@ async function redeem(
   const body: MppRedeemRequest = { credential: wireCredential };
 
   const options: MppRequestOptions = {};
+  const authorizationId = wireCredential.payload[CREDENTIAL_AUTHORIZATION_ID];
   const transactionId = wireCredential.payload[CREDENTIAL_TRANSACTION_ID];
-  if (loaded.featureFlags.idempotencyKeyEnabled && typeof transactionId === 'string') {
-    // The redeem slot is single-use and keyed on `transactionId`, so it is the natural idempotency key.
-    options.idempotencyKey = transactionId;
+  const redemptionId = typeof authorizationId === 'string' ? authorizationId : transactionId;
+  if (loaded.featureFlags.idempotencyKeyEnabled && typeof redemptionId === 'string') {
+    options.idempotencyKey = redemptionId;
   }
 
   const result = await client.redeem(body, options);
@@ -329,10 +428,12 @@ function toMppxReceipt(receipt: MppReceipt): Receipt.from.Parameters {
 
   return {
     ...(receipt.challengeId !== undefined ? { challengeId: receipt.challengeId } : {}),
+    ...(receipt.externalId !== undefined ? { externalId: receipt.externalId } : {}),
     method: receipt.method,
     reference: receipt.reference,
     ...(receipt.settlement !== undefined ? { settlement: receipt.settlement } : {}),
     status: receipt.status,
+    ...(receipt.subscriptionId !== undefined ? { subscriptionId: receipt.subscriptionId } : {}),
     timestamp: receipt.timestamp,
     ...extensionFields,
   };

@@ -5,6 +5,8 @@ import {
   inflow,
   inflowChargeRequestSchema,
   inflowCredentialPayloadSchema,
+  inflowSubscriptionRequestSchema,
+  subscription,
   tempo,
   tempoCharge,
   tempoChargeRequestSchema,
@@ -58,9 +60,77 @@ describe('inflow charge request schema', () => {
   });
 });
 
+describe('inflow subscription request schema', () => {
+  it('accepts a well-formed subscription request with the recurring terms', () => {
+    const parsed = inflowSubscriptionRequestSchema.parse({
+      amount: '9.99',
+      currency: 'USDC',
+      methodDetails: { rail: 'balance' },
+      periodUnit: 'month',
+      periodCount: 1,
+      subscriptionExpires: '2027-01-01T00:00:00Z',
+      externalId: 'plan_pro',
+    });
+    expect(parsed.periodUnit).toBe('month');
+    expect(parsed.periodCount).toBe(1);
+  });
+
+  it('rejects an unknown periodUnit and a missing subscriptionExpires', () => {
+    expect(
+      inflowSubscriptionRequestSchema.safeParse({
+        amount: '9.99',
+        currency: 'USDC',
+        periodUnit: 'fortnight',
+        periodCount: 1,
+        subscriptionExpires: '2027-01-01T00:00:00Z',
+      }).success,
+    ).toBe(false);
+    expect(
+      inflowSubscriptionRequestSchema.safeParse({
+        amount: '9.99',
+        currency: 'USDC',
+        periodUnit: 'month',
+        periodCount: 1,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects non-positive amounts, invalid period counts, malformed expiration, and invalid externalId', () => {
+    const valid = {
+      amount: '9.99',
+      currency: 'USDC',
+      periodUnit: 'month',
+      periodCount: 1,
+      subscriptionExpires: '2027-01-01T00:00:00Z',
+    } as const;
+
+    expect(inflowSubscriptionRequestSchema.safeParse({ ...valid, amount: '0' }).success).toBe(false);
+    expect(inflowSubscriptionRequestSchema.safeParse({ ...valid, periodCount: 1.5 }).success).toBe(false);
+    expect(
+      inflowSubscriptionRequestSchema.safeParse({ ...valid, periodCount: Number.MAX_SAFE_INTEGER + 1 }).success,
+    ).toBe(false);
+    expect(inflowSubscriptionRequestSchema.safeParse({ ...valid, subscriptionExpires: '2027-01-01' }).success).toBe(
+      false,
+    );
+    expect(inflowSubscriptionRequestSchema.safeParse({ ...valid, externalId: ' ' }).success).toBe(false);
+    expect(inflowSubscriptionRequestSchema.safeParse({ ...valid, externalId: 'x'.repeat(129) }).success).toBe(false);
+    expect(inflowSubscriptionRequestSchema.safeParse({ ...valid, periodUnit: 'minute', periodCount: 4 }).success).toBe(
+      false,
+    );
+    expect(inflowSubscriptionRequestSchema.safeParse({ ...valid, periodUnit: 'minute', periodCount: 5 }).success).toBe(
+      true,
+    );
+  });
+});
+
 describe('inflow Method namespace', () => {
   it('defaults to charge and exposes inflow.charge', () => {
     expect(inflow.charge).toBe(charge);
+  });
+
+  it('exposes the subscription sibling intent', () => {
+    expect(inflow.subscription).toBe(subscription);
+    expect(subscription.intent).toBe('subscription');
   });
 });
 

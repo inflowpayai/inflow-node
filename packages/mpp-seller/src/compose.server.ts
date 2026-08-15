@@ -93,6 +93,137 @@ export function inflowChargesNodeListener(
 }
 
 /**
+ * One subscription plan a seller offers: a recurring `amount` in `currency`, billed every `periodCount` × `periodUnit`
+ * until `subscriptionExpires`. The rail is derived from the currency (subscriptions settle on `balance`, enforced
+ * server-side). `externalId` is optional seller reconciliation metadata; it is not a lookup, authorization, or
+ * idempotency key.
+ */
+export interface InflowSubscriptionPlan {
+  /** Recurring decimal amount string in `currency`'s units, e.g. `'9.99'`. */
+  amount: string;
+  /** Currency code the recurring charge settles in (crypto → balance rail). */
+  currency: string;
+  /** Billing period unit. */
+  periodUnit: 'minute' | 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
+  /** Number of `periodUnit`s per billing period (positive integer). */
+  periodCount: number;
+  /** RFC 3339 timestamp after which the subscription may no longer renew. */
+  subscriptionExpires: string;
+  /** Optional seller reconciliation metadata (1 to 128 non-blank characters). */
+  externalId?: string;
+}
+
+/** The `compose` entry shape for the `inflow` subscription method: a `[methodKey, options]` tuple. */
+type InflowSubscriptionEntry = readonly [
+  'inflow/subscription',
+  {
+    amount: string;
+    currency: string;
+    periodUnit: 'minute' | 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
+    periodCount: number;
+    subscriptionExpires: string;
+    externalId?: string;
+  },
+];
+
+/**
+ * The slice of a core `mppx/server` instance {@link inflowSubscriptions} needs: its `compose(...)` over subscription
+ * entries. Kept structural so the helper is generic over any `Mppx.create({ methods: [inflow.subscription(...)] })`
+ * instance while staying fully typed.
+ */
+interface InflowSubscriptionComposable<Handler> {
+  compose: (...entries: readonly InflowSubscriptionEntry[]) => Handler;
+}
+
+/**
+ * Build + validate the `compose` entries for a list of subscription plans.
+ *
+ * @throws {@link Error} On an empty list or invalid plan terms.
+ */
+function toSubscriptionEntries(plans: readonly InflowSubscriptionPlan[]): InflowSubscriptionEntry[] {
+  if (plans.length === 0) {
+    throw new Error('inflowSubscriptions requires at least one plan.');
+  }
+
+  const entries: InflowSubscriptionEntry[] = [];
+  for (const plan of plans) {
+    if (plan.currency.trim() === '') {
+      throw new Error('inflowSubscriptions: each plan must have a non-empty currency.');
+    }
+    if (plan.amount.trim() === '') {
+      throw new Error(`inflowSubscriptions: plan for ${plan.currency} must have a non-empty amount.`);
+    }
+    if (plan.subscriptionExpires.trim() === '') {
+      throw new Error(`inflowSubscriptions: plan for ${plan.currency} must have a non-empty subscriptionExpires.`);
+    }
+    if (!Number.isSafeInteger(plan.periodCount) || plan.periodCount < 1) {
+      throw new Error(`inflowSubscriptions: plan for ${plan.currency} must have a positive safe-integer periodCount.`);
+    }
+    if (plan.periodUnit === 'minute' && plan.periodCount < 5) {
+      throw new Error(
+        `inflowSubscriptions: plan for ${plan.currency} must have a periodCount of at least 5 for minute.`,
+      );
+    }
+    if (!/^\d+(\.\d+)?$/.test(plan.amount) || !/[1-9]/.test(plan.amount)) {
+      throw new Error(`inflowSubscriptions: plan for ${plan.currency} must have a positive decimal amount.`);
+    }
+    if (
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(plan.subscriptionExpires) ||
+      !Number.isFinite(Date.parse(plan.subscriptionExpires))
+    ) {
+      throw new Error(`inflowSubscriptions: plan for ${plan.currency} must have an RFC 3339 subscriptionExpires.`);
+    }
+    if (plan.externalId !== undefined && (plan.externalId.trim() === '' || plan.externalId.length > 128)) {
+      throw new Error(`inflowSubscriptions: plan for ${plan.currency} externalId must contain 1 to 128 characters.`);
+    }
+    entries.push([
+      'inflow/subscription',
+      {
+        amount: plan.amount,
+        currency: plan.currency,
+        periodUnit: plan.periodUnit,
+        periodCount: plan.periodCount,
+        subscriptionExpires: plan.subscriptionExpires,
+        ...(plan.externalId !== undefined ? { externalId: plan.externalId } : {}),
+      },
+    ]);
+  }
+  return entries;
+}
+
+/**
+ * Present one or more subscription plans on a route: one `WWW-Authenticate: Payment` `intent=subscription` challenge
+ * per plan. The recurring analog of {@link inflowCharges}. The mppx instance must be created with the subscription
+ * method registered (`Mppx.create({ methods: [inflow.subscription(...)] })`).
+ *
+ * @param mppx - A core `Mppx.create({ methods: [inflow.subscription(...)] })` instance.
+ * @param plans - One `{ amount, currency, periodUnit, periodCount, subscriptionExpires }` per plan.
+ * @returns The composed Web-fetch handler.
+ * @throws {@link Error} On an invalid plan list (see {@link toSubscriptionEntries}).
+ */
+export function inflowSubscriptions<Handler>(
+  mppx: InflowSubscriptionComposable<Handler>,
+  plans: readonly InflowSubscriptionPlan[],
+): Handler {
+  return mppx.compose(...toSubscriptionEntries(plans));
+}
+
+/**
+ * Node convenience over {@link inflowSubscriptions}: wraps the composed Web-fetch handler with `Mppx.toNodeListener`.
+ *
+ * @param mppx - A core `Mppx.create({ methods: [inflow.subscription(...)] })` instance.
+ * @param plans - One plan per subscription offered.
+ * @returns A Node `(req, res) => Promise<...>` listener.
+ * @throws {@link Error} On an invalid plan list.
+ */
+export function inflowSubscriptionsNodeListener(
+  mppx: InflowSubscriptionComposable<InflowFetchHandler>,
+  plans: readonly InflowSubscriptionPlan[],
+): ReturnType<typeof Mppx.toNodeListener> {
+  return Mppx.toNodeListener(inflowSubscriptions(mppx, plans));
+}
+
+/**
  * The Web-fetch handler shape `Mppx.toNodeListener` accepts (and that `compose` returns), derived without naming
  * internals.
  */

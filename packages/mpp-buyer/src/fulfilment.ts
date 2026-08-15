@@ -77,6 +77,23 @@ export function createFulfiller(parameters: InflowBuyerParameters): Fulfiller {
     }
   }
 
+  async function authorizeSubscription(subscriptionId: string, challenge: FulfilChallenge): Promise<MppCredential> {
+    const response = await client.authorizeSubscription(
+      subscriptionId,
+      { challenge: toWireChallenge(challenge) },
+      { retries: 0 },
+    );
+    if (response.problem !== undefined) throw new MppPaymentFailedError(response.problem);
+    if (response.credential === undefined) {
+      throw new MppMalformedCredentialError('subscription authorization response carried no credential');
+    }
+    try {
+      return decodeCredential(response.credential);
+    } catch (err) {
+      throw new MppMalformedCredentialError('failed to decode the subscription authorization credential', err);
+    }
+  }
+
   /** Walk the transaction state machine, polling while `pending`, until a terminal state. */
   async function resolve(
     initial: MppTransactionResponse,
@@ -123,7 +140,7 @@ export function createFulfiller(parameters: InflowBuyerParameters): Fulfiller {
     active.clear();
   }
 
-  return { fulfil, cancelApproval, cleanup };
+  return { authorizeSubscription, fulfil, cancelApproval, cleanup };
 }
 
 function throwIfPaymentCancelled(signal: AbortSignal, approvalId: string | undefined): void {
@@ -159,6 +176,7 @@ function toWireChallenge(challenge: FulfilChallenge): MppChallenge {
     ...(challenge.expires !== undefined ? { expires: challenge.expires } : {}),
     ...(challenge.description !== undefined ? { description: challenge.description } : {}),
     ...(challenge.digest !== undefined ? { digest: challenge.digest } : {}),
+    ...(challenge.opaque !== undefined ? { opaque: challenge.opaque } : {}),
   };
 }
 

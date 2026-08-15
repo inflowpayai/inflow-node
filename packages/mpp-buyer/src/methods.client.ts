@@ -14,6 +14,10 @@ export const inflowContextSchema = z.object({
   instrumentId: z.optional(z.guid()),
 });
 
+export const inflowSubscriptionContextSchema = z.object({
+  subscriptionId: z.optional(z.guid()),
+});
+
 /**
  * Per-call payment options for the `tempo` method. The Tempo charge carries no buyer-supplied selectors — the asset,
  * chain, and recipient are fixed by the seller's challenge and the on-chain credential is produced server-side — so the
@@ -34,7 +38,7 @@ export const tempoContextSchema = z.object({});
  * @param parameters - Auth, environment, and polling knobs ({@link InflowBuyerParameters}).
  * @returns The `inflow` client method augmented with `cleanup` / `cancelApproval`.
  */
-export function inflow(parameters: InflowBuyerParameters) {
+function inflowChargeClient(parameters: InflowBuyerParameters) {
   const fulfiller = createFulfiller(parameters);
 
   const method = Method.toClient(Methods.charge, {
@@ -67,6 +71,56 @@ export function inflow(parameters: InflowBuyerParameters) {
     },
   });
 }
+
+/**
+ * The buyer-side `inflow` **subscription** client method — the recurring sibling of the charge intent (see
+ * docs/mpp/extensions.md). `createCredential` reuses the exact `POST /v1/transactions/mpp` → poll → credential
+ * lifecycle as charge when no subscription identifier is supplied. With `context.subscriptionId`, it requests a fresh,
+ * short-lived credential bound to the seller's current challenge and the existing subscription.
+ *
+ * @param parameters - Auth, environment, and polling knobs ({@link InflowBuyerParameters}).
+ * @returns The `inflow` subscription client method augmented with `cleanup` / `cancelApproval`.
+ */
+function inflowSubscriptionClient(parameters: InflowBuyerParameters) {
+  const fulfiller = createFulfiller(parameters);
+
+  const method = Method.toClient(Methods.subscription, {
+    context: inflowSubscriptionContextSchema,
+    async createCredential({ challenge, context }) {
+      const parsed = challenge as FulfilChallenge;
+      const credential =
+        context.subscriptionId === undefined
+          ? await fulfiller.fulfil(parsed, {})
+          : await fulfiller.authorizeSubscription(context.subscriptionId, parsed);
+      return Credential.serialize({
+        challenge,
+        payload: credential.payload,
+        source: credential.source,
+      });
+    },
+  });
+
+  return Object.assign(method, {
+    /** Abort any in-flight fulfilment poll held by this method instance. */
+    cleanup(): void {
+      fulfiller.cleanup();
+    },
+    /** Fire-and-forget cancel of a backing approval via `POST /v1/approvals/{approvalId}/cancel`. */
+    cancelApproval(approvalId: string): Promise<void> {
+      return fulfiller.cancelApproval(approvalId);
+    },
+  });
+}
+
+/**
+ * The buyer-side `inflow` method namespace: `inflow(...)` and `inflow.charge(...)` build the charge client method, and
+ * `inflow.subscription(...)` builds the recurring one. Register the one(s) a client needs in `Mppx.create({ methods:
+ * [...] })`.
+ */
+export const inflow = Object.assign(inflowChargeClient, {
+  charge: inflowChargeClient,
+  subscription: inflowSubscriptionClient,
+});
 
 /**
  * The buyer-side `tempo` client method. Attaches `Method.toClient` behaviour to the shared `tempo` definition from

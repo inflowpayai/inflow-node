@@ -3,7 +3,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { Mppx } from 'mppx/hono';
 import { Mppx as MppxServer } from 'mppx/server';
-import { inflow, inflowCharges } from '@inflowpayai/mpp-seller';
+import { inflow, inflowCharges, inflowSubscriptions } from '@inflowpayai/mpp-seller';
 
 const apiKey = process.env['INFLOW_API_KEY'];
 if (apiKey === undefined || apiKey === '') {
@@ -25,9 +25,21 @@ const method = inflow({ apiKey, environment: 'sandbox' });
 const secretKey = process.env['MPP_SECRET_KEY'];
 const mppx = Mppx.create({ methods: [method], secretKey });
 const core = MppxServer.create({ methods: [method], secretKey });
+const subscriptionMethod = inflow.subscription({ apiKey, environment: 'sandbox' });
+const subscriptionCore = MppxServer.create({ methods: [subscriptionMethod], secretKey });
 const checkout = inflowCharges(core, [
   { amount: '1.0', currency: 'USD' },
   { amount: '0.0095', currency: 'USDC' },
+]);
+const subscribe = inflowSubscriptions(subscriptionCore, [
+  {
+    amount: '1.00',
+    currency: 'USDC',
+    periodUnit: 'month',
+    periodCount: 1,
+    subscriptionExpires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+    externalId: 'example-monthly-plan',
+  },
 ]);
 
 const app = new Hono();
@@ -35,6 +47,11 @@ const app = new Hono();
 // The rail is derived from the charge currency (crypto USDC → `balance`); the buyer never chooses it.
 app.get('/api/widgets', mppx.charge({ amount: '0.01', currency: 'USDC' }), (c) => c.json({ widgets: [1, 2, 3] }));
 app.post('/api/upload', mppx.charge({ amount: '0.10', currency: 'USDC' }), (c) => c.json({ status: 'received' }));
+app.get('/api/subscribe', async (c) => {
+  const result = await subscribe(c.req.raw);
+  if (result.status === 402) return result.challenge;
+  return result.withReceipt(c.json({ subscribed: true }));
+});
 
 // Multi-currency: one WWW-Authenticate challenge per price (USD on `instrument`, USDC on `balance`). On 402 return
 // the challenge response; on 200 wrap the body with the receipt header via `withReceipt`.
@@ -53,6 +70,7 @@ serve({ fetch: app.fetch, port }, () => {
   console.log(`mpp seller listening on http://localhost:${port.toString()}`);
   console.log(`  GET  /api/widgets  (0.01 USDC, single currency)`);
   console.log(`  POST /api/upload   (0.10 USDC, single currency)`);
+  console.log(`  GET  /api/subscribe (1.00 USDC each month)`);
   console.log(`  GET  /api/checkout (1.0 USD on instrument, or 0.0095 USDC on balance)`);
   console.log(`  GET  /free         (no payment)`);
 });

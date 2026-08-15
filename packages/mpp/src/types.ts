@@ -7,14 +7,21 @@
 /** Wire label of a payment method — the `MppMethodId` `@JsonValue`. */
 export type MppMethodLabel = 'inflow' | 'tempo' | (string & {});
 
-/** Wire label of an intent — the `MppIntent` `@JsonValue`. `'charge'` is the only intent today. */
-export type MppIntentLabel = 'charge' | (string & {});
+/** Wire label of an intent — the `MppIntent` `@JsonValue` (`'charge'` or `'subscription'`). */
+export type MppIntentLabel = 'charge' | 'subscription' | (string & {});
 
 /**
  * Settlement rail label as carried on the wire — the server's `MppRail` `@JsonValue` (e.g. `'balance'`). The server's
  * `@JsonCreator` accepts either the label or the uppercase enum name on input.
  */
 export type MppRailLabel = 'balance' | 'blockchain' | 'instrument' | (string & {});
+
+/**
+ * Recurring billing period unit carried on the wire — the server's `SubscriptionPeriod` `@JsonValue`. Anchored period
+ * boundaries are computed from the origin `billingAnchor`, so `'month'`/`'quarter'`/`'year'` clamp to the last valid
+ * day of the incremented month.
+ */
+export type SubscriptionPeriodLabel = 'minute' | 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year' | (string & {});
 
 /**
  * ISO-4217-style currency code carried on the wire (e.g. `'USDC'`, `'USDT'`, `'PYUSD'`). Typed as an open string; the
@@ -77,13 +84,24 @@ export interface InflowChallengeRequest {
   currency: CurrencyCode;
   /** Recipient userId (UUID). The server defaults it to the authenticated seller when minting. */
   recipient?: string;
-  /** Rail/instrument selectors the seller pinned, derived from the charge currency via config `currencyRails`. */
+  /** Rail/instrument selectors validated against the configured intent and currency capabilities. */
   methodDetails?: {
     /** Target settlement rail. */
     rail?: MppRailLabel;
     /** Funding instrument id (UUID); only meaningful for `rail: 'instrument'`. */
     instrumentId?: string;
   };
+  /**
+   * Recurring billing period unit. Present only when the enclosing challenge's `intent` is `'subscription'`; the four
+   * subscription fields below are sent together. Maps to the server's `InflowChallengeRequest.periodUnit`.
+   */
+  periodUnit?: SubscriptionPeriodLabel;
+  /** Number of `periodUnit`s per billing period (e.g. `3` for quarterly-by-month). Present only for a subscription. */
+  periodCount?: number;
+  /** RFC 3339 timestamp after which the subscription may no longer renew. Present only for a subscription. */
+  subscriptionExpires?: string;
+  /** Optional merchant reference (e.g. an invoice or plan id) echoed for the seller's reconciliation. */
+  externalId?: string;
 }
 
 /** Optional Tempo method details carried inside a `tempo` charge request. */
@@ -157,6 +175,8 @@ export interface MppReceipt {
   [extension: string]: unknown;
   /** Challenge id this receipt responds to, when supplied by the payment method. */
   challengeId?: string;
+  /** Seller-provided reconciliation metadata echoed for a subscription settlement. */
+  externalId?: string;
   /** Payment method identifier (e.g. `'inflow'`). Required. */
   method: MppMethodLabel;
   /** Method-specific reference (tx hash, PaymentIntent id, ledger entry id, etc.). Required. */
@@ -172,18 +192,17 @@ export interface MppReceipt {
   status: 'success';
   /** RFC 3339 timestamp of settlement. Required. */
   timestamp: string;
+  /** System-assigned subscription UUID; present only on a subscription-intent receipt. */
+  subscriptionId?: string;
 }
 
-/**
- * RFC 9457 problem detail. Mirrors the server's `MppProblemDetail`. `type` is a {@link PROBLEM_TYPE_BASE} URI; `status`
- * is always `402` for MPP payment-flow problems.
- */
+/** RFC 9457 problem detail. Mirrors the server's `MppProblemDetail`. `type` is a {@link PROBLEM_TYPE_BASE} URI. */
 export interface MppProblemDetail {
   /** URI identifying the problem type (under `https://paymentauth.org/problems/`). Required. */
   type: string;
   /** Short, human-readable summary of the problem. Required. */
   title: string;
-  /** HTTP status code. Always `402` for MPP payment-flow problems. Required. */
+  /** HTTP status code. Payment failures use `402`; retryable renewal contention uses `409`. Required. */
   status: number;
   /** Human-readable explanation specific to this occurrence. Required. */
   detail: string;
@@ -201,16 +220,16 @@ export interface MppFeatureFlags {
   idempotencyKeyEnabled: boolean;
 }
 
-/**
- * Per-currency rail capability advertised in config; mirrors one entry of the server's `currencyRails` map. The SDK
- * consumes this to derive the challenge rail from the charge currency (crypto → `balance`, fiat → `instrument`).
- */
+/** One advertised settlement-rail capability. A currency may expose multiple entries for an intent. */
 export interface MppCurrencyRail {
   /** Settlement rail for this currency — `'balance'` (crypto) or `'instrument'` (fiat). Required. */
   rail: MppRailLabel;
   /** Whether a funding `instrumentId` is needed; present only for `rail: 'instrument'`. */
   instrumentId?: 'optional' | 'required';
 }
+
+/** Settlement-rail capabilities keyed by intent and currency. Each currency may offer multiple rails. */
+export type MppIntentCurrencyRails = Partial<Record<MppIntentLabel, Record<string, MppCurrencyRail[]>>>;
 
 /** Per-method capability advertised in config; mirrors the server's `MppConfigResponse.MppMethodConfig`. */
 export interface MppMethodConfig {
@@ -219,10 +238,13 @@ export interface MppMethodConfig {
   /** Human-readable method label. Required. */
   label: string;
   /**
-   * Method-specific extras. For `inflow`, carries `currencyRails`: a map of currency code → rail capability the SDK
-   * uses to derive the rail. A currency absent here (or from `supportedCurrencies`) yields no header for this method.
+   * Method-specific extras. InFlow advertises its complete matrix through `intentCurrencyRails`; `currencyRails`
+   * provides compatibility for unambiguous charge currencies.
    */
-  methodDetails?: { currencyRails?: Record<string, MppCurrencyRail> } & Record<string, unknown>;
+  methodDetails?: {
+    currencyRails?: Record<string, MppCurrencyRail>;
+    intentCurrencyRails?: MppIntentCurrencyRails;
+  } & Record<string, unknown>;
   /** Currencies this method can accept. Required. */
   supportedCurrencies: CurrencyCode[];
   /** Intents this method can offer. Required. */
@@ -266,6 +288,20 @@ export interface MppRedeemResponse {
   /** Base64url-encoded {@link MppReceipt} for the `Payment-Receipt` response header; populated only on success. */
   receiptHeader?: string;
   /** RFC 9457 problem detail; populated only on failure. */
+  problem?: MppProblemDetail;
+}
+
+export interface SubscriptionAuthorizationRequest {
+  /** The seller challenge the fresh credential must be bound to. */
+  challenge: MppChallenge;
+}
+
+export interface SubscriptionAuthorizationResponse {
+  /** Fresh base64url Authorization: Payment credential. */
+  credential?: string;
+  /** RFC 3339 expiry copied from the seller challenge. */
+  expires?: string;
+  /** Authorization failure returned without issuing a credential. */
   problem?: MppProblemDetail;
 }
 

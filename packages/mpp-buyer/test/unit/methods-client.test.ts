@@ -4,7 +4,13 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
-import { inflow, inflowContextSchema, tempo, tempoContextSchema } from '../../src/methods.client.js';
+import {
+  inflow,
+  inflowContextSchema,
+  inflowSubscriptionContextSchema,
+  tempo,
+  tempoContextSchema,
+} from '../../src/methods.client.js';
 
 const BASE = 'https://mpp.test';
 const UUID = '00000000-0000-0000-0000-0000000000aa';
@@ -23,6 +29,24 @@ function challenge() {
     method: 'inflow' as const,
     intent: 'charge' as const,
     request: { amount: '10', currency: 'USD', recipient: UUID, methodDetails: { rail: 'instrument' as const } },
+  };
+}
+
+function subscriptionChallenge() {
+  return {
+    id: 'sub-chal',
+    realm: 'mpp.test',
+    method: 'inflow' as const,
+    intent: 'subscription' as const,
+    request: {
+      amount: '9.99',
+      currency: 'USDC',
+      recipient: UUID,
+      methodDetails: { rail: 'balance' as const },
+      periodUnit: 'month' as const,
+      periodCount: 1,
+      subscriptionExpires: '2027-01-01T00:00:00Z',
+    },
   };
 }
 
@@ -94,6 +118,55 @@ describe('inflow method', () => {
     const m = inflow({ apiKey: 'k', baseUrl: BASE });
     expect(typeof m.cleanup).toBe('function');
     expect(typeof m.cancelApproval).toBe('function');
+  });
+});
+
+describe('inflow subscription method', () => {
+  it('requests a fresh credential for an existing subscription', async () => {
+    let sentBody: unknown;
+    server.use(
+      http.post(`${BASE}/v1/subscriptions/${UUID}/authorize`, async ({ request }) => {
+        sentBody = await request.json();
+        return HttpResponse.json({ credential: readyCredential(), expires: '2027-01-01T00:00:00Z' });
+      }),
+    );
+
+    const authorization = await inflow.subscription({ apiKey: 'k', baseUrl: BASE }).createCredential({
+      challenge: { ...subscriptionChallenge(), opaque: 'seller-binding' },
+      context: { subscriptionId: UUID },
+    });
+
+    expect(sentBody).toMatchObject({ challenge: { intent: 'subscription', opaque: 'seller-binding' } });
+    expect(authorization).toMatch(/^Payment\s+/);
+  });
+
+  it('validates the optional subscription identifier', () => {
+    expect(inflowSubscriptionContextSchema.parse({ subscriptionId: UUID })).toEqual({ subscriptionId: UUID });
+    expect(() => inflowSubscriptionContextSchema.parse({ subscriptionId: 'not-a-uuid' })).toThrow();
+  });
+
+  it('mints a subscription credential via the same transactions/mpp lifecycle', async () => {
+    let sentBody: unknown;
+    server.use(
+      http.post(`${BASE}/v1/transactions/mpp`, async ({ request }) => {
+        sentBody = await request.json();
+        return HttpResponse.json({ state: 'ready', credential: readyCredential() });
+      }),
+    );
+
+    const authorization = await inflow.subscription({ apiKey: 'k', baseUrl: BASE }).createCredential({
+      challenge: subscriptionChallenge(),
+      context: {},
+    });
+
+    const body = sentBody as { challenge: { intent: string } };
+    expect(body.challenge.intent).toBe('subscription');
+    expect(authorization).toMatch(/^Payment\s+/);
+  });
+
+  it('defaults to charge and exposes the subscription sibling', () => {
+    expect(inflow.charge).toBe(inflow);
+    expect(typeof inflow.subscription).toBe('function');
   });
 });
 

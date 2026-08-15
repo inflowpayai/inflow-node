@@ -32,8 +32,14 @@ export const METHOD_INFLOW = 'inflow' as const;
 /** Stable identifier of the Tempo payment method — the `method` auth-param value and `MppMethodId` label. */
 export const METHOD_TEMPO = 'tempo' as const;
 
-/** The `charge` intent — the only intent this SDK implements today and the `MppIntent` label. */
+/** The `charge` intent — a one-time payment. The `MppIntent` `'charge'` label. */
 export const INTENT_CHARGE = 'charge' as const;
+
+/**
+ * The `subscription` intent — a recurring mandate settled once per anchored period. The `MppIntent` `'subscription'`
+ * label.
+ */
+export const INTENT_SUBSCRIPTION = 'subscription' as const;
 
 /**
  * Base URI for MPP problem-type identifiers. Every `MppProblemDetail.type` is this prefix followed by a slug
@@ -49,6 +55,7 @@ export const PROBLEM_TYPES = {
   PAYMENT_EXPIRED: `${PROBLEM_TYPE_BASE}payment-expired`,
   PAYMENT_INSUFFICIENT: `${PROBLEM_TYPE_BASE}payment-insufficient`,
   PAYMENT_REQUIRED: `${PROBLEM_TYPE_BASE}payment-required`,
+  RENEWAL_IN_PROGRESS: `${PROBLEM_TYPE_BASE}renewal-in-progress`,
   SETTLEMENT_UNAVAILABLE: `${PROBLEM_TYPE_BASE}settlement-unavailable`,
   VERIFICATION_FAILED: `${PROBLEM_TYPE_BASE}verification-failed`,
 } as const;
@@ -57,7 +64,7 @@ export const PROBLEM_TYPES = {
 export const ENDPOINTS = {
   /** Seller: bootstrap config the SDK caches on init. Never returns the HMAC secret. */
   CONFIG: '/v1/mpp/config',
-  /** Seller: verify the payment, claim the single-use slot (keyed on `transactionId`), and settle. */
+  /** Seller: verify the payment, claim the credential's single-use slot, and settle. */
   REDEEM: '/v1/mpp/redeem',
   /** Buyer: fulfil a challenge. Returns `ready` (credential) or `pending`. */
   TRANSACTIONS: '/v1/transactions/mpp',
@@ -71,6 +78,12 @@ export const ENDPOINTS = {
  * reads/writes the payload key from one source of truth rather than a string literal.
  */
 export const CREDENTIAL_TRANSACTION_ID = 'transactionId' as const;
+
+export const CREDENTIAL_AUTHORIZATION_ID = 'authorizationId' as const;
+
+export function subscriptionAuthorizationPath(subscriptionId: string): string {
+  return `/v1/subscriptions/${encodeURIComponent(subscriptionId)}/authorize`;
+}
 
 /**
  * Build the buyer poll path for an in-flight MPP transaction: `GET /v1/transactions/{id}/mpp`.
