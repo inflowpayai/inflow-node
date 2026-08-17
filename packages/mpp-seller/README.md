@@ -26,6 +26,12 @@ pnpm add @inflowpayai/mpp-seller mppx
   `inflowAccepts`). See [Multiple currencies](#multiple-currencies) below.
 - `inflowChargesNodeListener(mppx, prices)` — the same, wrapped with `Mppx.toNodeListener` so it mounts directly on a
   Node `http` server (or an Express route).
+- `inflow.subscription(parameters)` — the seller method for recurring InFlow balance payments. Register it on a core
+  `mppx/server` instance and present plans with `inflowSubscriptions` or `inflowSubscriptionsNodeListener`.
+- `inflowSubscriptions(mppx, plans)` — present one or more recurring plans from a Web Fetch API handler. Each plan is
+  advertised as an MPP `inflow/subscription` challenge.
+- `inflowSubscriptionsNodeListener(mppx, plans)` — the same subscription handler adapted for Node `http` servers and
+  Express routes.
 - `createConfigClient(client)` — exposes the `GET /v1/mpp/config` loader directly, to prime or inspect the currency→rail
   capability map yourself. Returns an `InflowConfigClient`.
 - `Mppx` and `Expires` (re-exported from `mppx/server`) and `Receipt` (from `mppx`) — a single import gives the
@@ -128,6 +134,112 @@ currency. Amounts are per-currency and independent (not a converted exchange rat
 `MppUnsupportedCurrencyError` at request time, exactly as with `charge`. See
 [`examples/mpp-seller-express`](../../examples/mpp-seller-express) and
 [`examples/mpp-seller-hono`](../../examples/mpp-seller-hono) for the `GET /api/checkout` route.
+
+## Subscriptions
+
+InFlow subscriptions let a seller protect a resource with recurring MPP payment terms. The buyer reviews and approves
+the immutable terms, and activation charges the first billing period. InFlow manages later billing attempts, past-due
+and terminal states, and buyer or seller cancellation. When an active subscriber requests the resource again, the buyer
+obtains a fresh, short-lived authorization for the seller's current challenge; the integration does not store a reusable
+buyer credential.
+
+Subscriptions use the InFlow `balance` rail. They do not require the buyer or seller to operate a blockchain wallet, and
+they do not use Tempo subscription authorizations.
+
+Each plan contains:
+
+| Field                 | Meaning                                                                                 |
+| --------------------- | --------------------------------------------------------------------------------------- |
+| `amount`              | Positive decimal amount charged each period, in the currency's units.                   |
+| `currency`            | Currency code. Subscription settlement currently requires a balance-supported currency. |
+| `periodUnit`          | `hour`, `day`, `week`, `month`, `quarter`, or `year`.                                   |
+| `periodCount`         | Positive number of period units between charges.                                        |
+| `subscriptionExpires` | RFC 3339 timestamp after which the subscription cannot renew.                           |
+| `externalId`          | Optional seller reference for reconciliation; it is not an authorization or lookup key. |
+
+The SDK also accepts `minute` for controlled testing, with a minimum `periodCount` of `5`. Do not advertise minute plans
+to customers.
+
+### Fetch API frameworks
+
+Use a core `mppx/server` instance because subscription routes may advertise several plans. The framework-specific mppx
+adapters expose the single-offer `charge` API but not the required `compose` API.
+
+```ts
+import { Mppx, inflow, inflowSubscriptions } from '@inflowpayai/mpp-seller';
+
+const subscriptions = Mppx.create({
+  methods: [
+    inflow.subscription({
+      apiKey: process.env.INFLOW_API_KEY!,
+      environment: 'sandbox',
+    }),
+  ],
+  secretKey: process.env.MPP_SECRET_KEY,
+});
+
+const subscribe = inflowSubscriptions(subscriptions, [
+  {
+    amount: '9.99',
+    currency: 'USDC',
+    periodUnit: 'month',
+    periodCount: 1,
+    subscriptionExpires: '2027-12-31T23:59:59Z',
+    externalId: 'pro-monthly',
+  },
+]);
+
+export async function handler(request: Request): Promise<Response> {
+  const result = await subscribe(request);
+  if (result.status === 402) return result.challenge;
+  return result.withReceipt(Response.json({ access: 'granted' }));
+}
+```
+
+For Hono, pass `c.req.raw` to the handler and return either `result.challenge` or `result.withReceipt(c.json(...))`. See
+the complete [`mpp-seller-hono`](../../examples/mpp-seller-hono) example.
+
+### Express and Node HTTP
+
+`inflowSubscriptionsNodeListener` adapts the Fetch handler to a Node request and response pair:
+
+```ts
+import express from 'express';
+import { Mppx } from 'mppx/server';
+import { inflow, inflowSubscriptionsNodeListener } from '@inflowpayai/mpp-seller';
+
+const subscriptions = Mppx.create({
+  methods: [
+    inflow.subscription({
+      apiKey: process.env.INFLOW_API_KEY!,
+      environment: 'sandbox',
+    }),
+  ],
+  secretKey: process.env.MPP_SECRET_KEY,
+});
+
+const subscribe = inflowSubscriptionsNodeListener(subscriptions, [
+  {
+    amount: '9.99',
+    currency: 'USDC',
+    periodUnit: 'month',
+    periodCount: 1,
+    subscriptionExpires: '2027-12-31T23:59:59Z',
+    externalId: 'pro-monthly',
+  },
+]);
+
+const app = express();
+app.get('/api/subscribe', async (request, response) => {
+  const result = await subscribe(request, response);
+  if (result.status === 402) return;
+  response.json({ access: 'granted' });
+});
+```
+
+The subscription method verifies each presented credential through InFlow. Keep the InFlow API key and `MPP_SECRET_KEY`
+server-side. The MPP secret must contain at least 32 bytes and remain stable across deployments so previously issued
+challenges can still be verified. See the complete [`mpp-seller-express`](../../examples/mpp-seller-express) example.
 
 ## See also
 
