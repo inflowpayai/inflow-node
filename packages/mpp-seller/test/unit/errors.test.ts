@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import type { MppProblemDetail } from '@inflowpayai/mpp';
 
-import { MppRedeemProblemError, MppUnsupportedCurrencyError } from '../../src/errors.js';
+import { MppCredentialProblemError, MppUnsupportedCurrencyError } from '../../src/errors.js';
 
-describe('MppRedeemProblemError', () => {
+describe('MppCredentialProblemError', () => {
   it('reflects the server problem and renders RFC 9457 details with challengeId + extensions', () => {
-    const error = new MppRedeemProblemError({
+    const error = new MppCredentialProblemError({
       type: 'https://paymentauth.org/problems/payment-insufficient',
       title: 'Payment Insufficient',
       status: 402,
@@ -28,7 +28,7 @@ describe('MppRedeemProblemError', () => {
   });
 
   it('does not let extension keys overwrite canonical problem fields or framework fields', () => {
-    const error = new MppRedeemProblemError({
+    const error = new MppCredentialProblemError({
       type: 'https://paymentauth.org/problems/payment-insufficient',
       title: 'Payment Insufficient',
       status: 402,
@@ -60,7 +60,7 @@ describe('MppRedeemProblemError', () => {
   });
 
   it('omits challengeId and extensions when absent', () => {
-    const error = new MppRedeemProblemError({
+    const error = new MppCredentialProblemError({
       type: 'https://paymentauth.org/problems/verification-failed',
       title: 'Verification Failed',
       status: 402,
@@ -79,13 +79,13 @@ describe('MppRedeemProblemError', () => {
       '{"type":42,"title":null,"status":"402","detail":{"message":"bad"},"extensions":{"__proto__":{"polluted":true},"constructor":"spoofed","custom":"must-not-survive"}}',
     ) as MppProblemDetail;
 
-    const error = new MppRedeemProblemError(malformed);
+    const error = new MppCredentialProblemError(malformed);
 
     expect(error.toProblemDetails()).toEqual({
       type: 'https://paymentauth.org/problems/verification-failed',
       title: 'Payment Verification Failed',
       status: 402,
-      detail: 'The PSP redeem response carried a malformed problem.',
+      detail: 'The PSP credential lifecycle response carried a malformed problem.',
     });
     expect(Object.prototype).not.toHaveProperty('polluted');
   });
@@ -97,7 +97,7 @@ describe('MppRedeemProblemError', () => {
     const extensions = JSON.parse(
       '{"__proto__":{"polluted":true},"constructor":"spoofed","prototype":"spoofed","custom":"kept","nested":{"__proto__":{"polluted":true},"safe":"kept"}}',
     ) as Record<string, unknown>;
-    const error = new MppRedeemProblemError({
+    const error = new MppCredentialProblemError({
       type: 'https://paymentauth.org/problems/verification-failed',
       title: 'Verification Failed',
       status: 402,
@@ -128,21 +128,21 @@ describe('MppRedeemProblemError', () => {
     for (let depth = 0; depth < 18; depth += 1) deeplyNested = { nested: deeplyNested };
     const overBudget = Array.from({ length: 257 }, () => 'value');
     const problems = [
-      new MppRedeemProblemError({
+      new MppCredentialProblemError({
         type: 'https://paymentauth.org/problems/verification-failed',
         title: 'Verification Failed',
         status: 402,
         detail: 'nope',
         extensions: { invalid: Number.NaN },
       }),
-      new MppRedeemProblemError({
+      new MppCredentialProblemError({
         type: 'https://paymentauth.org/problems/verification-failed',
         title: 'Verification Failed',
         status: 402,
         detail: 'nope',
         extensions: { deeplyNested },
       }),
-      new MppRedeemProblemError({
+      new MppCredentialProblemError({
         type: 'https://paymentauth.org/problems/verification-failed',
         title: 'Verification Failed',
         status: 402,

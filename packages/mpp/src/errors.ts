@@ -55,9 +55,9 @@ export interface InflowApiErrorInit {
   /** Parsed JSON body when the response was JSON; raw text otherwise. */
   body?: unknown;
   /**
-   * RFC 9457 problem detail parsed off the response body when it carried one. MPP failures on `/v1/mpp/redeem` and the
-   * buyer endpoints surface in the response body rather than as a problem-typed HTTP error, so this is populated only
-   * when a non-2xx response itself carried a problem shape.
+   * RFC 9457 problem detail parsed off the response body when it carried one. MPP failures on `/v1/mpp/broadcast` and
+   * the buyer endpoints surface in the response body rather than as a problem-typed HTTP error, so this is populated
+   * only when a non-2xx response itself carried a problem shape.
    */
   problem?: MppProblemDetail;
   /** Response headers with sensitive entries (`authorization`, `cookie`, `set-cookie`, `x-api-key`) stripped. */

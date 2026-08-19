@@ -209,7 +209,7 @@ export function createDualCharge(deps: {
           res.setHeader('Payment-Receipt', receiptToHeader(receipt)); // see §7, item 4
           return res.json(body);
         } catch {
-          return send402(req, res, price); // MppRedeemProblemError / verification failure
+          return send402(req, res, price); // MppCredentialProblemError / verification failure
         }
       }
 

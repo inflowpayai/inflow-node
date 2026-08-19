@@ -62,14 +62,16 @@ export const PROBLEM_TYPES = {
 
 /** InFlow MPP REST endpoint paths (relative to the API base URL). Consumed by {@link MppClient}. */
 export const ENDPOINTS = {
+  /** Seller: perform the authoritative terminal payment operation. */
+  BROADCAST: '/v1/mpp/broadcast',
   /** Seller: bootstrap config the SDK caches on init. Never returns the HMAC secret. */
   CONFIG: '/v1/mpp/config',
-  /** Seller: verify the payment, claim the credential's single-use slot, and settle. */
-  REDEEM: '/v1/mpp/redeem',
   /** Buyer: fulfil a challenge. Returns `ready` (credential) or `pending`. */
   TRANSACTIONS: '/v1/transactions/mpp',
   /** Buyer: the methods/intents/rails/currencies the authenticated buyer can pay with. */
   SUPPORTED: '/v1/transactions/mpp-supported',
+  /** Seller: check whether a credential is currently acceptable without consuming it. */
+  VALIDATE: '/v1/mpp/validate',
 } as const;
 
 /**

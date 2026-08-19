@@ -21,7 +21,7 @@ import type { Method } from 'mppx';
  * never the API key, and is never returned by `GET /v1/mpp/config`.
  */
 export interface InflowSellerParameters {
-  /** InFlow API key, sent as `X-API-KEY` on the `GET /v1/mpp/config` and `POST /v1/mpp/redeem` calls. */
+  /** InFlow API key, sent as `X-API-KEY` on config, validation, and broadcast calls. */
   apiKey: string;
   /** Selects one of the public environments. Defaults to `'production'`. */
   environment?: Environment;
@@ -29,7 +29,7 @@ export interface InflowSellerParameters {
   baseUrl?: string;
   /** Default charge currency, applied as an mppx request default so `charge({ amount })` need not repeat it per call. */
   currency?: CurrencyCode;
-  /** Per-request timeout (milliseconds) for the config + redeem calls. Defaults to the core client's 30 000. */
+  /** Per-request timeout (milliseconds) for config and credential lifecycle calls. */
   timeoutMs?: number;
   /** Optional `fetch` implementation. Defaults to `globalThis.fetch`. Must conform to the WHATWG fetch API. */
   fetch?: typeof fetch;
@@ -39,7 +39,7 @@ export interface InflowSellerParameters {
 
 /** Constructor parameters for the seller-side Tempo method factory. */
 export interface TempoSellerParameters {
-  /** InFlow API key, sent as `X-API-KEY` on `POST /v1/mpp/redeem`. */
+  /** InFlow API key, sent as `X-API-KEY` on validation and broadcast calls. */
   apiKey: string;
   /** Selects one of the public environments. Defaults to `'production'`. */
   environment?: Environment;
@@ -51,7 +51,7 @@ export interface TempoSellerParameters {
   recipient: string;
   /** Default Tempo method details stamped onto challenges. */
   methodDetails?: TempoMethodDetails;
-  /** Per-request timeout (milliseconds) for redeem calls. Defaults to the core client's 30 000. */
+  /** Per-request timeout (milliseconds) for credential lifecycle calls. */
   timeoutMs?: number;
   /** Optional `fetch` implementation. Defaults to `globalThis.fetch`. Must conform to the WHATWG fetch API. */
   fetch?: typeof fetch;
@@ -70,7 +70,7 @@ export interface LoadedConfig {
   currencyRails: Record<string, MppCurrencyRail>;
   /** Intent and currency capabilities. Each currency may offer multiple settlement rails. */
   intentCurrencyRails: MppIntentCurrencyRails;
-  /** Bootstrap feature flags gating the `Idempotency-Key` header on redeem. */
+  /** Bootstrap feature flags gating the `Idempotency-Key` header on broadcast. */
   featureFlags: MppFeatureFlags;
   /** The authenticated seller's user id, used as the `recipient` on every minted challenge. */
   sellerId: string;

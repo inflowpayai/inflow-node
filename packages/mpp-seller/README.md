@@ -1,9 +1,9 @@
 # @inflowpayai/mpp-seller
 
 Seller-side InFlow MPP methods for [`mppx`](https://www.npmjs.com/package/mppx). Add them to `Mppx.create`, and
-`charge()` returns a `402` payment challenge for unpaid requests and verifies + settles payments through InFlow. This
-attaches `Method.toServer` behaviour to shared methods from `@inflowpayai/mpp`; the foundation `mppx` SDK owns the wire
-mechanics (challenge minting + HMAC binding).
+`charge()` returns a `402` payment challenge for unpaid requests, validates credentials without mutation, and settles
+them through an authoritative broadcast. This attaches `Method.toServer` behaviour to shared methods from
+`@inflowpayai/mpp`; the foundation `mppx` SDK owns the wire mechanics (challenge minting + HMAC binding).
 
 ## Install
 
@@ -13,11 +13,16 @@ pnpm add @inflowpayai/mpp-seller mppx
 
 `mppx` is a peer dependency.
 
+Broadcasts use the server-issued `authorizationId` or `transactionId` as the HTTP idempotency key when available.
+Externally produced Tempo credentials may contain neither identifier; in that case the SDK deliberately omits the header
+and the InFlow server's credential replay slot remains the settlement guard.
+
 ## What's exported
 
 - `inflow(parameters)` — the seller `inflow` method. Pass it to
-  `Mppx.create({ methods: [inflow({ apiKey })], secretKey })`. Its `verify` redeems and settles the submitted credential
-  through InFlow (`POST /v1/mpp/redeem`).
+  `Mppx.create({ methods: [inflow({ apiKey })], secretKey })`. Its `validate` hook checks the submitted credential
+  through InFlow without consuming payment state (`POST /v1/mpp/validate`); `broadcast` revalidates and performs the
+  authoritative terminal operation (`POST /v1/mpp/broadcast`). `mppx` coordinates both hooks during payment handling.
 - `tempo(parameters)` — the seller `tempo` method for Tempo TIP-20 charges. Pass it to
   `Mppx.create({ methods: [tempo({ apiKey, currency, recipient })], secretKey })`. Fee-payer sponsorship defaults to
   off; set `methodDetails.feePayer: true` (on the method or per charge) to mint a sponsored challenge.
@@ -36,12 +41,11 @@ pnpm add @inflowpayai/mpp-seller mppx
   capability map yourself. Returns an `InflowConfigClient`.
 - `Mppx` and `Expires` (re-exported from `mppx/server`) and `Receipt` (from `mppx`) — a single import gives the
   foundation server handler and the InFlow methods.
-- `Discovery` (from `mppx/discovery`) — generates canonical OpenAPI `x-payment-info.offers[]` metadata and parses both
-  canonical and legacy discovery documents.
+- `Discovery` (from `mppx/discovery`) — generates and parses OpenAPI `x-payment-info.offers[]` metadata.
 - Types: `InflowSellerParameters`, `TempoSellerParameters`, `LoadedConfig`, `InflowChargePrice`, plus the core
   re-exports `Environment`, `MppCurrencyRail`, `MppProblemDetail`, `MppReceipt`.
-- Errors: `MppUnsupportedCurrencyError` (charge currency has no rail in the PSP config), `MppRedeemProblemError`
-  (redemption failed; carries the PSP's RFC 9457 problem).
+- Errors: `MppUnsupportedCurrencyError` (charge currency has no rail in the PSP config), `MppCredentialProblemError`
+  (credential validation or broadcast failed; carries the PSP's RFC 9457 problem).
 
 ## Configuration
 

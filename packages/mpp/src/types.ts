@@ -272,23 +272,48 @@ export interface MppConfigResponse {
   supportedMethods: MppMethodConfig[];
 }
 
-/** Request body for `POST /v1/mpp/redeem`. Mirrors the server's `MppRedeemRequest`. */
-export interface MppRedeemRequest {
-  /** The buyer's credential to verify and settle. Required. */
+/** Credential body shared by seller-side credential lifecycle endpoints. */
+export interface MppCredentialRequest {
+  /** The buyer's credential. Required. */
   credential: MppCredential;
 }
 
-/**
- * Response body for `POST /v1/mpp/redeem`. Always HTTP 200; success vs failure is signalled in the body. Mirrors the
- * server's `MppRedeemResponse`.
- */
-export interface MppRedeemResponse {
+/** Request body for `POST /v1/mpp/broadcast`. */
+export type MppBroadcastRequest = MppCredentialRequest;
+
+/** Request body for `POST /v1/mpp/validate`. */
+export type MppValidateRequest = MppCredentialRequest;
+
+/** Response body for `POST /v1/mpp/broadcast`. Success versus failure is signalled in the body. */
+export interface MppBroadcastResponse {
   /** Settlement receipt; populated only on success. */
   receipt?: MppReceipt;
   /** Base64url-encoded {@link MppReceipt} for the `Payment-Receipt` response header; populated only on success. */
   receiptHeader?: string;
   /** RFC 9457 problem detail; populated only on failure. */
   problem?: MppProblemDetail;
+}
+
+/** Response body for non-mutating `POST /v1/mpp/validate`. */
+export interface MppValidateResponse {
+  /** Challenge accepted by the PSP; populated only on success. */
+  challenge?: MppChallenge;
+  /** Credential accepted by the PSP; populated only on success. */
+  credential?: MppCredential;
+  /** Method-specific non-mutating validation details. */
+  details?: Record<string, unknown>;
+  /** Validated payment intent; populated only on success. */
+  intent?: MppIntentLabel;
+  /** Validated payment method; populated only on success. */
+  method?: MppMethodLabel;
+  /** RFC 9457 problem detail; populated only on failure. */
+  problem?: MppProblemDetail;
+  /** Decoded method request accepted by the PSP; populated only on success. */
+  request?: Record<string, unknown>;
+  /** Payer identity accepted by the PSP; populated only on success. */
+  source?: string;
+  /** Whether the credential was accepted without consuming payment state. Required. */
+  success: boolean;
 }
 
 export interface SubscriptionAuthorizationRequest {

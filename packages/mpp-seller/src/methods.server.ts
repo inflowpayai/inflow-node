@@ -12,10 +12,10 @@ import { UNSAFE_OBJECT_KEYS, sanitizeJsonValue } from '@inflowpayai/mpp-internal
 import type {
   InflowChargeRequestInput,
   MppChallenge,
+  MppBroadcastRequest,
   MppCredential,
   MppProblemDetail,
   MppReceipt,
-  MppRedeemRequest,
   MppRequestOptions,
   TempoChargeRequestInput,
 } from '@inflowpayai/mpp';
@@ -26,7 +26,7 @@ import { createConfigClient } from './config-client.js';
 import {
   MppAmbiguousRailError,
   MppInstrumentRequiredError,
-  MppRedeemProblemError,
+  MppCredentialProblemError,
   MppUnsupportedCurrencyError,
   MppUnsupportedRailError,
 } from './errors.js';
@@ -55,8 +55,8 @@ interface ResolvedMethodDetails {
 /**
  * The seller-side `inflow` method, built as a **native mppx server method**. `Mppx.create({ methods: [inflow(...)],
  * secretKey }).charge({ amount })` mints and HMAC-binds the `WWW-Authenticate: Payment` challenge **locally** with the
- * seller's `secretKey`; this factory only supplies the deterministic request enrichment, the binding fields, and a
- * `verify` that **delegates settlement to the InFlow PSP** via `POST /v1/mpp/redeem`.
+ * seller's `secretKey`; this factory supplies deterministic request enrichment, binding fields, non-mutating
+ * validation, and authoritative broadcast through the InFlow PSP.
  *
  * The flow is the exact analog of `@inflowpayai/x402-seller` delegating verify/settle to the InFlow facilitator while
  * the foundation SDK owns the wire mechanics:
@@ -69,11 +69,9 @@ interface ResolvedMethodDetails {
  *   primed at construction), no transaction id minted here.
  * - **`stableBinding`** opts `rail`/`instrumentId` into the bound set (default binding is only amount/currency/recipient)
  *   so a `balance` credential cannot be redeemed on an `instrument` route, or vice-versa.
- * - **`verify`** forwards the submitted credential to `/v1/mpp/redeem` and reflects the result: a receipt becomes an mppx
- *   {@link Receipt} (and the `Payment-Receipt` header); a problem is thrown as an {@link MppRedeemProblemError} (an mppx
- *   `PaymentError`) so the framework emits 402 + the RFC 9457 body. mppx has already verified challenge provenance
- *   (`Challenge.verify`) and route binding (`getChallengeBindingMismatch`) before `verify` runs, so this hook does
- *   **not** re-bind locally.
+ * - **`validate`** delegates the non-mutating acceptance check to `/v1/mpp/validate`.
+ * - **`broadcast`** delegates the terminal payment operation to `/v1/mpp/broadcast` and maps the receipt to mppx.
+ * - Mppx supplies the compatibility **`verify`** hook as validation followed by broadcast.
  *
  * @param parameters - Auth, environment, and seller defaults ({@link InflowSellerParameters}). Note: the binding
  *   `secretKey` is **not** here — it is supplied to `Mppx.create({ secretKey })` / `MPP_SECRET_KEY`, never the API
@@ -93,7 +91,7 @@ function inflowChargeMethod(
   const config = createConfigClient(client);
 
   // Prime the config cache at construction (mirrors the x402 seller client). The result is memoised; a rejection here
-  // is swallowed so it surfaces at the first charge/verify (with the real call stack) rather than as an unhandled
+  // is swallowed so it surfaces at the first charge or lifecycle call rather than as an unhandled
   // rejection at import time.
   void config.load().catch(() => undefined);
 
@@ -120,8 +118,21 @@ function inflowChargeMethod(
       };
     },
 
-    async verify({ credential }) {
-      return redeem(credential, client, await config.load());
+    async broadcast({ credential }) {
+      return broadcast(credential, client, await config.load());
+    },
+
+    async validate({ credential, request }) {
+      const details = await validateCredential(credential, client);
+      return {
+        challenge: credential.challenge,
+        credential,
+        details,
+        intent: inflowCharge.intent,
+        method: inflowCharge.name,
+        request,
+        ...(credential.source !== undefined ? { source: credential.source } : {}),
+      };
     },
   });
 }
@@ -130,10 +141,9 @@ function inflowChargeMethod(
  * The seller-side `inflow` **subscription** method — the recurring sibling of the charge intent (see
  * docs/mpp/extensions.md). `Mppx.create({ methods: [inflow.subscription(...)], secretKey
  * }).compose('inflow/subscription', { amount, currency, periodUnit, periodCount, subscriptionExpires })` mints the
- * subscription `WWW-Authenticate: Payment` challenge locally; `verify` delegates access authorization and any renewal
- * settlement to `POST /v1/mpp/redeem`.
+ * subscription `WWW-Authenticate: Payment` challenge locally; validation and broadcast delegate to the InFlow PSP.
  *
- * The `request`/`verify` hooks are identical to charge; `stableBinding` additionally binds the recurring terms
+ * The request and lifecycle hooks are identical to charge; `stableBinding` additionally binds the recurring terms
  * (`periodUnit`, `periodCount`, `subscriptionExpires`, `externalId`) so a credential cannot be redeemed against altered
  * subscription terms. Subscriptions settle on the balance rail (enforced server-side).
  *
@@ -182,8 +192,21 @@ function inflowSubscriptionMethod(
       };
     },
 
-    async verify({ credential }) {
-      return redeem(credential, client, await config.load());
+    async broadcast({ credential }) {
+      return broadcast(credential, client, await config.load());
+    },
+
+    async validate({ credential, request }) {
+      const details = await validateCredential(credential, client);
+      return {
+        challenge: credential.challenge,
+        credential,
+        details,
+        intent: inflowSubscription.intent,
+        method: inflowSubscription.name,
+        request,
+        ...(credential.source !== undefined ? { source: credential.source } : {}),
+      };
     },
   });
 }
@@ -202,15 +225,14 @@ export const inflow: typeof inflowChargeMethod & {
  * The seller-side `tempo` method, built as a **native mppx server method** — the Tempo analog of {@link inflow}.
  * `Mppx.create({ methods: [tempo(...)], secretKey }).charge({ amount })` mints and HMAC-binds the `WWW-Authenticate:
  * Payment` challenge **locally** with the seller's `secretKey`; this factory supplies the request enrichment, the
- * binding fields, and a `verify` that **delegates settlement to the InFlow PSP** via `POST /v1/mpp/redeem`.
+ * binding fields, and PSP-backed validation and broadcast hooks.
  *
  * - **`defaults`** pin the seller's TIP-20 `currency` and Tempo `recipient` so `charge({ amount })` need not repeat them.
  * - **`request`** fills `currency` / `recipient` from defaults and derives the Tempo `methodDetails` (chain id,
  *   fee-payer, supported modes) from the seller parameters merged with any per-charge overrides.
  * - **`stableBinding`** binds the full Tempo charge — amount, currency, recipient, chain id, fee-payer, memo, splits,
  *   supported modes, description, externalId — so a credential cannot be redeemed against altered on-chain terms.
- * - **`verify`** forwards the submitted credential to `/v1/mpp/redeem` and reflects the result, exactly as {@link inflow}
- *   does.
+ * - **`validate`** performs the non-mutating PSP check and **`broadcast`** performs the terminal operation.
  *
  * @param parameters - Auth, environment, and Tempo seller defaults ({@link TempoSellerParameters}). The binding
  *   `secretKey` is supplied to `Mppx.create({ secretKey })`, never the API key.
@@ -258,8 +280,21 @@ export function tempo(
       };
     },
 
-    async verify({ credential }) {
-      return redeem(credential, client, await config.load());
+    async broadcast({ credential }) {
+      return broadcast(credential, client, await config.load());
+    },
+
+    async validate({ credential, request }) {
+      const details = await validateCredential(credential, client);
+      return {
+        challenge: credential.challenge,
+        credential,
+        details,
+        intent: tempoCharge.intent,
+        method: tempoCharge.name,
+        request,
+        ...(credential.source !== undefined ? { source: credential.source } : {}),
+      };
     },
   });
 }
@@ -355,23 +390,46 @@ function deriveTempoMethodDetails(
   };
 }
 
-/**
- * Forward the submitted credential to `POST /v1/mpp/redeem` and reflect the result. The server owns method-specific
- * replay protection and settlement.
- *
- * @param credential - The verified credential mppx parsed from the `Authorization: Payment` header.
- * @param client - The shared MPP REST client.
- * @param loaded - The cached config (gates the `Idempotency-Key` header on redeem).
- * @returns The mppx {@link Receipt} on success.
- * @throws {@link MppRedeemProblemError} On a redeem failure (problem instead of receipt).
- */
-async function redeem(
+/** Ask the PSP whether a credential is currently acceptable without consuming payment state. */
+async function validateCredential(
+  credential: Credential.Credential<Record<string, unknown>>,
+  client: MppClient,
+): Promise<Record<string, unknown>> {
+  const wireCredential = toWireCredential(credential);
+  const result: unknown = await client.validate({ credential: wireCredential });
+  if (!isRecord(result)) {
+    throw new MppCredentialProblemError(fallbackProblem('validation'));
+  }
+  if (result['success'] !== true) {
+    throw new MppCredentialProblemError(result['problem'] ?? fallbackProblem('validation'));
+  }
+  const acceptedCredential = result['credential'];
+  if (
+    result['challenge'] === undefined ||
+    encode(result['challenge']) !== encode(wireCredential.challenge) ||
+    !isRecord(acceptedCredential) ||
+    encode(acceptedCredential) !== encode(wireCredential) ||
+    result['intent'] !== wireCredential.challenge.intent ||
+    result['method'] !== wireCredential.challenge.method ||
+    result['source'] !== wireCredential.source ||
+    result['request'] === undefined ||
+    encode(result['request']) !== wireCredential.challenge.request ||
+    encode(acceptedCredential['payload']) !== encode(wireCredential.payload) ||
+    (result['details'] !== undefined && !isRecord(result['details']))
+  ) {
+    throw new MppCredentialProblemError(fallbackProblem('validation'));
+  }
+  return result['details'] ?? {};
+}
+
+/** Forward a validated credential to the PSP's authoritative terminal operation. */
+async function broadcast(
   credential: Credential.Credential<Record<string, unknown>>,
   client: MppClient,
   loaded: LoadedConfig,
 ): Promise<Receipt.Receipt> {
   const wireCredential = toWireCredential(credential);
-  const body: MppRedeemRequest = { credential: wireCredential };
+  const body: MppBroadcastRequest = { credential: wireCredential };
 
   const options: MppRequestOptions = {};
   const authorizationId = wireCredential.payload[CREDENTIAL_AUTHORIZATION_ID];
@@ -381,20 +439,21 @@ async function redeem(
     options.idempotencyKey = redemptionId;
   }
 
-  const result = await client.redeem(body, options);
-  if (result.receipt === undefined) {
-    throw new MppRedeemProblemError(result.problem ?? fallbackProblem());
+  const result: unknown = await client.broadcast(body, options);
+  if (!isRecord(result) || !isMppReceipt(result['receipt'])) {
+    const problem = isRecord(result) ? result['problem'] : undefined;
+    throw new MppCredentialProblemError(problem ?? fallbackProblem('broadcast'));
   }
-  return Receipt.from(toMppxReceipt(result.receipt));
+  return Receipt.from(toMppxReceipt(result['receipt']));
 }
 
 /**
- * Map mppx's verified credential to the InFlow wire {@link MppCredential} for redeem. mppx holds `challenge.request` as
- * the parsed object; the server expects the base64url-JCS string, so it is re-encoded with the core codec
- * (byte-for-byte identical to the server's canonicalisation — locked by the shared codec vectors). The server reads the
- * method-specific payload and source from the credential.
+ * Map mppx's verified credential to the InFlow wire {@link MppCredential}. mppx holds `challenge.request` as the parsed
+ * object; the server expects the base64url-JCS string, so it is re-encoded with the core codec (byte-for-byte identical
+ * to the server's canonicalisation — locked by the shared codec vectors). The server reads the method-specific payload
+ * and source from the credential.
  *
- * @param credential - The mppx credential from `verify`.
+ * @param credential - The mppx credential from a lifecycle hook.
  * @returns The InFlow wire credential.
  */
 function toWireCredential(credential: Credential.Credential<Record<string, unknown>>): MppCredential {
@@ -442,7 +501,7 @@ function toMppxReceipt(receipt: MppReceipt): Receipt.from.Parameters {
 /**
  * Return method-specific fields from the PSP receipt while filtering non-extension and framework keys.
  *
- * @param receipt - Wire receipt from /v1/mpp/redeem.
+ * @param receipt - Wire receipt from `/v1/mpp/broadcast`.
  * @returns The retained extension-like top-level fields.
  */
 function toReceiptExtensions(receipt: MppReceipt): Record<string, unknown> {
@@ -466,16 +525,33 @@ function sanitizeSellerReceiptExtensionValue(value: unknown, depth: number, budg
 }
 
 /**
- * Synthesise a verification-failed problem for the (contract-violating) case where redeem returns neither a receipt nor
- * a problem, so `verify` still throws a typed payment error rather than returning a malformed receipt.
+ * Synthesise a verification-failed problem for a contract-violating lifecycle response.
  *
+ * @param operation - Lifecycle operation that returned the malformed response.
  * @returns A minimal RFC 9457 problem.
  */
-function fallbackProblem(): MppProblemDetail {
+function fallbackProblem(operation: 'broadcast' | 'validation'): MppProblemDetail {
   return {
     type: PROBLEM_TYPES.VERIFICATION_FAILED,
     title: 'Verification Failed',
     status: 402,
-    detail: 'The PSP redeem response carried neither a receipt nor a problem.',
+    detail: `The PSP ${operation} response was malformed.`,
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isMppReceipt(value: unknown): value is MppReceipt {
+  if (!isRecord(value)) return false;
+  const settlement = value['settlement'];
+  return (
+    typeof value['method'] === 'string' &&
+    typeof value['reference'] === 'string' &&
+    value['status'] === 'success' &&
+    typeof value['timestamp'] === 'string' &&
+    (settlement === undefined ||
+      (isRecord(settlement) && typeof settlement['amount'] === 'string' && typeof settlement['currency'] === 'string'))
+  );
 }

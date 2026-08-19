@@ -5,13 +5,15 @@ import type { Environment } from './environment.js';
 import { resolveBaseUrl } from './environment.js';
 import { InflowApiError } from './errors.js';
 import type {
+  MppBroadcastRequest,
+  MppBroadcastResponse,
   MppConfigResponse,
   MppProblemDetail,
-  MppRedeemRequest,
-  MppRedeemResponse,
   MppSupportedResponse,
   MppTransactionRequest,
   MppTransactionResponse,
+  MppValidateRequest,
+  MppValidateResponse,
   SubscriptionAuthorizationRequest,
   SubscriptionAuthorizationResponse,
 } from './types.js';
@@ -449,12 +451,11 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Per-call overrides for the mutating {@link MppClient} routes, adding `Idempotency-Key` support. */
+/** Per-call overrides for mutating {@link MppClient} routes, adding `Idempotency-Key` support. */
 export interface MppRequestOptions extends RequestOptions {
   /**
-   * Value for the `Idempotency-Key` header, honored by the server on `POST /v1/mpp/redeem` (and transactions, where
-   * applicable) when `featureFlags.idempotencyKeyEnabled` is set. Replays the original outcome instead of
-   * re-executing.
+   * Value for the `Idempotency-Key` header, honored by the server on `POST /v1/mpp/broadcast` and transactions where
+   * applicable when `featureFlags.idempotencyKeyEnabled` is set. Replays the original outcome instead of re-executing.
    */
   idempotencyKey?: string;
 }
@@ -499,16 +500,27 @@ export class MppClient {
   }
 
   /**
-   * Seller: verify and redeem a credential (`POST /v1/mpp/redeem`). The server validates the credential's
-   * method-specific binding and claims its single-use authorization or transaction slot before settlement. Always
-   * returns HTTP 200; inspect `receipt`/`receiptHeader` (success) versus `problem` (failure) on the result.
+   * Seller: perform the authoritative terminal payment operation (`POST /v1/mpp/broadcast`). The server re-validates
+   * the credential, claims its replay slot, and settles exactly once.
    *
-   * @param body - The credential to redeem.
+   * @param body - The credential to broadcast.
    * @param options - Per-call overrides, including an optional `Idempotency-Key`.
-   * @returns The redemption result (receipt on success, problem on failure).
+   * @returns The broadcast result (receipt on success, problem on failure).
    */
-  async redeem(body: MppRedeemRequest, options: MppRequestOptions = {}): Promise<MppRedeemResponse> {
-    return this.http.post<MppRedeemResponse>(ENDPOINTS.REDEEM, body, withIdempotency(options));
+  async broadcast(body: MppBroadcastRequest, options: MppRequestOptions = {}): Promise<MppBroadcastResponse> {
+    return this.http.post<MppBroadcastResponse>(ENDPOINTS.BROADCAST, body, withIdempotency(options));
+  }
+
+  /**
+   * Seller: check whether a credential is currently acceptable (`POST /v1/mpp/validate`) without claiming replay state,
+   * consuming an authorization, broadcasting a transaction, or settling funds.
+   *
+   * @param body - The credential to validate.
+   * @param options - Per-call overrides.
+   * @returns The accepted validation envelope or an RFC 9457 problem.
+   */
+  async validate(body: MppValidateRequest, options: RequestOptions = {}): Promise<MppValidateResponse> {
+    return this.http.post<MppValidateResponse>(ENDPOINTS.VALIDATE, body, options);
   }
 
   async authorizeSubscription(

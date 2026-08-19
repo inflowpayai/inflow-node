@@ -22,8 +22,8 @@ export interface InflowConfigClient {
 }
 
 /**
- * Construct an {@link InflowConfigClient} over an existing {@link MppClient} (shared with the method's redeem path).
- * Holds a single in-flight/cached config promise.
+ * Construct an {@link InflowConfigClient} over an existing {@link MppClient} (shared with the method's credential
+ * lifecycle calls). Holds a single in-flight/cached config promise.
  *
  * @param client - The shared MPP REST client.
  * @returns A memoised config client.
