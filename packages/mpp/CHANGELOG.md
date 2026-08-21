@@ -1,5 +1,14 @@
 # @inflowpayai/mpp
 
+## 0.9.0
+
+### Minor Changes
+
+- [#45](https://github.com/inflowpayai/inflow-node/pull/45)
+  [`2b6f377`](https://github.com/inflowpayai/inflow-node/commit/2b6f377181d45ffb969674460667903f34ce6e17) Thanks
+  [@mnebliienko](https://github.com/mnebliienko)! - Split seller credential handling into non-mutating validation and
+  authoritative broadcast, with neutral credential lifecycle request types and typed lifecycle failures.
+
 ## 0.8.0
 
 ### Minor Changes

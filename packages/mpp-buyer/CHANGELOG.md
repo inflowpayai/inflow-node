@@ -1,5 +1,13 @@
 # @inflowpayai/mpp-buyer
 
+## 0.7.1
+
+### Patch Changes
+
+- Updated dependencies
+  [[`2b6f377`](https://github.com/inflowpayai/inflow-node/commit/2b6f377181d45ffb969674460667903f34ce6e17)]:
+  - @inflowpayai/mpp@0.9.0
+
 ## 0.7.0
 
 ### Minor Changes

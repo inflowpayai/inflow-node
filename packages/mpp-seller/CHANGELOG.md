@@ -1,5 +1,24 @@
 # @inflowpayai/mpp-seller
 
+## 0.8.0
+
+### Minor Changes
+
+- [#45](https://github.com/inflowpayai/inflow-node/pull/45)
+  [`2b6f377`](https://github.com/inflowpayai/inflow-node/commit/2b6f377181d45ffb969674460667903f34ce6e17) Thanks
+  [@mnebliienko](https://github.com/mnebliienko)! - Split seller credential handling into non-mutating validation and
+  authoritative broadcast, with neutral credential lifecycle request types and typed lifecycle failures.
+
+### Patch Changes
+
+- [#43](https://github.com/inflowpayai/inflow-node/pull/43)
+  [`0e5eeb8`](https://github.com/inflowpayai/inflow-node/commit/0e5eeb8ccc1670519a0719dc25d54c7abd8d02bd) Thanks
+  [@nkavian](https://github.com/nkavian)! - Document InFlow balance-backed subscriptions with plan fields and complete
+  Fetch API, Hono, Express, and Node HTTP integration guidance.
+- Updated dependencies
+  [[`2b6f377`](https://github.com/inflowpayai/inflow-node/commit/2b6f377181d45ffb969674460667903f34ce6e17)]:
+  - @inflowpayai/mpp@0.9.0
+
 ## 0.7.0
 
 ### Minor Changes

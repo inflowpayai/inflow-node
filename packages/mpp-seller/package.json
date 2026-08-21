@@ -1,6 +1,6 @@
 {
   "name": "@inflowpayai/mpp-seller",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "InFlow MPP SDK: seller-side `inflow` method built as a native mppx server method — challenges are minted and HMAC-bound locally by mppx, validation is non-mutating, and broadcast delegates settlement to the InFlow PSP.",
   "type": "module",
   "main": "./dist/index.cjs",
