@@ -5,15 +5,16 @@ deliver an MPP integration, and where that diverges from the generic `mppx` cust
 
 ## Central decision: InFlow is the PSP
 
-The InFlow server owns balance/instrument provisioning and redemption. `GET /v1/mpp/config` advertises each currency's
-rail capability (`currencyRails`). The **seller issues challenges locally**; the server does not mint them. On redeem it
-correlates by the server-stamped `transactionId` carried in the credential payload and settles.
+The InFlow server owns balance/instrument provisioning, validation, and settlement. `GET /v1/mpp/config` advertises each
+currency's rail capability (`currencyRails`). The **seller issues challenges locally**; the server does not mint them.
+During the credential lifecycle it correlates by the server-stamped `transactionId` carried in the payload.
 
-- The **seller** package's `Method.toServer` methods issue and render `WWW-Authenticate` challenges locally. `verify`
-  forwards the credential to `POST /v1/mpp/redeem`, where the server correlates by `transactionId` and settles, and maps
-  the response to a `Receipt` (success) or throws (failure → 402 + problem). This is the direct analog of x402-seller
-  delegating verify/settle to the InFlow facilitator. For the `inflow` method, a single charge advertises one currency;
-  to offer several, the seller emits one challenge per currency via `compose(...)` — surfaced by the package's
+- The **seller** package's `Method.toServer` methods issue and render `WWW-Authenticate` challenges locally. `validate`
+  forwards the credential to non-mutating `POST /v1/mpp/validate`; `broadcast` calls authoritative
+  `POST /v1/mpp/broadcast`, where the server revalidates, claims replay state, settles, and returns a `Receipt` (or a
+  problem). `mppx` composes these into its compatibility `verify` hook. This is the direct analog of x402-seller
+  delegating validation/settlement to the InFlow facilitator. For the `inflow` method, a single charge advertises one
+  currency; to offer several, the seller emits one challenge per currency via `compose(...)` — surfaced by the package's
   `inflowCharges` helper, the MPP analog of x402-seller's `inflowAccepts`.
 - The **buyer** package's `Method.toClient.createCredential` methods do not sign locally. They forward the parsed
   challenge to `POST /v1/transactions/mpp`, poll `GET /v1/transactions/{id}/mpp` through the `pending → ready`
@@ -30,7 +31,7 @@ This is the exact analog of the x402 facilitator boundary documented in
              /                   \
   @inflowpayai/mpp-seller    @inflowpayai/mpp-buyer
    (Method.toServer +          (Method.toClient +
-    redeem/settle driver)       transaction driver)
+    validate/broadcast)         transaction driver)
 ```
 
 The core package holds the **shared `Method.from` definition and the request primitives** both sides call. It depends
@@ -44,18 +45,26 @@ on the `mppx` framework middleware directly rather than re-wrapping it.
 with capped backoff; per-request timeout; JSON parsing; `InflowApiError` mapping — identical in shape to the x402 core
 client) and exposes one method per route:
 
-| Route                            | Method                         | Side   |
-| -------------------------------- | ------------------------------ | ------ |
-| `GET  /v1/mpp/config`            | `getConfig`                    | seller |
-| `POST /v1/mpp/redeem`            | `redeem` (+ `Idempotency-Key`) | seller |
-| `POST /v1/transactions/mpp`      | `createTransaction`            | buyer  |
-| `GET  /v1/transactions/{id}/mpp` | `getTransaction`               | buyer  |
+| Route                            | Method                            | Side   |
+| -------------------------------- | --------------------------------- | ------ |
+| `GET  /v1/mpp/config`            | `getConfig`                       | seller |
+| `POST /v1/mpp/validate`          | `validate`                        | seller |
+| `POST /v1/mpp/broadcast`         | `broadcast` (+ `Idempotency-Key`) | seller |
+| `POST /v1/transactions/mpp`      | `createTransaction`               | buyer  |
+| `GET  /v1/transactions/{id}/mpp` | `getTransaction`                  | buyer  |
 
 (There is no public `POST /v1/mpp/challenges` surface — the seller issues challenges locally, so the core client exposes
 no challenge-minting call.)
 
-`redeem` always returns HTTP 200; success vs failure is in the body (`receipt`/`receiptHeader` vs `problem`), so callers
-branch on the result rather than catching.
+`validate` never claims replay state, consumes an authorization, broadcasts a transaction, or settles funds. A
+successful validation only means the credential is acceptable at that instant; it does not prove that a later broadcast
+will settle, nor distinguish an authorization whose payment already settled. `broadcast` is the delivery authority: it
+revalidates and then returns the terminal receipt or problem. Broadcast reports success versus failure in the body
+(`receipt`/`receiptHeader` versus `problem`), so callers branch on the result rather than catching.
+
+The seller SDK supplies an HTTP idempotency key from a server-issued `authorizationId` or `transactionId`. An external
+Tempo credential can legitimately carry neither identifier; the SDK then omits the header and relies on the server's
+credential replay slot instead of inventing a client-only key.
 
 ## Buyer poll lifecycle
 

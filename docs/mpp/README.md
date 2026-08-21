@@ -33,12 +33,13 @@ orchestration. It exports:
 - **`tempo`** — the `mppx` `Method` definition for Tempo TIP-20 charges (`tempo` and `tempo.charge` are the same
   definition). The buyer/seller packages attach `Method.toClient` / `Method.toServer` behaviour to both methods.
 - **Wire types** — `MppChallenge`, `MppCredential`, `MppReceipt`, `MppProblemDetail`, and the InFlow REST DTOs
-  (`MppConfigResponse`, `MppRedeemRequest/Response`, `MppTransactionRequest/Response`). These match the MPP wire format
-  byte-for-byte.
+  (`MppConfigResponse`, `MppCredentialRequest`, `MppValidateRequest/Response`, `MppBroadcastRequest/Response`,
+  `MppTransactionRequest/Response`). These match the MPP wire format byte-for-byte.
 - **Codec** — RFC 8785 JCS + base64url-without-padding `encode`/`decode` for `request`/`opaque`/`credential`/`receipt`,
   plus `renderChallengeHeader` / `parseChallengeHeader(s)` for the `WWW-Authenticate: Payment` grammar.
-- **`MppClient`** — a thin typed client over the InFlow MPP REST endpoints (`/v1/mpp/config`, `/v1/mpp/redeem`,
-  `/v1/transactions/mpp`, `/v1/transactions/{id}/mpp`), with `Idempotency-Key` support on the mutating routes.
+- **`MppClient`** — a thin typed client over the InFlow MPP REST endpoints (`/v1/mpp/config`, `/v1/mpp/validate`,
+  `/v1/mpp/broadcast`, `/v1/transactions/mpp`, `/v1/transactions/{id}/mpp`), with `Idempotency-Key` support on the
+  mutating routes.
 - **Constants and typed errors** — header names, scheme/method/intent labels, problem-type URIs; `InflowApiError`,
   `MppCodecError`, `MppProtocolVersionError`.
 
@@ -55,12 +56,13 @@ const tx = await mpp.createTransaction({ challenge });
 
 ## Quickstart — seller
 
-The seller package (`@inflowpayai/mpp-seller`) attaches `Method.toServer` whose `verify` calls `POST /v1/mpp/redeem`: an
-unpaid request returns a locally issued `402` challenge, and a paid one is redeemed and settled through InFlow. It
-exports seller methods for `inflow` and `tempo`. To accept **multiple InFlow currencies** on one route (one challenge
-per currency), use the package's `inflowCharges` / `inflowChargesNodeListener` helpers over the core `mppx/server`
-instance — the framework adapters expose only the single-currency `charge`. See [architecture.md](./architecture.md) for
-the PSP boundary, and [`examples/mpp-seller-express`](../../examples/mpp-seller-express) or
+The seller package (`@inflowpayai/mpp-seller`) attaches non-mutating validation and authoritative broadcast behavior to
+`Method.toServer`: an unpaid request returns a locally issued `402` challenge, and a paid one is validated and settled
+through InFlow. It exports seller methods for `inflow` and `tempo`. To accept **multiple InFlow currencies** on one
+route (one challenge per currency), use the package's `inflowCharges` / `inflowChargesNodeListener` helpers over the
+core `mppx/server` instance — the framework adapters expose only the single-currency `charge`. See
+[architecture.md](./architecture.md) for the PSP boundary, and
+[`examples/mpp-seller-express`](../../examples/mpp-seller-express) or
 [`examples/mpp-seller-hono`](../../examples/mpp-seller-hono) for the complete runnable shape.
 
 ## Quickstart — buyer

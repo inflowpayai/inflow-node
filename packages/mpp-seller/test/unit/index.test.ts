@@ -8,7 +8,7 @@ describe('public barrel', () => {
     expect(typeof pkg.inflowCharges).toBe('function');
     expect(typeof pkg.inflowChargesNodeListener).toBe('function');
     expect(typeof pkg.createConfigClient).toBe('function');
-    expect(typeof pkg.MppRedeemProblemError).toBe('function');
+    expect(typeof pkg.MppCredentialProblemError).toBe('function');
     expect(typeof pkg.MppUnsupportedCurrencyError).toBe('function');
     // Foundation re-exports: a single import gives both the server handler and receipt helpers.
     expect(typeof pkg.Mppx.create).toBe('function');

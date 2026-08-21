@@ -4,7 +4,12 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 
 import { InflowApiError } from '../../src/errors.js';
 import { InflowHttpClient, MppClient } from '../../src/http-client.js';
-import type { MppConfigResponse, MppRedeemResponse, MppTransactionResponse } from '../../src/types.js';
+import type {
+  MppConfigResponse,
+  MppBroadcastResponse,
+  MppTransactionResponse,
+  MppValidateResponse,
+} from '../../src/types.js';
 
 const BASE = 'https://sandbox.inflowpay.ai';
 const server = setupServer();
@@ -38,45 +43,54 @@ describe('MppClient endpoints', () => {
     expect(seenKey).toBe('sk_test_123');
   });
 
-  it('POST /v1/mpp/redeem forwards the Idempotency-Key header', async () => {
+  it('POST /v1/mpp/broadcast forwards the Idempotency-Key header', async () => {
     let seenIdem: string | null = null;
-    const response: MppRedeemResponse = {
+    const response: MppBroadcastResponse = {
       receipt: {
-        challengeId: 'c1',
         method: 'inflow',
-        reference: 'ref_1',
-        settlement: { amount: '10', currency: 'USDC' },
+        reference: 'ref_broadcast',
         status: 'success',
-        timestamp: '2025-01-15T12:05:00Z',
+        timestamp: '2026-08-19T00:00:00Z',
       },
     };
     server.use(
-      http.post(`${BASE}/v1/mpp/redeem`, ({ request }) => {
+      http.post(`${BASE}/v1/mpp/broadcast`, ({ request }) => {
         seenIdem = request.headers.get('idempotency-key');
         return HttpResponse.json(response);
       }),
     );
-    const result = await client().redeem(
-      { credential: { challenge: { id: 'c1' } as never, payload: {}, source: 's' } },
-      { idempotencyKey: 'idem-key-1' },
-    );
-    expect(result).toEqual(response);
-    expect(seenIdem).toBe('idem-key-1');
+
+    await expect(
+      client().broadcast(
+        { credential: { challenge: { id: 'c1' } as never, payload: {}, source: 's' } },
+        { idempotencyKey: 'idem-broadcast-1' },
+      ),
+    ).resolves.toEqual(response);
+    expect(seenIdem).toBe('idem-broadcast-1');
   });
 
-  it('POST /v1/mpp/redeem surfaces a problem body on the 200 result (failure is in the body)', async () => {
-    const redeem: MppRedeemResponse = {
-      problem: {
-        type: 'https://paymentauth.org/problems/verification-failed',
-        title: 'Payment Verification Failed',
-        status: 402,
-        detail: 'HMAC mismatch',
-      },
+  it('POST /v1/mpp/validate returns the non-mutating validation envelope', async () => {
+    const challenge = {
+      id: 'c1',
+      realm: 'seller',
+      method: 'inflow',
+      intent: 'charge',
+      request: 'e30',
+    } as const;
+    const credential = { challenge, payload: { transactionId: 'tx-1' }, source: 'did:inflow:payer' };
+    const response: MppValidateResponse = {
+      challenge,
+      credential,
+      details: {},
+      intent: 'charge',
+      method: 'inflow',
+      request: {},
+      source: credential.source,
+      success: true,
     };
-    server.use(http.post(`${BASE}/v1/mpp/redeem`, () => HttpResponse.json(redeem)));
-    const result = await client().redeem({ credential: { challenge: { id: 'x' } as never, payload: {}, source: 's' } });
-    expect(result.problem?.detail).toBe('HMAC mismatch');
-    expect(result.receipt).toBeUndefined();
+    server.use(http.post(`${BASE}/v1/mpp/validate`, () => HttpResponse.json(response)));
+
+    await expect(client().validate({ credential })).resolves.toEqual(response);
   });
 
   it('GET /v1/transactions/{id}/mpp polls buyer state', async () => {

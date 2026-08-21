@@ -24,16 +24,17 @@ loudly when it's missing.
   `charge` (`tempo` and `tempo.charge` are the same definition). Also exported: `tempoCharge`,
   `tempoChargeRequestSchema`, and `tempoCredentialPayloadSchema`.
 - **`Method` / `z`** — re-exported from `mppx` for method authoring.
-- **`MppClient`** — typed client over the InFlow MPP REST endpoints: `getConfig`, `redeem` (seller);
-  `createTransaction`, `getTransaction` (buyer). There is no challenge-minting call — challenges are issued locally, not
-  fetched from InFlow. `Idempotency-Key` is supported on the mutating routes. Wraps `InflowHttpClient` (API-key / Bearer
-  / anonymous auth, transient-status retry, timeout, `InflowApiError` mapping).
+- **`MppClient`** — typed client over the InFlow MPP REST endpoints: `getConfig`, non-mutating `validate`, authoritative
+  `broadcast` (seller); `createTransaction`, `getTransaction` (buyer). There is no challenge-minting call — challenges
+  are issued locally, not fetched from InFlow. `Idempotency-Key` is supported on the mutating routes. Wraps
+  `InflowHttpClient` (API-key / Bearer / anonymous auth, transient-status retry, timeout, `InflowApiError` mapping).
 - **Codec** — `encode` / `decode` (base64url-without-padding over RFC 8785 JCS), `encodeCredential`, `decodeCredential`,
   `decodeReceipt`, `canonicalize`, `padBase64Url`, and the `WWW-Authenticate: Payment` `renderChallengeHeader` /
   `parseChallengeHeader` / `parseChallengeHeaders`.
 - **Wire types** — `MppChallenge`, `MppCredential`, `MppReceipt`, `MppProblemDetail`, `InflowChallengeRequest`,
   `InflowPaymentOptions`, `TempoChallengeRequest`, `TempoCredentialPayload`, `TempoMethodDetails`, and the REST DTOs
-  (`MppConfigResponse`, `MppRedeemRequest/Response`, `MppTransactionRequest/Response`).
+  (`MppConfigResponse`, `MppCredentialRequest`, `MppValidateRequest/Response`, `MppBroadcastRequest/Response`,
+  `MppTransactionRequest/Response`).
 - **Constants** — `HEADERS`, `CACHE_CONTROL`, `SCHEME_PAYMENT`, `METHOD_INFLOW`, `INTENT_CHARGE`, `PROBLEM_TYPE_BASE`,
   `PROBLEM_TYPES`, `ENDPOINTS`, `MPP_PROTOCOL_VERSION`, `MPP_SDK_VERSION`, plus `readHeader` / `readHeaderAll` /
   `transactionPath`.

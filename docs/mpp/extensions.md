@@ -37,8 +37,8 @@ SDK, and InFlow accepting the new intent label on the wire.
    Consumers keep writing `inflow` (charge) and `inflow.charge`; `inflow.session` becomes available additively.
 
 2. **Seller** (`@inflowpayai/mpp-seller`) — add the `Method.toServer` behaviour for `session`. It issues the `session`
-   challenge locally, the same way `charge` does (no server round-trip to mint it), and its `verify` calls
-   `POST /v1/mpp/redeem`, exactly as `charge` does.
+   challenge locally, the same way `charge` does (no server round-trip to mint it), and uses the same validation and
+   broadcast lifecycle as `charge`.
 
 3. **Buyer** (`@inflowpayai/mpp-buyer`) — add the `Method.toClient` behaviour for `session`; it reuses the same
    `POST /v1/transactions/mpp` → poll → credential lifecycle.

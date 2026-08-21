@@ -1,4 +1,4 @@
-import { decode, decodeReceipt, parseChallengeHeader } from '@inflowpayai/mpp';
+import { decode, decodeReceipt, InflowApiError, parseChallengeHeader } from '@inflowpayai/mpp';
 import type { MppConfigResponse } from '@inflowpayai/mpp';
 import { Credential, Receipt } from 'mppx';
 import { Mppx } from 'mppx/server';
@@ -9,7 +9,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import {
   MppAmbiguousRailError,
   MppInstrumentRequiredError,
-  MppRedeemProblemError,
+  MppCredentialProblemError,
   MppUnsupportedCurrencyError,
   MppUnsupportedRailError,
 } from '../../src/errors.js';
@@ -30,6 +30,8 @@ const server = setupServer();
 // The `mppx.challenge.*` generator returns a loosely-typed Challenge (request: Record, intent/method: string), so
 // hand-built credentials need a cast to the strict VerifyContext the `inflow` method's verify hook expects.
 type VerifyArg = Parameters<ReturnType<typeof inflow>['verify']>[0];
+type SubscriptionValidateArg = Parameters<NonNullable<ReturnType<typeof inflow.subscription>['validate']>>[0];
+type TempoValidateArg = Parameters<NonNullable<ReturnType<typeof tempo>['validate']>>[0];
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => server.resetHandlers());
@@ -72,15 +74,45 @@ function mockConfig(body: MppConfigResponse = config()): void {
   server.use(http.get(`${BASE}/v1/mpp/config`, () => HttpResponse.json(body)));
 }
 
-/** A success redeem handler that records the request body + headers it received. */
-function mockRedeemSuccess(
+/** A successful non-mutating validation handler that echoes the PSP-accepted envelope. */
+function mockValidateSuccess(options: { includeDetails?: boolean } = {}): { body(): unknown; hits(): number } {
+  let captured: unknown;
+  let hits = 0;
+  server.use(
+    http.post(`${BASE}/v1/mpp/validate`, async ({ request }) => {
+      hits += 1;
+      captured = await (request.json() as Promise<unknown>);
+      const body = captured as {
+        credential: {
+          challenge: { intent: string; method: string; request: string };
+          payload: Record<string, unknown>;
+          source: string;
+        };
+      };
+      return HttpResponse.json({
+        challenge: body.credential.challenge,
+        credential: body.credential,
+        ...(options.includeDetails === false ? {} : { details: { provider: 'inflow' } }),
+        intent: body.credential.challenge.intent,
+        method: body.credential.challenge.method,
+        request: decode<Record<string, unknown>>(body.credential.challenge.request),
+        source: body.credential.source,
+        success: true,
+      });
+    }),
+  );
+  return { body: () => captured, hits: () => hits };
+}
+
+/** A successful broadcast handler that records the request body + headers it received. */
+function mockBroadcastSuccess(
   method = 'inflow',
   extensions: Record<string, unknown> = {},
 ): { body(): unknown; idempotencyKey(): string | null } {
   let captured: unknown;
   let key: string | null = null;
   server.use(
-    http.post(`${BASE}/v1/mpp/redeem`, async ({ request }) => {
+    http.post(`${BASE}/v1/mpp/broadcast`, async ({ request }) => {
       captured = await request.json();
       key = request.headers.get('Idempotency-Key');
       return HttpResponse.json({
@@ -225,6 +257,58 @@ describe('native issuance: currency → rail in the minted 402', () => {
     const { mppx } = makeMppx();
     await expect(
       mppx.charge({ amount: '1', currency: 'JPY', recipient: UUID })(new Request('https://app.test/r')),
+    ).rejects.toBeInstanceOf(MppUnsupportedCurrencyError);
+  });
+
+  it('uses the legacy currency capability when the intent matrix is absent', async () => {
+    mockConfig(
+      config({
+        supportedMethods: [
+          {
+            id: 'inflow',
+            label: 'InFlow',
+            methodDetails: {
+              intentCurrencyRails: {},
+              currencyRails: { USDC: { rail: 'balance' } },
+            },
+            supportedCurrencies: ['USDC'],
+            supportedIntents: ['charge'],
+          },
+        ],
+      }),
+    );
+    const { mppx } = makeMppx();
+
+    const result = await mppx.charge({ amount: '1', currency: 'USDC', recipient: UUID })(
+      new Request('https://app.test/r'),
+    );
+
+    expect(result.status).toBe(402);
+    if (result.status !== 402) throw new Error('expected 402');
+    expect(decodeChallengeRequest(result.challenge)['methodDetails']).toEqual({ rail: 'balance' });
+  });
+
+  it('rejects an unsupported currency when only the legacy capability map is present', async () => {
+    mockConfig(
+      config({
+        supportedMethods: [
+          {
+            id: 'inflow',
+            label: 'InFlow',
+            methodDetails: {
+              intentCurrencyRails: {},
+              currencyRails: { USDC: { rail: 'balance' } },
+            },
+            supportedCurrencies: ['USDC'],
+            supportedIntents: ['charge'],
+          },
+        ],
+      }),
+    );
+    const { mppx } = makeMppx();
+
+    await expect(
+      mppx.charge({ amount: '1', currency: 'USD', recipient: UUID })(new Request('https://app.test/r')),
     ).rejects.toBeInstanceOf(MppUnsupportedCurrencyError);
   });
 
@@ -485,10 +569,140 @@ describe('stableBinding', () => {
   });
 });
 
-describe('verify → /v1/mpp/redeem', () => {
+describe('credential lifecycle', () => {
+  it('validates without calling broadcast and returns the mppx validation envelope', async () => {
+    mockConfig();
+    const validationRequest = mockValidateSuccess();
+    let broadcastHits = 0;
+    server.use(
+      http.post(`${BASE}/v1/mpp/broadcast`, () => {
+        broadcastHits += 1;
+        return HttpResponse.json({});
+      }),
+    );
+    const { method, mppx } = makeMppx();
+    const challenge = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC', recipient: UUID });
+    if (method.validate === undefined) throw new Error('expected validate hook');
+
+    const result = await method.validate({
+      credential: { challenge, payload: { transactionId: 'tx-validate', type: 'balance' }, source: 'did:inflow:payer' },
+      request: challenge.request,
+    } as unknown as VerifyArg);
+
+    expect(result).toMatchObject({
+      challenge,
+      details: { provider: 'inflow' },
+      intent: 'charge',
+      method: 'inflow',
+      request: challenge.request,
+      source: 'did:inflow:payer',
+    });
+    expect(validationRequest.hits()).toBe(1);
+    expect(broadcastHits).toBe(0);
+  });
+
+  it('omits source from subscription and Tempo validation envelopes when the credential has no source', async () => {
+    mockConfig();
+    const validationRequest = mockValidateSuccess();
+    const subscription = makeSubMppx();
+    const subscriptionChallenge = await subscription.mppx.challenge.inflow.subscription(SUB);
+    if (subscription.method.validate === undefined) throw new Error('expected subscription validate hook');
+
+    const subscriptionResult = await subscription.method.validate({
+      credential: { challenge: subscriptionChallenge, payload: { authorizationId: 'auth-source-less' } },
+      request: subscriptionChallenge.request,
+    } as unknown as SubscriptionValidateArg);
+
+    const tempoMethod = makeTempoMppx();
+    const tempoChallenge = await tempoMethod.mppx.challenge.tempo.charge({ amount: '10' });
+    if (tempoMethod.method.validate === undefined) throw new Error('expected Tempo validate hook');
+    const tempoResult = await tempoMethod.method.validate({
+      credential: {
+        challenge: tempoChallenge,
+        payload: { transactionId: 'tx-source-less', type: 'transaction', signature: '0x76deadbeef' },
+      },
+      request: tempoChallenge.request,
+    } as TempoValidateArg);
+
+    expect(subscriptionResult).not.toHaveProperty('source');
+    expect(tempoResult).not.toHaveProperty('source');
+    expect(validationRequest.hits()).toBe(2);
+  });
+
+  it('returns empty validation details when the PSP omits the optional details object', async () => {
+    mockConfig();
+    mockValidateSuccess({ includeDetails: false });
+    const { method, mppx } = makeMppx();
+    const challenge = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC', recipient: UUID });
+    if (method.validate === undefined) throw new Error('expected validate hook');
+
+    const result = await method.validate({
+      credential: { challenge, payload: { transactionId: 'tx-no-details', type: 'balance' } },
+      request: challenge.request,
+    } as unknown as VerifyArg);
+
+    expect(result.details).toEqual({});
+    expect(result).not.toHaveProperty('source');
+  });
+
+  it('uses the typed fallback problem when a failed validation omits its problem body', async () => {
+    mockConfig();
+    server.use(http.post(`${BASE}/v1/mpp/validate`, () => HttpResponse.json({ success: false })));
+    const { method, mppx } = makeMppx();
+    const challenge = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC', recipient: UUID });
+    if (method.validate === undefined) throw new Error('expected validate hook');
+
+    await expect(
+      method.validate({
+        credential: { challenge, payload: { transactionId: 'tx-no-problem', type: 'balance' } },
+        request: challenge.request,
+      } as unknown as VerifyArg),
+    ).rejects.toBeInstanceOf(MppCredentialProblemError);
+  });
+
+  it.each([
+    ['an empty body', () => new HttpResponse(null, { status: 204 })],
+    ['a JSON null body', () => HttpResponse.json(null)],
+  ])('fails closed when validation returns %s', async (_description, response) => {
+    mockConfig();
+    server.use(http.post(`${BASE}/v1/mpp/validate`, response));
+    const { method, mppx } = makeMppx();
+    const challenge = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC', recipient: UUID });
+    if (method.validate === undefined) throw new Error('expected validate hook');
+
+    await expect(
+      method.validate({
+        credential: { challenge, payload: { transactionId: 'tx-malformed', type: 'balance' } },
+        request: challenge.request,
+      } as unknown as VerifyArg),
+    ).rejects.toBeInstanceOf(MppCredentialProblemError);
+  });
+
+  it.each([
+    ['an empty body', () => new HttpResponse(null, { status: 204 })],
+    ['a JSON null body', () => HttpResponse.json(null)],
+  ])('fails closed when broadcast returns %s', async (_description, response) => {
+    mockConfig();
+    mockValidateSuccess();
+    server.use(http.post(`${BASE}/v1/mpp/broadcast`, response));
+    const { mppx } = makeMppx();
+    const challenge = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC', recipient: UUID });
+    const authorization = Credential.serialize({
+      challenge,
+      payload: { transactionId: 'tx-malformed', type: 'balance' },
+      source: 'did:inflow:payer',
+    });
+
+    const result = await mppx.charge({ amount: '10', currency: 'USDC', recipient: UUID })(
+      new Request('https://app.test/r', { headers: { Authorization: authorization } }),
+    );
+    expect(result.status).toBe(402);
+  });
+
   it('reflects a receipt and attaches the Payment-Receipt header; forwards the transactionId idempotency key', async () => {
     mockConfig();
-    const redeem = mockRedeemSuccess();
+    const validation = mockValidateSuccess();
+    const broadcast = mockBroadcastSuccess();
     const { mppx } = makeMppx();
 
     const challenge = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC', recipient: UUID });
@@ -522,14 +736,16 @@ describe('verify → /v1/mpp/redeem', () => {
     });
 
     // The credential's server-minted transactionId round-trips to redeem and is used as the idempotency key.
-    expect(redeem.idempotencyKey()).toBe('tx-1');
-    const body = redeem.body() as { credential: { payload: Record<string, unknown> } };
+    expect(validation.hits()).toBe(1);
+    expect(broadcast.idempotencyKey()).toBe('tx-1');
+    const body = broadcast.body() as { credential: { payload: Record<string, unknown> } };
     expect(body.credential.payload['transactionId']).toBe('tx-1');
   });
 
   it('keeps method-specific receipt extension fields when mapping to mppx', async () => {
     mockConfig();
-    mockRedeemSuccess('inflow', {
+    mockValidateSuccess();
+    mockBroadcastSuccess('inflow', {
       chainId: 1001,
       providerReceiptId: 'prov-1',
     });
@@ -565,6 +781,7 @@ describe('verify → /v1/mpp/redeem', () => {
 
   it('drops prototype-mutating receipt extension keys before composing the receipt', async () => {
     mockConfig();
+    mockValidateSuccess();
     let deeplyNested: Record<string, unknown> = { safe: 'bottom' };
     for (let depth = 0; depth < 18; depth += 1) deeplyNested = { nested: deeplyNested };
     const unsafeExtensions = {
@@ -575,7 +792,7 @@ describe('verify → /v1/mpp/redeem', () => {
       overBudget: Array.from({ length: 257 }, () => 'value'),
       wide: Object.fromEntries(Array.from({ length: 257 }, (_, index) => [`key-${index}`, 'value'])),
     };
-    mockRedeemSuccess('inflow', {
+    mockBroadcastSuccess('inflow', {
       ...unsafeExtensions,
       nestedReceiptId: 'nested-safe',
     });
@@ -612,9 +829,10 @@ describe('verify → /v1/mpp/redeem', () => {
     expect(Object.prototype).not.toHaveProperty('polluted');
   });
 
-  it('forwards the transactionId idempotency key for Tempo redeem', async () => {
+  it('forwards the transactionId idempotency key for Tempo broadcast', async () => {
     mockConfig();
-    const redeem = mockRedeemSuccess('tempo');
+    mockValidateSuccess();
+    const broadcast = mockBroadcastSuccess('tempo');
     const { mppx } = makeTempoMppx();
 
     const challenge = await mppx.challenge.tempo.charge({ amount: '100' });
@@ -630,20 +848,42 @@ describe('verify → /v1/mpp/redeem', () => {
     expect(r.status).toBe(200);
     if (r.status !== 200) throw new Error('expected 200');
 
-    expect(redeem.idempotencyKey()).toBe('tx-tempo');
-    const body = redeem.body() as { credential: { payload: Record<string, unknown> } };
+    expect(broadcast.idempotencyKey()).toBe('tx-tempo');
+    const body = broadcast.body() as { credential: { payload: Record<string, unknown> } };
     expect(body.credential.payload['transactionId']).toBe('tx-tempo');
   });
 
-  it('throws MppRedeemProblemError → framework emits 402 + the RFC 9457 problem body', async () => {
+  it('omits HTTP idempotency for an external Tempo credential without a server correlation id', async () => {
     mockConfig();
+    mockValidateSuccess();
+    const broadcast = mockBroadcastSuccess('tempo');
+    const { mppx } = makeTempoMppx();
+
+    const challenge = await mppx.challenge.tempo.charge({ amount: '100' });
+    const authorization = Credential.serialize({
+      challenge,
+      payload: { type: 'transaction', signature: '0x76deadbeef' },
+      source: 'did:pkh:eip155:555555555:0x4444444444444444444444444444444444444444',
+    });
+
+    const response = await mppx.charge({ amount: '100' })(
+      new Request('https://app.test/r', { headers: { Authorization: authorization } }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(broadcast.idempotencyKey()).toBeNull();
+  });
+
+  it('throws MppCredentialProblemError → framework emits 402 + the RFC 9457 problem body', async () => {
+    mockConfig();
+    mockValidateSuccess();
     const problem = {
       type: 'https://paymentauth.org/problems/payment-insufficient',
       title: 'Payment Insufficient',
       status: 402,
       detail: 'Balance too low.',
     };
-    server.use(http.post(`${BASE}/v1/mpp/redeem`, () => HttpResponse.json({ problem })));
+    server.use(http.post(`${BASE}/v1/mpp/broadcast`, () => HttpResponse.json({ problem })));
     const { mppx } = makeMppx();
 
     const challenge = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC', recipient: UUID });
@@ -664,7 +904,7 @@ describe('verify → /v1/mpp/redeem', () => {
     expect(body.status).toBe(402);
   });
 
-  it('surfaces the redeem problem as a typed MppRedeemProblemError from verify directly', async () => {
+  it('surfaces the validation problem as a typed MppCredentialProblemError from verify directly', async () => {
     mockConfig();
     const problem = {
       type: 'https://paymentauth.org/problems/verification-failed',
@@ -672,7 +912,7 @@ describe('verify → /v1/mpp/redeem', () => {
       status: 402,
       detail: 'nope',
     };
-    server.use(http.post(`${BASE}/v1/mpp/redeem`, () => HttpResponse.json({ problem })));
+    server.use(http.post(`${BASE}/v1/mpp/validate`, () => HttpResponse.json({ problem, success: false })));
     const { method, mppx } = makeMppx();
     const challenge = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC', recipient: UUID });
 
@@ -681,14 +921,56 @@ describe('verify → /v1/mpp/redeem', () => {
         credential: { challenge, payload: { transactionId: 'tx-3', type: 'balance' }, source: 'did:inflow:p' },
         request: challenge.request,
       } as unknown as VerifyArg),
-    ).rejects.toBeInstanceOf(MppRedeemProblemError);
+    ).rejects.toBeInstanceOf(MppCredentialProblemError);
+  });
+
+  it('rejects a successful validation response whose accepted envelope does not match the credential', async () => {
+    mockConfig();
+    server.use(
+      http.post(`${BASE}/v1/mpp/validate`, () =>
+        HttpResponse.json({ details: {}, intent: 'charge', method: 'tempo', request: {}, success: true }),
+      ),
+    );
+    const { method, mppx } = makeMppx();
+    const challenge = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC', recipient: UUID });
+    if (method.validate === undefined) throw new Error('expected validate hook');
+
+    await expect(
+      method.validate({
+        credential: { challenge, payload: { transactionId: 'tx-mismatch', type: 'balance' }, source: 'did:inflow:p' },
+        request: challenge.request,
+      } as unknown as VerifyArg),
+    ).rejects.toBeInstanceOf(MppCredentialProblemError);
+  });
+
+  it('fails closed when the server does not expose /validate', async () => {
+    mockConfig();
+    let terminalHits = 0;
+    server.use(
+      http.post(`${BASE}/v1/mpp/validate`, () => new HttpResponse(null, { status: 404 })),
+      http.post(`${BASE}/v1/mpp/broadcast`, () => {
+        terminalHits += 1;
+        return HttpResponse.json({});
+      }),
+    );
+    const { method, mppx } = makeMppx();
+    const challenge = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC', recipient: UUID });
+
+    await expect(
+      method.verify({
+        credential: { challenge, payload: { transactionId: 'tx-closed', type: 'balance' }, source: 'did:inflow:p' },
+        request: challenge.request,
+      } as unknown as VerifyArg),
+    ).rejects.toBeInstanceOf(InflowApiError);
+    expect(terminalHits).toBe(0);
   });
 
   it('never forwards a top-level bodyDigest, even when the challenge carries a digest', async () => {
     mockConfig();
+    mockValidateSuccess();
     let captured: { bodyDigest?: string; credential: { challenge: Record<string, unknown> } } | undefined;
     server.use(
-      http.post(`${BASE}/v1/mpp/redeem`, async ({ request }) => {
+      http.post(`${BASE}/v1/mpp/broadcast`, async ({ request }) => {
         captured = (await request.json()) as {
           bodyDigest?: string;
           credential: { challenge: Record<string, unknown> };
@@ -730,9 +1012,10 @@ describe('verify → /v1/mpp/redeem', () => {
     expect(body.credential.challenge['opaque']).toBe('eyJvcmRlcklkIjoib3JkZXItMTIzIn0');
   });
 
-  it('throws a verification-failed fallback when redeem returns neither receipt nor problem', async () => {
+  it('throws a verification-failed fallback when broadcast returns neither receipt nor problem', async () => {
     mockConfig();
-    server.use(http.post(`${BASE}/v1/mpp/redeem`, () => HttpResponse.json({})));
+    mockValidateSuccess();
+    server.use(http.post(`${BASE}/v1/mpp/broadcast`, () => HttpResponse.json({})));
     const { method, mppx } = makeMppx();
     const minted = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC', recipient: UUID });
     // A bare challenge (no expires/description/digest) and a credential with no `source` exercise the untaken sides of
@@ -799,9 +1082,10 @@ describe('inflow subscription: issuance, binding, verify', () => {
 
   it('verify reflects the receipt and preserves the server-issued subscriptionId', async () => {
     mockConfig();
+    mockValidateSuccess();
     let idempotencyKey: string | null = null;
     server.use(
-      http.post(`${BASE}/v1/mpp/redeem`, ({ request }) => {
+      http.post(`${BASE}/v1/mpp/broadcast`, ({ request }) => {
         idempotencyKey = request.headers.get('idempotency-key');
         return HttpResponse.json({
           receipt: {
@@ -838,12 +1122,16 @@ describe('inflow subscription: issuance, binding, verify', () => {
 });
 
 describe('stableBinding rejection across rails (framework)', () => {
-  it('rejects a balance-rail credential replayed against an instrument route with no redeem call', async () => {
+  it('rejects a balance-rail credential replayed against an instrument route with no lifecycle call', async () => {
     mockConfig();
-    let redeemHits = 0;
+    let lifecycleHits = 0;
     server.use(
-      http.post(`${BASE}/v1/mpp/redeem`, () => {
-        redeemHits += 1;
+      http.post(`${BASE}/v1/mpp/validate`, () => {
+        lifecycleHits += 1;
+        return HttpResponse.json({ problem: { type: 't', title: 't', status: 402, detail: 'should not be reached' } });
+      }),
+      http.post(`${BASE}/v1/mpp/broadcast`, () => {
+        lifecycleHits += 1;
         return HttpResponse.json({ problem: { type: 't', title: 't', status: 402, detail: 'should not be reached' } });
       }),
     );
@@ -861,6 +1149,6 @@ describe('stableBinding rejection across rails (framework)', () => {
       new Request('https://app.test/r', { headers: { Authorization: authorization } }),
     );
     expect(r.status).toBe(402);
-    expect(redeemHits).toBe(0);
+    expect(lifecycleHits).toBe(0);
   });
 });

@@ -3,14 +3,14 @@ import { sanitizeMppProblemDetail } from '@inflowpayai/mpp-internal';
 import { Errors } from 'mppx';
 
 /**
- * Thrown from the `inflow` method's `verify` hook when `POST /v1/mpp/redeem` returns a failure (a `problem` instead of
- * a `receipt`). It extends mppx's {@link Errors.PaymentError} so the framework treats it as a payment failure and
- * renders the RFC 9457 problem body with the correct HTTP status, rather than collapsing it into a generic
- * `VerificationFailedError`. Valid server-returned problem fields are preserved after sanitization; malformed responses
- * become a fixed verification-failed problem instead of retaining untrusted raw data.
+ * Thrown when the PSP rejects validation or broadcast. It extends mppx's {@link Errors.PaymentError} so the framework
+ * treats it as a payment failure and renders the RFC 9457 problem body with the correct HTTP status, rather than
+ * collapsing it into a generic `VerificationFailedError`. Valid server-returned problem fields are preserved after
+ * sanitization; malformed responses become a fixed verification-failed problem instead of retaining untrusted raw
+ * data.
  */
-export class MppRedeemProblemError extends Errors.PaymentError {
-  override readonly name = 'MppRedeemProblemError';
+export class MppCredentialProblemError extends Errors.PaymentError {
+  override readonly name = 'MppCredentialProblemError';
   /** RFC 9457 type URI, taken from the server problem. */
   readonly type: string;
   /** Human-readable summary, taken from the server problem. */
@@ -20,8 +20,8 @@ export class MppRedeemProblemError extends Errors.PaymentError {
   /** The full server-returned problem detail. */
   readonly problem: MppProblemDetail;
 
-  /** @param problem - The RFC 9457 problem the PSP returned on the redeem response. */
-  constructor(problem: MppProblemDetail) {
+  /** @param problem - The RFC 9457 problem returned by the PSP. */
+  constructor(problem: unknown) {
     const sanitized = sanitizeMppProblemDetail(problem) ?? malformedProblem();
     super(sanitized.detail);
     this.problem = sanitized;
@@ -57,7 +57,7 @@ function malformedProblem(): MppProblemDetail {
     type: PROBLEM_TYPES.VERIFICATION_FAILED,
     title: 'Payment Verification Failed',
     status: 402,
-    detail: 'The PSP redeem response carried a malformed problem.',
+    detail: 'The PSP credential lifecycle response carried a malformed problem.',
   };
 }
 

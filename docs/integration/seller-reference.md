@@ -218,14 +218,14 @@ the foundation server and the InFlow method.
 ### 5.2 The model
 
 MPP is the IETF "Payment" auth scheme. The seller **issues the challenge locally** — there is no server round-trip to
-mint one. The buyer pays, and InFlow correlates the redemption by the transaction id carried in the credential and
-settles. `mppx` owns challenge minting + HMAC binding; the InFlow `inflow` method's `verify` redeems and settles via
-`POST /v1/mpp/redeem`.
+mint one. The buyer pays, and InFlow correlates the payment by the transaction id carried in the credential and settles.
+`mppx` owns challenge minting and HMAC binding; the InFlow `inflow` method validates through `POST /v1/mpp/validate` and
+settles through `POST /v1/mpp/broadcast`.
 
 ### 5.3 Exports a seller uses
 
 - **`inflow({ apiKey, environment })`** — the seller `inflow` method. Pass into
-  `Mppx.create({ methods: [inflow({ apiKey })], secretKey })`. Its `verify` redeems + settles through InFlow.
+  `Mppx.create({ methods: [inflow({ apiKey })], secretKey })`. It validates and settles through InFlow.
 - **`inflowCharges(coreMppx, prices)`** — accept several currencies on one route. Returns the Web-fetch handler from
   `compose(...)` — one challenge per `{ amount, currency }`. The MPP analog of x402-seller's `inflowAccepts`. See §5.6.
 - **`inflowChargesNodeListener(coreMppx, prices)`** — the same, wrapped with `Mppx.toNodeListener` so it mounts directly
@@ -234,7 +234,7 @@ settles. `mppx` owns challenge minting + HMAC binding; the InFlow `inflow` metho
   currency→rail capability map yourself. Returns an `InflowConfigClient`.
 - **`Mppx`, `Expires`** (re-exported from `mppx/server`) and **`Receipt`** (from `mppx`).
 - Types: **`InflowChargePrice`** (`{ amount, currency }`), `InflowSellerParameters`, `LoadedConfig`.
-- Errors: **`MppUnsupportedCurrencyError`**, **`MppRedeemProblemError`** (see §10).
+- Errors: **`MppUnsupportedCurrencyError`**, **`MppCredentialProblemError`** (see §10).
 
 ### 5.4 Full Express server
 
@@ -457,9 +457,9 @@ definition today). The namespace path is the extension point for future intents 
 - **`MppUnsupportedCurrencyError`** — the charge currency has no rail in the PSP config (e.g. `JPY`). Thrown when
   `charge()` runs for an unsupported currency. Validate currencies against `GET /v1/mpp/config` (via
   `createConfigClient`) if you accept dynamic currencies.
-- **`MppRedeemProblemError`** — redemption failed; carries the PSP's RFC 9457 problem detail (`MppProblemDetail`).
-  Inspect its problem `type` (e.g. `payment-expired`, `payment-insufficient`, `verification-failed`) to decide whether
-  to surface a new challenge or a hard failure.
+- **`MppCredentialProblemError`** — credential validation or broadcast failed; carries the PSP's RFC 9457 problem detail
+  (`MppProblemDetail`). Inspect its problem `type` (e.g. `payment-expired`, `payment-insufficient`,
+  `verification-failed`) to decide whether to surface a new challenge or a hard failure.
 
 Both protocols' clients throw on transport/auth issues (e.g. a bad or missing API key surfaces as an API error from the
 underlying HTTP client). Fail fast at startup if `INFLOW_API_KEY` is unset.

@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { AEP_GRANT_TYPE_API_KEY } from '@aep-foundation/core';
 import { createInMemoryServiceCredentialStore } from '@aep-foundation/service';
 import { decode, parseChallengeHeader } from '@inflowpayai/mpp';
+import type { MppCredential } from '@inflowpayai/mpp';
 import express from 'express';
 import { Credential } from 'mppx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -27,13 +28,15 @@ describe('sequential AEP and MPP enforcement', () => {
       expect(anonymous.status).toBe(401);
       expect(anonymous.headers.get('www-authenticate')).toMatch(/^AEP /);
       expect(anonymous.headers.get('www-authenticate')).not.toContain('Payment');
-      expect(fixture.redeemCalls).toBe(0);
+      expect(fixture.broadcastCalls).toBe(0);
+      expect(fixture.validateCalls).toBe(0);
       expect(fixture.aepPassed).toBe(0);
       expect(fixture.handlerRequests).toHaveLength(0);
 
       const free = await fetch(`${fixture.url}/free`);
       expect(free.status).toBe(200);
-      expect(fixture.redeemCalls).toBe(0);
+      expect(fixture.broadcastCalls).toBe(0);
+      expect(fixture.validateCalls).toBe(0);
       expect(fixture.aepPassed).toBe(0);
 
       const paymentRequired = await fetch(`${fixture.url}/api/widgets`, {
@@ -52,10 +55,11 @@ describe('sequential AEP and MPP enforcement', () => {
         },
       });
       expect(rejectedPayment.status).toBe(402);
-      expect(fixture.redeemCalls).toBe(1);
+      expect(fixture.broadcastCalls).toBe(1);
+      expect(fixture.validateCalls).toBe(1);
       expect(fixture.handlerRequests).toHaveLength(0);
 
-      fixture.redeemOutcome = 'success';
+      fixture.broadcastOutcome = 'success';
       const getChallenge = await fetch(`${fixture.url}/api/widgets`, { headers: { 'x-aep-api-key': apiKey } });
       const getAuthorization = paymentAuthorization(getChallenge);
       const getResponse = await fetch(`${fixture.url}/api/widgets`, {
@@ -90,7 +94,8 @@ describe('sequential AEP and MPP enforcement', () => {
         'x-caller-header': callerHeader,
       });
       expect(fixture.configCalls).toBeGreaterThan(0);
-      expect(fixture.redeemCalls).toBe(3);
+      expect(fixture.broadcastCalls).toBe(3);
+      expect(fixture.validateCalls).toBe(3);
       expect(requestLog.mock.calls.flat().join(' ')).not.toContain(apiKey);
       expect(requestLog.mock.calls.flat().join(' ')).not.toContain(getAuthorization);
     } finally {
@@ -101,8 +106,9 @@ describe('sequential AEP and MPP enforcement', () => {
 
 async function startFixture() {
   let configCalls = 0;
-  let redeemCalls = 0;
-  let redeemOutcome: 'problem' | 'success' = 'problem';
+  let broadcastCalls = 0;
+  let broadcastOutcome: 'problem' | 'success' = 'problem';
+  let validateCalls = 0;
   let aepPassed = 0;
   const handlerRequests: Record<string, string | undefined>[] = [];
   const credentialStore = createInMemoryServiceCredentialStore();
@@ -126,9 +132,23 @@ async function startFixture() {
     configCalls += 1;
     response.json(configResponse());
   });
-  configApp.post('/v1/mpp/redeem', (_request, response) => {
-    redeemCalls += 1;
-    if (redeemOutcome === 'problem') {
+  configApp.post('/v1/mpp/validate', (request, response) => {
+    validateCalls += 1;
+    const { credential } = request.body as { credential: MppCredential };
+    response.json({
+      challenge: credential.challenge,
+      credential,
+      details: { provider: 'inflow' },
+      intent: credential.challenge.intent,
+      method: credential.challenge.method,
+      request: decode<Record<string, unknown>>(credential.challenge.request),
+      source: credential.source,
+      success: true,
+    });
+  });
+  configApp.post('/v1/mpp/broadcast', (_request, response) => {
+    broadcastCalls += 1;
+    if (broadcastOutcome === 'problem') {
       response.json({
         problem: {
           detail: 'Balance too low.',
@@ -184,16 +204,19 @@ async function startFixture() {
     get configCalls() {
       return configCalls;
     },
-    get redeemCalls() {
-      return redeemCalls;
+    get broadcastCalls() {
+      return broadcastCalls;
     },
-    get redeemOutcome() {
-      return redeemOutcome;
+    get broadcastOutcome() {
+      return broadcastOutcome;
     },
-    set redeemOutcome(value: 'problem' | 'success') {
-      redeemOutcome = value;
+    set broadcastOutcome(value: 'problem' | 'success') {
+      broadcastOutcome = value;
     },
     handlerRequests,
+    get validateCalls() {
+      return validateCalls;
+    },
     url: `http://127.0.0.1:${address.port.toString()}`,
   };
 }

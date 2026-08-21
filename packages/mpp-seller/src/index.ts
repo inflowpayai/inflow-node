@@ -18,7 +18,7 @@ export type { InflowConfigClient } from './config-client.js';
 export {
   MppAmbiguousRailError,
   MppInstrumentRequiredError,
-  MppRedeemProblemError,
+  MppCredentialProblemError,
   MppUnsupportedCurrencyError,
   MppUnsupportedRailError,
 } from './errors.js';

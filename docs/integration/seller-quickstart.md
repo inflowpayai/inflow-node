@@ -215,8 +215,8 @@ app.listen(port, () => console.log(`mpp seller on http://localhost:${port}`));
 
 ### What each piece does
 
-- **`inflow({ apiKey, environment })`** — the InFlow MPP method. Its `verify` calls InFlow's `/v1/mpp/redeem` to redeem
-  and settle. Pass it into `Mppx.create`'s `methods` array.
+- **`inflow({ apiKey, environment })`** — the InFlow MPP method. It validates credentials and broadcasts payments
+  through InFlow. Pass it into `Mppx.create`'s `methods` array.
 - **`Mppx.create({ methods, secretKey })`** — the `mppx` server. `secretKey` (or the `MPP_SECRET_KEY` env var) is the
   HMAC secret used to mint and bind challenges; see the [`mppx` docs](https://github.com/wevm/mppx).
 - **`mppx.charge({ amount, currency })`** — the per-route handler. Returns a `402` challenge for unpaid requests and
