@@ -64,6 +64,10 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Changed-line coverage
+        if: github.event_name == 'pull_request' && matrix.x402-foundation == 'locked' && matrix.node == 22
+        run: pnpm coverage:changed
+
       - name: Changeset check
         if:
           github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main' && matrix.x402-foundation
