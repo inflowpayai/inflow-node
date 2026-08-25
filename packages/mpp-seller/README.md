@@ -13,6 +13,17 @@ pnpm add @inflowpayai/mpp-seller mppx
 
 `mppx` is a peer dependency.
 
+## Seller Account
+
+This package requires an InFlow **Seller** account and an API key created in its dashboard:
+
+- [Sandbox registration](https://sandbox.inflowpay.ai) for testing
+- [Production registration](https://app.inflowpay.ai) for live payments
+
+`environment` must match the dashboard that issued the key. A Developer account key is valid InFlow authentication but
+cannot load Seller configuration. Seller API calls reject with HTTP `403`; the `InflowApiError.body` contains the
+server's structured `SELLER_ACCOUNT_REQUIRED` response.
+
 Broadcasts use the server-issued `authorizationId` or `transactionId` as the HTTP idempotency key when available.
 Externally produced Tempo credentials may contain neither identifier; in that case the SDK deliberately omits the header
 and the InFlow server's credential replay slot remains the settlement guard.

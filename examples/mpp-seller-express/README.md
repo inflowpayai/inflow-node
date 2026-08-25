@@ -4,6 +4,15 @@ A minimal Express app that accepts MPP payments via InFlow. Uses `mppx`'s own Ex
 `mppx/express`) with InFlow's `inflow` seller method. `Mppx.create` mints and HMAC-binds the challenge locally with
 `secretKey`; the `inflow` method's `verify` redeems and settles through the InFlow PSP.
 
+## Prerequisite
+
+This example requires an InFlow **Seller** account and an API key created in its dashboard:
+
+- [Sandbox registration](https://sandbox.inflowpay.ai) for testing
+- [Production registration](https://app.inflowpay.ai) for live payments
+
+A Developer account is a different API role and cannot be used in place of a Seller account for this example.
+
 ## Run
 
 ```bash

@@ -15,6 +15,10 @@ pnpm add @inflowpayai/mpp mppx
 [`mppx`](https://github.com/wevm/mppx) is a peer dependency. Co-install it on the consumer side so package managers warn
 loudly when it's missing.
 
+`MppClient` serves both integration roles. `getConfig`, `validate`, and `broadcast` call Seller-only endpoints and
+require a Seller account. `createTransaction`, `getTransaction`, and `getSupported` call authenticated buyer endpoints;
+any authenticated InFlow account can use them, including a Seller account acting as a buyer.
+
 ## What's exported
 
 - **`inflow`** — the `mppx` `Method` definition for InFlow balance/instrument payments, organised as a namespace that

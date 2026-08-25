@@ -10,8 +10,16 @@ Official Node.js SDKs for the [InFlow](https://www.inflowpay.ai) payments platfo
 
 ## Accounts & environments
 
-Register a Seller account and create an API key in the InFlow dashboard, then pass `environment` to the SDK. That's the
-only configuration you need — the SDK resolves the right endpoint internally (don't set `baseUrl`).
+Choose the account for the APIs your application calls:
+
+- `@inflowpayai/x402-seller` and `@inflowpayai/mpp-seller` call Seller-only configuration and settlement endpoints. They
+  require a **Seller** account and reject other account roles with `SELLER_ACCOUNT_REQUIRED`.
+- `@inflowpayai/x402-buyer` and `@inflowpayai/mpp-buyer` call authenticated buyer transaction endpoints. Any
+  authenticated InFlow account can buy, including a Seller account. Use a **Developer** account for a buyer-only API-key
+  integration; do not create a second account when an existing Seller account also needs to buy.
+
+Pass the selected `environment` to the SDK. The SDK resolves the corresponding API endpoint internally; applications do
+not set `baseUrl`.
 
 | `environment`       | Register / get your API key at |
 | ------------------- | ------------------------------ |
@@ -20,6 +28,9 @@ only configuration you need — the SDK resolves the right endpoint internally (
 
 > For network egress allowlisting only: the SDK makes its outbound API calls to `https://sandbox.inflowpay.ai` (sandbox)
 > and `https://api.inflowpay.ai` (production). You never set these yourself.
+
+Create the account and credential in the environment where the integration runs. Sandbox credentials do not authorize
+production requests, and production credentials do not authorize sandbox requests.
 
 ## What's here
 
@@ -125,6 +136,32 @@ Runnable end-to-end examples live in [`examples/`](./examples). Start a seller, 
 
 Node 22 LTS or newer at runtime; the packages ship `engines.node: >=22.0.0`. CI exercises Node 22 (maintenance LTS until
 April 2027) and Node 24 (active LTS, April 2028 EOL). Node 20 went EOL on 2026-04-30 and is no longer supported.
+
+## Troubleshooting Authentication
+
+`InflowApiError` exposes the HTTP status, endpoint, response body, and request identifier when available. The x402
+client also promotes the InFlow error-envelope code to `error.code`; the MPP client retains the structured envelope in
+`error.body`. Handle structured fields rather than parsing the message:
+
+```ts
+import { InflowApiError } from '@inflowpayai/x402';
+
+try {
+  await startSeller();
+} catch (error) {
+  if (error instanceof InflowApiError && error.code === 'SELLER_ACCOUNT_REQUIRED') {
+    throw new Error('Configure a Seller account API key for this integration.');
+  }
+  throw error;
+}
+```
+
+Common authorization failures:
+
+| HTTP status | Server response code      | Meaning                                                                         |
+| ----------- | ------------------------- | ------------------------------------------------------------------------------- |
+| `401`       | No structured body        | The credential is missing, invalid, expired, or belongs to another environment. |
+| `403`       | `SELLER_ACCOUNT_REQUIRED` | The credential is valid, but the account is not a Seller account.               |
 
 ## Monorepo
 

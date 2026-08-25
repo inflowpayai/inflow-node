@@ -5,6 +5,15 @@ A minimal Fastify app that accepts x402 payments via InFlow. Uses the foundation
 helper. `@x402/fastify` mutates the Fastify instance in place rather than returning a middleware function — that's the
 only shape difference from the Express and Hono variants.
 
+## Prerequisite
+
+This example requires an InFlow **Seller** account and an API key created in its dashboard:
+
+- [Sandbox registration](https://sandbox.inflowpay.ai) for testing
+- [Production registration](https://app.inflowpay.ai) for live payments
+
+A Developer account is a different API role and cannot be used in place of a Seller account for this example.
+
 ## Run
 
 ```bash

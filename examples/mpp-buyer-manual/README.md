@@ -4,6 +4,9 @@ A minimal script that pays for a protected resource through the explicit, non-po
 `Mppx.create({ polyfill: false })` leaves the global `fetch` untouched; payment happens only on the returned
 `mppx.fetch`.
 
+This example is fixed to the InFlow sandbox. Use an API key from a sandbox Developer account or an existing sandbox
+Seller account.
+
 ## Run
 
 Start one of the seller examples first (`examples/mpp-seller-express` or `examples/mpp-seller-hono`), then in another
@@ -11,7 +14,7 @@ terminal:
 
 ```bash
 cp .env.example .env
-# fill in INFLOW_API_KEY from your sandbox account
+# fill in INFLOW_API_KEY from https://sandbox.inflowpay.ai
 pnpm install
 pnpm start
 ```

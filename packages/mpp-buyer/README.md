@@ -16,6 +16,14 @@ pnpm add @inflowpayai/mpp-buyer mppx
 [`mppx`](https://github.com/wevm/mppx) is a peer dependency — co-install it so package managers warn loudly when it's
 missing. `@inflowpayai/mpp` comes along as a normal dependency.
 
+## InFlow Account
+
+This package calls authenticated buyer transaction endpoints. For a buyer-only API-key integration, create a Developer
+account. If the application already has a Seller account, reuse it; Seller accounts can buy. Create the account and
+credential in [sandbox](https://sandbox.inflowpay.ai) for testing or [production](https://app.inflowpay.ai) for live
+payments, then pass the matching `environment`. Supply either `apiKey` or a `getAccessToken` callback; the two
+authentication forms are mutually exclusive.
+
 ## What's exported
 
 - `inflow(parameters)` — the buyer `inflow` client method. Pass it to `Mppx.create({ methods: [inflow({ apiKey })] })`.

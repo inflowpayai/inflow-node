@@ -4,6 +4,15 @@ This Express Service applies Agent Enrollment Protocol (AEP) authentication befo
 payment enforcement. Its API-key credential uses `x-aep-api-key`, leaving `Authorization: Payment` available for the MPP
 credential.
 
+## Prerequisite
+
+This example requires an InFlow **Seller** account and an API key created in its dashboard:
+
+- [Sandbox registration](https://sandbox.inflowpay.ai) for testing
+- [Production registration](https://app.inflowpay.ai) for live payments
+
+A Developer account is a different API role and cannot be used in place of a Seller account for this example.
+
 ## Run
 
 Start the local AEP Platform example first. It serves the Service DID used by this example.

@@ -3,6 +3,9 @@
 A minimal script that pays for a protected resource through a polyfilled global `fetch`. `Mppx.create` replaces
 `globalThis.fetch` with a payment-aware wrapper, so a `402` is handled transparently — no per-call wiring.
 
+This example is fixed to the InFlow sandbox. Use an API key from a sandbox Developer account or an existing sandbox
+Seller account.
+
 ## Run
 
 Start one of the seller examples first (`examples/mpp-seller-express` or `examples/mpp-seller-hono`), then in another
@@ -10,7 +13,7 @@ terminal:
 
 ```bash
 cp .env.example .env
-# fill in INFLOW_API_KEY from your sandbox account
+# fill in INFLOW_API_KEY from https://sandbox.inflowpay.ai
 pnpm install
 pnpm start
 ```

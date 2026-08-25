@@ -13,6 +13,17 @@ pnpm add @inflowpayai/x402-seller @x402/express @x402/core
 
 `@inflowpayai/x402` is a runtime dependency (bundled via workspace); `@x402/core` is a peer dependency.
 
+## Seller Account
+
+This package requires an InFlow **Seller** account and an API key created in its dashboard:
+
+- [Sandbox registration](https://sandbox.inflowpay.ai) for testing
+- [Production registration](https://app.inflowpay.ai) for live payments
+
+`environment` must match the dashboard that issued the key. A Developer account key is valid InFlow authentication but
+cannot load Seller configuration; `createInflowSellerClient()` rejects with an `InflowApiError` whose code is
+`SELLER_ACCOUNT_REQUIRED`.
+
 ## What's exported
 
 - `createInflowFacilitator(options)` — synchronous factory. Returns a foundation `FacilitatorClient` (`verify` /

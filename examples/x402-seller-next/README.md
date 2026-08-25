@@ -8,6 +8,15 @@ the cold-start boundary.
 Next 16 only — `@x402/next@2.22.0`'s peer dep is `next >=16.2.6`. There is no 14/15 adapter. The file convention is
 `proxy.ts` (renamed from `middleware.ts` in Next 16); the export is `const proxy`, not `const middleware`.
 
+## Prerequisite
+
+This example requires an InFlow **Seller** account and an API key created in its dashboard:
+
+- [Sandbox registration](https://sandbox.inflowpay.ai) for testing
+- [Production registration](https://app.inflowpay.ai) for live payments
+
+A Developer account is a different API role and cannot be used in place of a Seller account for this example.
+
 ## Run
 
 ```bash
