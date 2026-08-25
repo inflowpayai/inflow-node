@@ -18,6 +18,21 @@ The SDK does **not** ship a seller middleware. Sellers use the foundation V2 mid
 from `@x402/express`, `@x402/hono`, `@x402/fastify`, or `@x402/next`) directly and pass the InFlow facilitator into its
 `facilitatorClients` array. See [architecture.md](./architecture.md) for the rationale.
 
+## Seller Prerequisite
+
+Create an InFlow **Seller** account and API key in the environment you will use: [sandbox](https://sandbox.inflowpay.ai)
+for testing or [production](https://app.inflowpay.ai) for live payments. A Developer account does not authorize
+`/v1/x402/config`; the SDK surfaces the server's `SELLER_ACCOUNT_REQUIRED` error when the supplied credential has the
+wrong account type.
+
+## Buyer Authentication
+
+The InFlow buyer client requires an authenticated InFlow account. For a buyer-only API-key integration, create a
+Developer account. If the application already has a Seller account, reuse it; Seller accounts can buy. Create the
+account and credential in [sandbox](https://sandbox.inflowpay.ai) for testing or [production](https://app.inflowpay.ai)
+for live payments, then pass the matching `environment` to the SDK. Foundation-only EVM and SVM buyers use their own
+keys and do not require an InFlow account.
+
 ## Quickstart — seller (Express)
 
 ```bash

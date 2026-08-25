@@ -23,6 +23,20 @@ All packages publish under the `@inflowpayai` scope and declare [`mppx`](https:/
 peer. The seller/buyer packages additionally re-export `Mppx` from the appropriate `mppx` entry (`mppx/server` /
 `mppx/client`) so consumers get a single import.
 
+## Seller Prerequisite
+
+Create an InFlow **Seller** account and API key in the environment you will use: [sandbox](https://sandbox.inflowpay.ai)
+for testing or [production](https://app.inflowpay.ai) for live payments. A Developer account does not authorize Seller
+configuration or settlement endpoints. The server returns `SELLER_ACCOUNT_REQUIRED` in its structured error response
+when a valid credential belongs to the wrong account type.
+
+## Buyer Authentication
+
+The InFlow buyer methods require an authenticated InFlow account. For a buyer-only API-key integration, create a
+Developer account. If the application already has a Seller account, reuse it; Seller accounts can buy. Create the
+account and credential in [sandbox](https://sandbox.inflowpay.ai) for testing or [production](https://app.inflowpay.ai)
+for live payments, then pass the matching `environment` to the SDK.
+
 ## The core package
 
 `@inflowpayai/mpp` is the shared foundation both side packages import. It carries no client- or server-only

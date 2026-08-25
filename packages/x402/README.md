@@ -76,6 +76,10 @@ try {
 }
 ```
 
+`GET /v1/x402/config` is a Seller endpoint. The example therefore requires a Seller API key from the selected
+environment. A valid Developer account key fails with `403 SELLER_ACCOUNT_REQUIRED`; invalid or missing credentials fail
+with `401`.
+
 ## See also
 
 - [@inflowpayai/x402-seller](../x402-seller) — framework-agnostic seller core

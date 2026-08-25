@@ -14,6 +14,14 @@ pnpm add @inflowpayai/x402-buyer @x402/core
 
 `@inflowpayai/x402` is a runtime dependency (bundled via workspace); `@x402/core` is a peer dependency.
 
+## InFlow Account
+
+This package calls authenticated buyer transaction endpoints. For a buyer-only API-key integration, create a Developer
+account. If the application already has a Seller account, reuse it; Seller accounts can buy. Create the account and
+credential in [sandbox](https://sandbox.inflowpay.ai) for testing or [production](https://app.inflowpay.ai) for live
+payments, then pass the matching `environment`. Supply either `apiKey` or a `getAccessToken` callback; the two
+authentication forms are mutually exclusive.
+
 ## What's exported
 
 - `createInflowClient(options)` — async factory. Returns a primed `InflowClient`. Primes the buyer capability cache

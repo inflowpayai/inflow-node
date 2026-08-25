@@ -2,6 +2,9 @@
 
 A minimal script that pays for a protected resource via `fetch`.
 
+This example is fixed to the InFlow sandbox. Use an API key from a sandbox Developer account or an existing sandbox
+Seller account.
+
 ## Run
 
 Start one of the seller examples first (`examples/x402-seller-express` or `examples/x402-seller-hono`), then in another
@@ -9,7 +12,7 @@ terminal:
 
 ```bash
 cp .env.example .env
-# fill in INFLOW_API_KEY from your sandbox account
+# fill in INFLOW_API_KEY from https://sandbox.inflowpay.ai
 pnpm install
 pnpm start
 ```
