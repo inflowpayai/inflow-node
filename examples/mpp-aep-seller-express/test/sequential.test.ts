@@ -1,8 +1,9 @@
 import { once } from 'node:events';
+import { createServer } from 'node:http';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-import { AEP_GRANT_TYPE_API_KEY } from '@aep-foundation/core';
+import { AEP_GRANT_TYPE_API_KEY, didWebDocumentUrl, validateInspectDocument } from '@aep-foundation/core';
 import { createInMemoryServiceCredentialStore } from '@aep-foundation/service';
 import { decode, parseChallengeHeader } from '@inflowpayai/mpp';
 import type { MppCredential } from '@inflowpayai/mpp';
@@ -38,6 +39,23 @@ describe('sequential AEP and MPP enforcement', () => {
       expect(fixture.broadcastCalls).toBe(0);
       expect(fixture.validateCalls).toBe(0);
       expect(fixture.aepPassed).toBe(0);
+
+      const inspectResponse = await fetch(`${fixture.url}/.well-known/aep`);
+      const inspect = validateInspectDocument(await inspectResponse.json());
+      expect(inspect.ok).toBe(true);
+      if (!inspect.ok) throw new Error('The example emitted an invalid AEP Inspect document.');
+      expect(didWebDocumentUrl(inspect.value.service.did).origin).toBe(fixture.url);
+      const didResponse = await fetch(didWebDocumentUrl(inspect.value.service.did));
+      await expect(didResponse.json()).resolves.toEqual({ id: inspect.value.service.did });
+
+      const openApiResponse = await fetch(`${fixture.url}/openapi.json`);
+      await expect(openApiResponse.json()).resolves.toMatchObject({
+        paths: {
+          '/api/subscribe': { get: { security: [{ aepApiKey: [] }] } },
+          '/api/upload': { post: { security: [{ aepApiKey: [] }] } },
+          '/api/widgets': { get: { security: [{ aepApiKey: [] }] } },
+        },
+      });
 
       const paymentRequired = await fetch(`${fixture.url}/api/widgets`, {
         headers: { 'x-aep-api-key': apiKey },
@@ -174,11 +192,17 @@ async function startFixture() {
   servers.push(configServer);
   await once(configServer, 'listening');
   const configAddress = configServer.address() as AddressInfo;
+  const server = createServer();
+  servers.push(server);
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address() as AddressInfo;
+  const url = `http://127.0.0.1:${address.port.toString()}`;
   const { app } = createMppAepSellerApp({
     apiKey: 'seller-api-key',
     baseUrl: `http://127.0.0.1:${configAddress.port.toString()}`,
     credentialStore,
-    listenUrl: 'http://127.0.0.1:3000',
+    listenUrl: url,
     mppSecretKey: 'test-secret-key-with-at-least-thirty-two-characters',
     onAepPassed: () => {
       aepPassed += 1;
@@ -190,12 +214,8 @@ async function startFixture() {
         'x-caller-header': request.get('x-caller-header'),
       });
     },
-    serviceDid: 'did:web:127.0.0.1%3A4100:services:example-service',
   });
-  const server = app.listen(0, '127.0.0.1');
-  servers.push(server);
-  await once(server, 'listening');
-  const address = server.address() as AddressInfo;
+  server.on('request', app);
 
   return {
     get aepPassed() {
@@ -217,7 +237,7 @@ async function startFixture() {
     get validateCalls() {
       return validateCalls;
     },
-    url: `http://127.0.0.1:${address.port.toString()}`,
+    url,
   };
 }
 

@@ -72,14 +72,14 @@ importers:
   examples/mpp-aep-seller-express:
     dependencies:
       '@aep-foundation/core':
-        specifier: ^0.2.0
-        version: 0.2.0
+        specifier: ^0.5.1
+        version: 0.5.1
       '@aep-foundation/express':
-        specifier: ^0.2.0
-        version: 0.2.0(express@5.2.1)
+        specifier: ^0.2.3
+        version: 0.2.3(express@5.2.1)
       '@aep-foundation/service':
-        specifier: ^0.2.0
-        version: 0.2.0
+        specifier: ^0.3.2
+        version: 0.3.2
       '@inflowpayai/mpp-seller':
         specifier: workspace:^
         version: link:../../packages/mpp-seller
@@ -601,18 +601,18 @@ packages:
   '@adraffy/ens-normalize@1.11.1':
     resolution: {integrity: sha512-nhCBV3quEgesuf7c7KYfperqSS14T8bYuvJ8PcLJp6znkZpFc0AuW4qBtr8eKVyPPe/8RSr7sglCWPU5eaxwKQ==}
 
-  '@aep-foundation/core@0.2.0':
-    resolution: {integrity: sha512-Zc6Tyzi/A3z2YOPoND89JVD0xZYi4XzxMEcotCmMWD8epsfOYZ3EmgCVtgadfGYcAkxkzE6MlKQN0yQtG+CfHA==}
+  '@aep-foundation/core@0.5.1':
+    resolution: {integrity: sha512-cYUcd2DSC1E9hlGweVUunauFDt5mkCtNdSh55CvFzSCr6vq2HkWuKQYkcfYJoiO8Ttb+sN03xXBko2mIqO1Hiw==}
     engines: {node: '>=22.0.0'}
 
-  '@aep-foundation/express@0.2.0':
-    resolution: {integrity: sha512-eUEEhNlaGu55fCxkGy/mS7Grp7WI7hgTzLzNjKOy5/hsMdo1GccvSZ9WL6eMujj5EfYM++lnO5m2muvEzaydhA==}
+  '@aep-foundation/express@0.2.3':
+    resolution: {integrity: sha512-gv7Aef+X3BEe5+glmqSx+W9ILJ0vvTMnAm+Q5CTExRS+jiuWDkDwgCCIiLP0vMNHjWJF0YBe1N5SswpOV+E2qA==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       express: '>=5'
 
-  '@aep-foundation/service@0.2.0':
-    resolution: {integrity: sha512-fliagmVmYe025srVgCw7LUUn23mSEDTbe7+Bu4ocfTekMSePiZ2LlimVt2kxmZ8peksBML5ttCeaa8kw5VICaA==}
+  '@aep-foundation/service@0.3.2':
+    resolution: {integrity: sha512-GyEcuqFpVktqpYcWptkLIsgRG53US5u6MjbSyAAAV1r2pJFY/ukX6rQHqA2N5kdiv4vFTk+AncgSMmkdk3YihA==}
     engines: {node: '>=22.0.0'}
 
   '@ampproject/remapping@2.3.0':
@@ -4469,19 +4469,19 @@ snapshots:
 
   '@adraffy/ens-normalize@1.11.1': {}
 
-  '@aep-foundation/core@0.2.0':
+  '@aep-foundation/core@0.5.1':
     dependencies:
       jose: 6.2.3
 
-  '@aep-foundation/express@0.2.0(express@5.2.1)':
+  '@aep-foundation/express@0.2.3(express@5.2.1)':
     dependencies:
-      '@aep-foundation/core': 0.2.0
-      '@aep-foundation/service': 0.2.0
+      '@aep-foundation/core': 0.5.1
+      '@aep-foundation/service': 0.3.2
       express: 5.2.1
 
-  '@aep-foundation/service@0.2.0':
+  '@aep-foundation/service@0.3.2':
     dependencies:
-      '@aep-foundation/core': 0.2.0
+      '@aep-foundation/core': 0.5.1
 
   '@ampproject/remapping@2.3.0':
     dependencies:
