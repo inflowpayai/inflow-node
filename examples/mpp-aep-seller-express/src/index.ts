@@ -5,7 +5,6 @@ import { createMppAepSellerApp } from './app.js';
 
 const apiKey = requiredEnvironment('INFLOW_API_KEY');
 const mppSecretKey = requiredEnvironment('MPP_SECRET_KEY');
-const serviceDid = requiredEnvironment('SERVICE_DID');
 const baseUrl = process.env['INFLOW_BASE_URL'];
 const host = process.env['HOST'] ?? '127.0.0.1';
 const port = parsePort(process.env['PORT'] ?? '3000');
@@ -15,7 +14,6 @@ const { app } = createMppAepSellerApp({
   ...(baseUrl === undefined ? {} : { baseUrl }),
   listenUrl,
   mppSecretKey,
-  serviceDid,
 });
 const server: Server = app.listen(port, host);
 

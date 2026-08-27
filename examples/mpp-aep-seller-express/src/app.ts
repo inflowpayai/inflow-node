@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { AEP_GRANT_TYPE_API_KEY } from '@aep-foundation/core';
+import { AEP_GRANT_TYPE_API_KEY, didWebDocumentUrl } from '@aep-foundation/core';
 import type { ApiKeyGrantResponse } from '@aep-foundation/core';
 import { createExpressAepProtectedResourceHandler, registerExpressAepRoutes } from '@aep-foundation/express';
 import {
@@ -28,12 +28,12 @@ export interface CreateMppAepSellerAppOptions {
   mppSecretKey: string;
   onAepPassed?: () => void;
   onProtectedHandler?: (request: Request) => void;
-  serviceDid: string;
   credentialStore?: AepServiceCredentialStore;
 }
 
 export function createMppAepSellerApp(options: CreateMppAepSellerAppOptions) {
   const credentialStore = options.credentialStore ?? createInMemoryServiceCredentialStore();
+  const serviceDid = didWebServiceDid(options.listenUrl);
   const service = createAepService({
     authenticationMethods: [AEP_GRANT_TYPE_API_KEY],
     clientAssertionVerifier: createDidWebClientAssertionVerifier(),
@@ -55,7 +55,7 @@ export function createMppAepSellerApp(options: CreateMppAepSellerAppOptions) {
     identityMethods: [didWebIdentityMethod()],
     openapi: { url: '/openapi.json', pathMatching: { trailingSlash: 'strict' } },
     replayStore: createInMemoryClientAssertionReplayStore(),
-    serviceDid: options.serviceDid,
+    serviceDid,
   });
   const method = inflow({
     apiKey: options.apiKey,
@@ -91,6 +91,9 @@ export function createMppAepSellerApp(options: CreateMppAepSellerAppOptions) {
       console.log(`request method=${request.method} path=${request.path} status=${response.statusCode}`);
     });
     next();
+  });
+  app.get(didWebDocumentUrl(serviceDid).pathname, (_request, response) => {
+    response.type('application/did+json').json({ id: serviceDid });
   });
   registerExpressAepRoutes(app, service);
   app.get('/openapi.json', (_request, response) => response.json(openApiDocument()));
@@ -136,6 +139,14 @@ function openApiDocument(): Record<string, unknown> {
       '/api/upload': {
         post: { security: [{ aepApiKey: [] }], responses: { '200': { description: 'Paid upload' } } },
       },
+      '/api/subscribe': {
+        get: { security: [{ aepApiKey: [] }], responses: { '200': { description: 'Paid subscription' } } },
+      },
     },
   };
+}
+
+function didWebServiceDid(url: string): string {
+  const origin = new URL(url);
+  return `did:web:${encodeURIComponent(origin.host)}`;
 }
