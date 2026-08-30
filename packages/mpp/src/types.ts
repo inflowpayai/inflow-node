@@ -346,6 +346,10 @@ export interface MppTransactionRequest {
   challenge: MppChallenge;
   /** Method-specific payment options, decoded by `challenge.method`. For `inflow`, an {@link InflowPaymentOptions}. */
   options: InflowPaymentOptions | Record<string, unknown>;
+  /** Directory Service associated with the payment, when known. */
+  serviceId?: string;
+  /** Single-use TAP evidence returned while signing the seller request. */
+  tapEvidenceId?: string;
 }
 
 /** Buyer-side fulfilment state of an MPP transaction; mirrors the server's `MppTransactionResponse.state` union. */

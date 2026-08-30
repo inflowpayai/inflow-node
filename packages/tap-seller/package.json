@@ -1,0 +1,62 @@
+{
+  "name": "@inflowpayai/tap-seller",
+  "version": "0.1.0",
+  "description": "Framework-neutral seller verification for Visa Trusted Agent Protocol HTTP message signatures.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "node": {
+        "import": "./dist/index.js",
+        "require": "./dist/index.cjs"
+      },
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "lint": "eslint src test --max-warnings 0",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "clean": "rm -rf dist .turbo"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/inflowpayai/inflow-node.git",
+    "directory": "packages/tap-seller"
+  },
+  "bugs": {
+    "url": "https://github.com/inflowpayai/inflow-node/issues"
+  },
+  "homepage": "https://github.com/inflowpayai/inflow-node/tree/main/packages/tap-seller#readme",
+  "keywords": [
+    "tap",
+    "trusted-agent-protocol",
+    "visa",
+    "inflow",
+    "seller"
+  ]
+}

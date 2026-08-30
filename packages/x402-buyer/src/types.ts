@@ -99,6 +99,8 @@ export interface SignOptions {
    * {@link X402PaymentIdFormatError} before any server round trip.
    */
   paymentId?: string;
+  /** Additional fields forwarded to the InFlow transaction-creation request. Core request fields remain authoritative. */
+  transactionRequestExtensions?: Readonly<Record<string, unknown>>;
 }
 
 /**

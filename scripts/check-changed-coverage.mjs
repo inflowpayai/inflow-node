@@ -10,6 +10,7 @@ const lcovFiles = [
   'packages/mpp/coverage/lcov.info',
   'packages/mpp-buyer/coverage/lcov.info',
   'packages/mpp-seller/coverage/lcov.info',
+  'packages/tap-seller/coverage/lcov.info',
   'packages/x402/coverage/lcov.info',
   'packages/x402-buyer/coverage/lcov.info',
   'packages/x402-seller/coverage/lcov.info',

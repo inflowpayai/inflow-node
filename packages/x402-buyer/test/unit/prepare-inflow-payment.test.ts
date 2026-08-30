@@ -101,6 +101,32 @@ describe('InflowClient.prepareInflowPayment — handle construction', () => {
     expect(captured).toMatchObject({ remotePaymentId: 'pay_abc1234567890_xyz' });
   });
 
+  it('forwards transaction request extensions without allowing them to replace core payment fields', async () => {
+    installSupported();
+    let captured: unknown;
+    server.use(
+      http.post(`${PROD_BASE}/v1/transactions/x402`, async ({ request }) => {
+        captured = await request.json();
+        return HttpResponse.json({ approvalId: 'a', approvalStatus: 'PENDING', transactionId: 't' });
+      }),
+    );
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+
+    await client.prepareInflowPayment(REQUIREMENT, CONTEXT, {
+      transactionRequestExtensions: {
+        accept: { scheme: 'replacement' },
+        tapEvidenceId: '00000000-0000-0000-0000-000000000123',
+      },
+    });
+
+    expect(captured).toEqual({
+      accept: REQUIREMENT,
+      resource: CONTEXT.resource,
+      tapEvidenceId: '00000000-0000-0000-0000-000000000123',
+      x402Version: 2,
+    });
+  });
+
   it('throws X402PaymentIdFormatError before any POST when paymentId is invalid', async () => {
     installSupported();
     let posts = 0;
