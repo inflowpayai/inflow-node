@@ -1,5 +1,14 @@
 # @inflowpayai/x402-buyer
 
+## 0.9.0
+
+### Minor Changes
+
+- [#50](https://github.com/inflowpayai/inflow-node/pull/50)
+  [`71d2045`](https://github.com/inflowpayai/inflow-node/commit/71d2045ec6c02d090bad52dce6b3bf14ef133621) Thanks
+  [@nkavian](https://github.com/nkavian)! - Allow callers to add fields to the InFlow transaction-creation request
+  without overriding its core payment fields.
+
 ## 0.8.0
 
 ### Minor Changes

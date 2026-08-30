@@ -1,5 +1,13 @@
 # @inflowpayai/mpp-seller
 
+## 0.8.1
+
+### Patch Changes
+
+- Updated dependencies
+  [[`71d2045`](https://github.com/inflowpayai/inflow-node/commit/71d2045ec6c02d090bad52dce6b3bf14ef133621)]:
+  - @inflowpayai/mpp@0.10.0
+
 ## 0.8.0
 
 ### Minor Changes
