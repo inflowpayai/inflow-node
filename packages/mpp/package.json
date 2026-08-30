@@ -1,6 +1,6 @@
 {
   "name": "@inflowpayai/mpp",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "InFlow MPP SDK core: the inflow Method definition, protocol types, codec, and HTTP client.",
   "type": "module",
   "main": "./dist/index.cjs",
