@@ -64,6 +64,10 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: TAP conformance
+        if: matrix.x402-foundation == 'locked' && matrix.node == 22
+        run: pnpm tap:conformance
+
       - name: Changed-line coverage
         if: github.event_name == 'pull_request' && matrix.x402-foundation == 'locked' && matrix.node == 22
         run: pnpm coverage:changed
@@ -80,7 +84,7 @@ jobs:
         with:
           use_oidc: true
           files: >-
-            packages/mpp/coverage/lcov.info,packages/mpp-buyer/coverage/lcov.info,packages/mpp-seller/coverage/lcov.info,packages/x402/coverage/lcov.info,packages/x402-buyer/coverage/lcov.info,packages/x402-seller/coverage/lcov.info
+            packages/mpp/coverage/lcov.info,packages/mpp-buyer/coverage/lcov.info,packages/mpp-seller/coverage/lcov.info,packages/tap-seller/coverage/lcov.info,packages/x402/coverage/lcov.info,packages/x402-buyer/coverage/lcov.info,packages/x402-seller/coverage/lcov.info
 
       - name: Upload coverage
         if: matrix.x402-foundation == 'locked'

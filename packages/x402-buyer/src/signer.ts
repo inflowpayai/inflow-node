@@ -130,6 +130,7 @@ export async function createInflowSigner(options: SignerOptions): Promise<Inflow
       throw new X402PaymentIdFormatError(merged.paymentId);
     }
     const body = {
+      ...(merged.transactionRequestExtensions ?? {}),
       accept: requirement,
       resource: context.resource,
       x402Version: context.x402Version,

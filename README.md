@@ -61,6 +61,15 @@ peer instead of `@x402/core`:
 | [`@inflowpayai/mpp-seller`](./packages/mpp-seller) | [![npm](https://img.shields.io/npm/v/@inflowpayai/mpp-seller)](https://www.npmjs.com/package/@inflowpayai/mpp-seller) | `Method.toServer` + InFlow redeem/settle driver — accepting MPP   |
 | [`@inflowpayai/mpp-buyer`](./packages/mpp-buyer)   | [![npm](https://img.shields.io/npm/v/@inflowpayai/mpp-buyer)](https://www.npmjs.com/package/@inflowpayai/mpp-buyer)   | `Method.toClient` + InFlow buyer-endpoint driver — paying via MPP |
 
+### Trusted Agent Protocol
+
+| Package                                            | npm                                                                                                                   | Purpose                                                         |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| [`@inflowpayai/tap-seller`](./packages/tap-seller) | [![npm](https://img.shields.io/npm/v/@inflowpayai/tap-seller)](https://www.npmjs.com/package/@inflowpayai/tap-seller) | Local merchant verification of trusted-agent request signatures |
+
+See the [TAP seller integration guide](./packages/tap-seller/README.md) and the
+[InFlow TAP request profile](./docs/tap/README.md).
+
 ```bash
 # Seller accepting MPP payments
 pnpm add @inflowpayai/mpp-seller mppx

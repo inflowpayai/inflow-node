@@ -6,7 +6,8 @@
     "packages/x402/src/extras/index.ts",
     "packages/x402/src/security/index.ts",
     "packages/x402-seller/src/index.ts",
-    "packages/x402-buyer/src/index.ts"
+    "packages/x402-buyer/src/index.ts",
+    "packages/tap-seller/src/index.ts"
   ],
   "categorizeByGroup": true,
   "excludeInternal": true,

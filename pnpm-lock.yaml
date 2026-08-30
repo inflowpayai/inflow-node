@@ -78,8 +78,8 @@ importers:
         specifier: ^0.2.3
         version: 0.2.3(express@5.2.1)
       '@aep-foundation/service':
-        specifier: ^0.3.2
-        version: 0.3.2
+        specifier: ^0.3.3
+        version: 0.3.3
       '@inflowpayai/mpp-seller':
         specifier: workspace:^
         version: link:../../packages/mpp-seller
@@ -543,6 +543,12 @@ importers:
         specifier: ^2.4.0
         version: 2.14.6(@types/node@24.13.3)(typescript@5.9.3)
 
+  packages/tap-seller:
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.1.0
+        version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(msw@2.15.0(@types/node@24.13.3)(typescript@5.9.3)))
+
   packages/x402:
     devDependencies:
       '@vitest/coverage-v8':
@@ -613,6 +619,10 @@ packages:
 
   '@aep-foundation/service@0.3.2':
     resolution: {integrity: sha512-GyEcuqFpVktqpYcWptkLIsgRG53US5u6MjbSyAAAV1r2pJFY/ukX6rQHqA2N5kdiv4vFTk+AncgSMmkdk3YihA==}
+    engines: {node: '>=22.0.0'}
+
+  '@aep-foundation/service@0.3.3':
+    resolution: {integrity: sha512-qergEAMYbZDqIEe8cHpxmGGMKXTT+QLHrTZ2SHkScK5AObDJe2Jzs+l/TOwx+iozs6Z1JYeUa5jH9PCyIQ7SPg==}
     engines: {node: '>=22.0.0'}
 
   '@ampproject/remapping@2.3.0':
@@ -2888,6 +2898,7 @@ packages:
   eslint@9.39.5:
     resolution: {integrity: sha512-DgZS62aPLXKlnxILS/AYCoRvHaZeXceIzlXPkkGGzJWSow1aEk0lbTlxUSlyjC8jcaKxAdOnTDz+o1JFSBsyjw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -4480,6 +4491,10 @@ snapshots:
       express: 5.2.1
 
   '@aep-foundation/service@0.3.2':
+    dependencies:
+      '@aep-foundation/core': 0.5.1
+
+  '@aep-foundation/service@0.3.3':
     dependencies:
       '@aep-foundation/core': 0.5.1
 
