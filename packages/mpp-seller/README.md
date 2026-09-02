@@ -24,9 +24,9 @@ This package requires an InFlow **Seller** account and an API key created in its
 cannot load Seller configuration. Seller API calls reject with HTTP `403`; the `InflowApiError.body` contains the
 server's structured `SELLER_ACCOUNT_REQUIRED` response.
 
-Broadcasts use the server-issued `authorizationId` or `transactionId` as the HTTP idempotency key when available.
-Externally produced Tempo credentials may contain neither identifier; in that case the SDK deliberately omits the header
-and the InFlow server's credential replay slot remains the settlement guard.
+When supported by the server, each broadcast invocation receives a fresh HTTP idempotency key. Its internal transport
+retries reuse that key, while a separate credential submission receives a different key and reaches the InFlow server's
+authoritative replay or authorization guard.
 
 ## What's exported
 

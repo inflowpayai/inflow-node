@@ -49,7 +49,7 @@ client) and exposes one method per route:
 | -------------------------------- | --------------------------------- | ------ |
 | `GET  /v1/mpp/config`            | `getConfig`                       | seller |
 | `POST /v1/mpp/validate`          | `validate`                        | seller |
-| `POST /v1/mpp/broadcast`         | `broadcast` (+ `Idempotency-Key`) | seller |
+| `POST /v1/mpp/broadcast`         | `broadcast`                       | seller |
 | `POST /v1/transactions/mpp`      | `createTransaction`               | buyer  |
 | `GET  /v1/transactions/{id}/mpp` | `getTransaction`                  | buyer  |
 
@@ -62,9 +62,9 @@ will settle, nor distinguish an authorization whose payment already settled. `br
 revalidates and then returns the terminal receipt or problem. Broadcast reports success versus failure in the body
 (`receipt`/`receiptHeader` versus `problem`), so callers branch on the result rather than catching.
 
-The seller SDK supplies an HTTP idempotency key from a server-issued `authorizationId` or `transactionId`. An external
-Tempo credential can legitimately carry neither identifier; the SDK then omits the header and relies on the server's
-credential replay slot instead of inventing a client-only key.
+When supported by the server, the seller SDK generates a fresh HTTP idempotency key for each broadcast invocation.
+Transport retries within that invocation reuse the key and can recover the original response, while a separate use of
+the same credential receives a different key and reaches the server's replay or authorization guard.
 
 ## Buyer poll lifecycle
 

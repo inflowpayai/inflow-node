@@ -1,7 +1,7 @@
+import { randomUUID } from 'node:crypto';
+
 import {
   charge as inflowCharge,
-  CREDENTIAL_AUTHORIZATION_ID,
-  CREDENTIAL_TRANSACTION_ID,
   encode,
   MppClient,
   PROBLEM_TYPES,
@@ -412,8 +412,7 @@ async function validateCredential(
     result['intent'] !== wireCredential.challenge.intent ||
     result['method'] !== wireCredential.challenge.method ||
     result['source'] !== wireCredential.source ||
-    result['request'] === undefined ||
-    encode(result['request']) !== wireCredential.challenge.request ||
+    !isRecord(result['request']) ||
     encode(acceptedCredential['payload']) !== encode(wireCredential.payload) ||
     (result['details'] !== undefined && !isRecord(result['details']))
   ) {
@@ -431,14 +430,9 @@ async function broadcast(
   const wireCredential = toWireCredential(credential);
   const body: MppBroadcastRequest = { credential: wireCredential };
 
-  const options: MppRequestOptions = {};
-  const authorizationId = wireCredential.payload[CREDENTIAL_AUTHORIZATION_ID];
-  const transactionId = wireCredential.payload[CREDENTIAL_TRANSACTION_ID];
-  const redemptionId = typeof authorizationId === 'string' ? authorizationId : transactionId;
-  if (loaded.featureFlags.idempotencyKeyEnabled && typeof redemptionId === 'string') {
-    options.idempotencyKey = redemptionId;
-  }
-
+  const options: MppRequestOptions = loaded.featureFlags.idempotencyKeyEnabled
+    ? { idempotencyKey: randomUUID() }
+    : {};
   const result: unknown = await client.broadcast(body, options);
   if (!isRecord(result) || !isMppReceipt(result['receipt'])) {
     const problem = isRecord(result) ? result['problem'] : undefined;
