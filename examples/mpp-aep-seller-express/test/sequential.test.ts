@@ -120,12 +120,56 @@ describe('sequential AEP and MPP enforcement', () => {
       requestLog.mockRestore();
     }
   });
+
+  it('accepts a subscription credential once and rejects a replay of the same credential', async () => {
+    const fixture = await startFixture();
+    fixture.broadcastOutcome = 'success';
+
+    const challenge = await fetch(`${fixture.url}/api/subscribe`, {
+      headers: { 'x-aep-api-key': apiKey },
+    });
+    expect(challenge.status).toBe(402);
+
+    const authorization = paymentAuthorization(challenge);
+    const first = await fetch(`${fixture.url}/api/subscribe`, {
+      headers: {
+        authorization,
+        'x-aep-api-key': apiKey,
+      },
+    });
+    expect(first.status).toBe(200);
+    await expect(first.json()).resolves.toEqual({ subscribed: true });
+
+    const replay = await fetch(`${fixture.url}/api/subscribe`, {
+      headers: {
+        authorization,
+        'x-aep-api-key': apiKey,
+      },
+    });
+    expect(replay.status).toBe(402);
+    await expect(replay.json()).resolves.toMatchObject({
+      detail: 'The subscription authorization has already been consumed.',
+      status: 402,
+      title: 'Verification Failed',
+      type: 'https://paymentauth.org/problems/verification-failed',
+    });
+
+    expect(fixture.broadcastCalls).toBe(2);
+    expect(fixture.broadcastIdempotencyKeys).toHaveLength(2);
+    expect(fixture.broadcastIdempotencyKeys[0]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(fixture.broadcastIdempotencyKeys[1]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(fixture.broadcastIdempotencyKeys[1]).not.toBe(fixture.broadcastIdempotencyKeys[0]);
+    expect(fixture.handlerRequests).toHaveLength(1);
+    expect(fixture.validateCalls).toBe(2);
+  });
 });
 
 async function startFixture() {
   let configCalls = 0;
   let broadcastCalls = 0;
+  const broadcastIdempotencyKeys: Array<string | null> = [];
   let broadcastOutcome: 'problem' | 'success' = 'problem';
+  const consumedCredentials = new Set<string>();
   let validateCalls = 0;
   let aepPassed = 0;
   const handlerRequests: Record<string, string | undefined>[] = [];
@@ -164,8 +208,9 @@ async function startFixture() {
       success: true,
     });
   });
-  configApp.post('/v1/mpp/broadcast', (_request, response) => {
+  configApp.post('/v1/mpp/broadcast', (request, response) => {
     broadcastCalls += 1;
+    broadcastIdempotencyKeys.push(request.get('idempotency-key') ?? null);
     if (broadcastOutcome === 'problem') {
       response.json({
         problem: {
@@ -177,6 +222,19 @@ async function startFixture() {
       });
       return;
     }
+    const replayKey = JSON.stringify((request.body as { credential?: unknown }).credential ?? null);
+    if (consumedCredentials.has(replayKey)) {
+      response.json({
+        problem: {
+          detail: 'The subscription authorization has already been consumed.',
+          status: 402,
+          title: 'Verification Failed',
+          type: 'https://paymentauth.org/problems/verification-failed',
+        },
+      });
+      return;
+    }
+    consumedCredentials.add(replayKey);
     response.json({
       receipt: {
         challengeId: 'challenge-1',
@@ -226,6 +284,9 @@ async function startFixture() {
     },
     get broadcastCalls() {
       return broadcastCalls;
+    },
+    get broadcastIdempotencyKeys() {
+      return broadcastIdempotencyKeys;
     },
     get broadcastOutcome() {
       return broadcastOutcome;

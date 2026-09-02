@@ -75,7 +75,10 @@ function mockConfig(body: MppConfigResponse = config()): void {
 }
 
 /** A successful non-mutating validation handler that echoes the PSP-accepted envelope. */
-function mockValidateSuccess(options: { includeDetails?: boolean } = {}): { body(): unknown; hits(): number } {
+function mockValidateSuccess(options: { includeDetails?: boolean; normalizeAmount?: boolean } = {}): {
+  body(): unknown;
+  hits(): number;
+} {
   let captured: unknown;
   let hits = 0;
   server.use(
@@ -89,13 +92,18 @@ function mockValidateSuccess(options: { includeDetails?: boolean } = {}): { body
           source: string;
         };
       };
+      const decodedRequest = decode<Record<string, unknown>>(body.credential.challenge.request);
+      const requestBody =
+        options.normalizeAmount === true && typeof decodedRequest['amount'] === 'string'
+          ? { ...decodedRequest, amount: Number(decodedRequest['amount']).toString() }
+          : decodedRequest;
       return HttpResponse.json({
         challenge: body.credential.challenge,
         credential: body.credential,
         ...(options.includeDetails === false ? {} : { details: { provider: 'inflow' } }),
         intent: body.credential.challenge.intent,
         method: body.credential.challenge.method,
-        request: decode<Record<string, unknown>>(body.credential.challenge.request),
+        request: requestBody,
         source: body.credential.source,
         success: true,
       });
@@ -601,6 +609,21 @@ describe('credential lifecycle', () => {
     expect(broadcastHits).toBe(0);
   });
 
+  it('accepts a normalized PSP request when the accepted challenge and credential remain exact', async () => {
+    mockConfig();
+    mockValidateSuccess({ normalizeAmount: true });
+    const { method, mppx } = makeMppx();
+    const challenge = await mppx.challenge.inflow.charge({ amount: '1.00', currency: 'USDC', recipient: UUID });
+    if (method.validate === undefined) throw new Error('expected validate hook');
+
+    const result = await method.validate({
+      credential: { challenge, payload: { transactionId: 'tx-normalized', type: 'balance' } },
+      request: challenge.request,
+    } as unknown as VerifyArg);
+
+    expect(result.request).toEqual(challenge.request);
+  });
+
   it('omits source from subscription and Tempo validation envelopes when the credential has no source', async () => {
     mockConfig();
     const validationRequest = mockValidateSuccess();
@@ -699,7 +722,7 @@ describe('credential lifecycle', () => {
     expect(result.status).toBe(402);
   });
 
-  it('reflects a receipt and attaches the Payment-Receipt header; forwards the transactionId idempotency key', async () => {
+  it('reflects a receipt and attaches the Payment-Receipt header with an operation-scoped idempotency key', async () => {
     mockConfig();
     const validation = mockValidateSuccess();
     const broadcast = mockBroadcastSuccess();
@@ -735,11 +758,62 @@ describe('credential lifecycle', () => {
       timestamp: '2026-05-31T00:00:00Z',
     });
 
-    // The credential's server-minted transactionId round-trips to redeem and is used as the idempotency key.
     expect(validation.hits()).toBe(1);
-    expect(broadcast.idempotencyKey()).toBe('tx-1');
+    expect(broadcast.idempotencyKey()).toMatch(/^[0-9a-f-]{36}$/);
+    expect(broadcast.idempotencyKey()).not.toBe('tx-1');
     const body = broadcast.body() as { credential: { payload: Record<string, unknown> } };
     expect(body.credential.payload['transactionId']).toBe('tx-1');
+  });
+
+  it('omits the idempotency key when the feature is disabled', async () => {
+    mockConfig(config({ featureFlags: { idempotencyKeyEnabled: false } }));
+    mockValidateSuccess();
+    const broadcast = mockBroadcastSuccess();
+    const { mppx } = makeMppx();
+    const challenge = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC', recipient: UUID });
+    const authorization = Credential.serialize({
+      challenge,
+      payload: { transactionId: 'tx-disabled', type: 'balance' },
+      source: 'did:inflow:payer',
+    });
+
+    const response = await mppx.charge({ amount: '10', currency: 'USDC', recipient: UUID })(
+      new Request('https://app.test/r', { headers: { Authorization: authorization } }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(broadcast.idempotencyKey()).toBeNull();
+  });
+
+  it('reuses the operation-scoped idempotency key when the broadcast transport retries', async () => {
+    const idempotencyKeys: Array<string | null> = [];
+    const retryingFetch: typeof fetch = (input, init) => {
+      const url = input instanceof Request ? input.url : input instanceof URL ? input.href : input;
+      if (url.endsWith('/v1/mpp/broadcast')) {
+        idempotencyKeys.push(new Headers(init?.headers).get('idempotency-key'));
+        if (idempotencyKeys.length === 1) return Promise.reject(new Error('ECONNRESET'));
+      }
+      return globalThis.fetch(input, init);
+    };
+    mockConfig();
+    mockValidateSuccess();
+    mockBroadcastSuccess();
+    const { mppx } = makeMppx(inflow({ apiKey: 'sk_test', baseUrl: BASE, fetch: retryingFetch }));
+    const challenge = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC', recipient: UUID });
+    const authorization = Credential.serialize({
+      challenge,
+      payload: { transactionId: 'tx-retry', type: 'balance' },
+      source: 'did:inflow:payer',
+    });
+
+    const response = await mppx.charge({ amount: '10', currency: 'USDC', recipient: UUID })(
+      new Request('https://app.test/r', { headers: { Authorization: authorization } }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(idempotencyKeys).toHaveLength(2);
+    expect(idempotencyKeys[0]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(idempotencyKeys[1]).toBe(idempotencyKeys[0]);
   });
 
   it('keeps method-specific receipt extension fields when mapping to mppx', async () => {
@@ -829,7 +903,7 @@ describe('credential lifecycle', () => {
     expect(Object.prototype).not.toHaveProperty('polluted');
   });
 
-  it('forwards the transactionId idempotency key for Tempo broadcast', async () => {
+  it('does not convert a Tempo transactionId into its operation-scoped HTTP idempotency key', async () => {
     mockConfig();
     mockValidateSuccess();
     const broadcast = mockBroadcastSuccess('tempo');
@@ -848,12 +922,13 @@ describe('credential lifecycle', () => {
     expect(r.status).toBe(200);
     if (r.status !== 200) throw new Error('expected 200');
 
-    expect(broadcast.idempotencyKey()).toBe('tx-tempo');
+    expect(broadcast.idempotencyKey()).toMatch(/^[0-9a-f-]{36}$/);
+    expect(broadcast.idempotencyKey()).not.toBe('tx-tempo');
     const body = broadcast.body() as { credential: { payload: Record<string, unknown> } };
     expect(body.credential.payload['transactionId']).toBe('tx-tempo');
   });
 
-  it('omits HTTP idempotency for an external Tempo credential without a server correlation id', async () => {
+  it('uses operation-scoped HTTP idempotency for an external Tempo credential without a server correlation id', async () => {
     mockConfig();
     mockValidateSuccess();
     const broadcast = mockBroadcastSuccess('tempo');
@@ -871,7 +946,7 @@ describe('credential lifecycle', () => {
     );
 
     expect(response.status).toBe(200);
-    expect(broadcast.idempotencyKey()).toBeNull();
+    expect(broadcast.idempotencyKey()).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   it('throws MppCredentialProblemError → framework emits 402 + the RFC 9457 problem body', async () => {
@@ -1080,13 +1155,25 @@ describe('inflow subscription: issuance, binding, verify', () => {
     });
   });
 
-  it('verify reflects the receipt and preserves the server-issued subscriptionId', async () => {
+  it('verify reflects the receipt and preserves the server-issued subscriptionId without masking authorization replay', async () => {
     mockConfig();
     mockValidateSuccess();
-    let idempotencyKey: string | null = null;
+    const idempotencyKeys: Array<string | null> = [];
+    let consumed = false;
     server.use(
       http.post(`${BASE}/v1/mpp/broadcast`, ({ request }) => {
-        idempotencyKey = request.headers.get('idempotency-key');
+        idempotencyKeys.push(request.headers.get('idempotency-key'));
+        if (consumed) {
+          return HttpResponse.json({
+            problem: {
+              type: 'https://paymentauth.org/problems/verification-failed',
+              title: 'Verification Failed',
+              status: 402,
+              detail: 'The subscription authorization has already been consumed.',
+            },
+          });
+        }
+        consumed = true;
         return HttpResponse.json({
           receipt: {
             challengeId: 'c1',
@@ -1117,7 +1204,17 @@ describe('inflow subscription: issuance, binding, verify', () => {
     const header = settled.headers.get('Payment-Receipt');
     if (header === null) throw new Error('expected Payment-Receipt header');
     expect(decodeReceipt(header)).toMatchObject({ externalId: 'seller-plan-42', subscriptionId: 'sub_abc' });
-    expect(idempotencyKey).toBe('auth-sub');
+    expect(idempotencyKeys[0]).toMatch(/^[0-9a-f-]{36}$/);
+
+    const replay = await mppx.compose(['inflow/subscription', SUB])(
+      new Request('https://app.test/r', { headers: { Authorization: authorization } }),
+    );
+    expect(replay.status).toBe(402);
+    if (replay.status !== 402) throw new Error('expected replay rejection');
+    const problem = (await replay.challenge.json()) as { detail: string };
+    expect(problem.detail).toContain('already been consumed');
+    expect(idempotencyKeys[1]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(idempotencyKeys[1]).not.toBe(idempotencyKeys[0]);
   });
 });
 
