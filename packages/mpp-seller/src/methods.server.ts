@@ -430,9 +430,7 @@ async function broadcast(
   const wireCredential = toWireCredential(credential);
   const body: MppBroadcastRequest = { credential: wireCredential };
 
-  const options: MppRequestOptions = loaded.featureFlags.idempotencyKeyEnabled
-    ? { idempotencyKey: randomUUID() }
-    : {};
+  const options: MppRequestOptions = loaded.featureFlags.idempotencyKeyEnabled ? { idempotencyKey: randomUUID() } : {};
   const result: unknown = await client.broadcast(body, options);
   if (!isRecord(result) || !isMppReceipt(result['receipt'])) {
     const problem = isRecord(result) ? result['problem'] : undefined;

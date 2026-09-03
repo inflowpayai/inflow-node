@@ -8,18 +8,8 @@ import { x402ResourceServer, type FacilitatorClient } from '@x402/core/server';
 import { describe, expect, it } from 'vitest';
 
 import { inflowAccepts } from '../../src/inflow-accepts.js';
-import type { InflowSellerClient } from '../../src/seller-client.js';
 import { inflowSchemeRegistrations } from '../../src/scheme-registrations.js';
-import { SAMPLE_CONFIG } from '../fixtures/config-response.js';
-
-function fakeSellerClient(): InflowSellerClient {
-  return {
-    config: () => Promise.resolve(SAMPLE_CONFIG),
-    refreshConfig: () => Promise.reject(new Error('refreshConfig: not stubbed')),
-    refreshSupported: () => Promise.reject(new Error('refreshSupported: not stubbed')),
-    getSignerAddresses: () => Promise.reject(new Error('getSignerAddresses: not stubbed')),
-  };
-}
+import { fakeSellerClient } from '../fixtures/seller-client.js';
 
 class RequestAdapter implements HTTPAdapter {
   constructor(

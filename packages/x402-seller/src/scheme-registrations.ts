@@ -14,10 +14,9 @@ import type {
 import type { InflowSellerClient } from './seller-client.js';
 
 /**
- * Structural shape of `@x402/express` and `@x402/hono`'s `SchemeRegistration` interface — `{ network, server }` —
- * declared locally so this package stays platform-neutral. Both adapter packages export a `SchemeRegistration`
- * interface composed of the same `@x402/core/types` types, so {@link InflowSchemeRegistration} is structurally
- * assignable to either.
+ * Structural shape of the foundation adapters' `SchemeRegistration` interface — `{ network, server }` — declared
+ * locally so this package stays platform-neutral. Express, Fastify, Hono, and Next.js compose the interface from the
+ * same `@x402/core/types`, so {@link InflowSchemeRegistration} is structurally assignable to all four.
  */
 export interface InflowSchemeRegistration {
   network: Network;
@@ -33,9 +32,9 @@ interface RegistrationAccumulator {
 
 /**
  * Build the passthrough `SchemeRegistration[]` for every `(scheme, network)` pair the seller's `/v1/x402/config` can
- * emit. Pass the result as the third argument to `paymentMiddlewareFromConfig` — the foundation refuses to boot
- * otherwise (`hasRegisteredScheme` is checked before facilitator support). Deduplicated: multiple assets on the same
- * network collapse to one registration. See the architecture doc for the rationale.
+ * emit. Pass the result through the foundation adapter's `schemes` argument — the foundation refuses to boot otherwise
+ * (`hasRegisteredScheme` is checked before facilitator support). Deduplicated: multiple assets on the same network
+ * collapse to one registration. See the architecture doc for the rationale.
  */
 export async function inflowSchemeRegistrations(client: InflowSellerClient): Promise<InflowSchemeRegistration[]> {
   const config = await client.config();

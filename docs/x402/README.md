@@ -96,8 +96,8 @@ The pieces:
   atomic amount pre- resolved). Splat into a route's `accepts` array.
 - `inflowSchemeRegistrations(client)` returns the passthrough `SchemeRegistration[]` covering every `(scheme, network)`
   and asset transfer method the seller's config can emit. Each registration preserves the authorization flow (verify
-  before the handler, settle after it). Pass as the third arg to `paymentMiddlewareFromConfig`; the foundation refuses
-  to boot otherwise.
+  before the handler, settle after it). Pass through the adapter's `schemes` argument; the foundation refuses to boot
+  otherwise.
 
 ## Quickstart — buyer (`fetch`)
 

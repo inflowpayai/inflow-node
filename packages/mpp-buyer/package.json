@@ -60,10 +60,10 @@
     }
   },
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.0",
-    "@vitest/coverage-v8": "^2.1.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@vitest/coverage-v8": "^2.1.9",
     "mppx": "^0.8.17",
-    "msw": "^2.4.0"
+    "msw": "^2.15.0"
   },
   "publishConfig": {
     "access": "public",

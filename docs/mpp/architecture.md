@@ -45,13 +45,13 @@ on the `mppx` framework middleware directly rather than re-wrapping it.
 with capped backoff; per-request timeout; JSON parsing; `InflowApiError` mapping — identical in shape to the x402 core
 client) and exposes one method per route:
 
-| Route                            | Method                            | Side   |
-| -------------------------------- | --------------------------------- | ------ |
-| `GET  /v1/mpp/config`            | `getConfig`                       | seller |
-| `POST /v1/mpp/validate`          | `validate`                        | seller |
-| `POST /v1/mpp/broadcast`         | `broadcast`                       | seller |
-| `POST /v1/transactions/mpp`      | `createTransaction`               | buyer  |
-| `GET  /v1/transactions/{id}/mpp` | `getTransaction`                  | buyer  |
+| Route                            | Method              | Side   |
+| -------------------------------- | ------------------- | ------ |
+| `GET  /v1/mpp/config`            | `getConfig`         | seller |
+| `POST /v1/mpp/validate`          | `validate`          | seller |
+| `POST /v1/mpp/broadcast`         | `broadcast`         | seller |
+| `POST /v1/transactions/mpp`      | `createTransaction` | buyer  |
+| `GET  /v1/transactions/{id}/mpp` | `getTransaction`    | buyer  |
 
 (There is no public `POST /v1/mpp/challenges` surface — the seller issues challenges locally, so the core client exposes
 no challenge-minting call.)

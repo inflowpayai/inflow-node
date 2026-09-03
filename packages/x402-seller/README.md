@@ -1,17 +1,25 @@
 # @inflowpayai/x402-seller
 
-Seller-side InFlow primitives that plug into the foundation V2 middleware (`paymentMiddlewareFromConfig` from
-`@x402/express` or `@x402/hono`). This package does **not** ship a middleware itself — sellers use the foundation's
-directly and pass InFlow's facilitator client into its `facilitatorClients` array.
+Seller-side InFlow primitives that plug into the foundation V2 middleware for Express, Fastify, Hono, and Next.js. This
+package does **not** ship middleware itself — sellers use those adapters directly and pass InFlow's facilitator client
+into the adapter's `facilitatorClients` argument.
 
 ## Install
 
 ```bash
 pnpm add @inflowpayai/x402-seller @x402/express @x402/core
-# …or @x402/hono in place of @x402/express
+# …or @x402/fastify, @x402/hono, or @x402/next in place of @x402/express
 ```
 
 `@inflowpayai/x402` is a runtime dependency (bundled via workspace); `@x402/core` is a peer dependency.
+
+## Payment response caching
+
+The foundation middleware owns payment response headers. Foundation 2.22.0 is the supported floor and emits
+`Cache-Control: no-store` for unpaid challenges, Permit2 allowance responses, and settlement failures. Successful
+responses carrying `PAYMENT-RESPONSE` use `private`; the Express, Fastify, Hono, and Next.js route-handler integrations
+preserve existing handler cache directives. The Next.js proxy marks the settled `NextResponse.next()` continuation as
+`private`; Next.js owns the subsequent merge with the route response.
 
 ## Seller Account
 
@@ -39,8 +47,8 @@ cannot load Seller configuration; `createInflowSellerClient()` rejects with an `
   `accepts` field. The prices are pre-resolved to `AssetAmount` form (asset contract address + atomic-unit amount).
 - `inflowSchemeRegistrations(client)` — async helper. Reads the seller's `/v1/x402/config` and returns one passthrough
   `SchemeRegistration` per `(scheme, network)` pair the server can emit, with authorization-only payment flows for the
-  exact asset transfer methods declared by config. Pass these as the third argument to `paymentMiddlewareFromConfig`;
-  the foundation refuses to boot without registrations covering every advertised scheme.
+  exact asset transfer methods declared by config. Pass these through the adapter's `schemes` argument; the foundation
+  refuses to boot without registrations covering every advertised scheme.
 - `X402PriceParseError` — typed error thrown by `inflowAccepts` when a price string doesn't parse.
 
 ### Price formats

@@ -10,15 +10,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@hono/node-server": "^1.13.0",
+    "@hono/node-server": "^1.19.17",
     "@inflowpayai/mpp-seller": "workspace:^",
-    "dotenv": "^16.4.0",
-    "hono": "^4.12.25",
+    "dotenv": "^16.6.1",
+    "hono": "^4.13.5",
     "mppx": "^0.8.17"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
-    "tsx": "^4.0.0",
-    "typescript": "^5.6.0"
+    "@types/node": "^24.13.3",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3"
   }
 }
