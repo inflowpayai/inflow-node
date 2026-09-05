@@ -129,36 +129,108 @@ describe('PAYMENT_IDENTIFIER handler', () => {
     expect(PAYMENT_IDENTIFIER.name).toBe('payment-identifier');
   });
 
-  it('buildDeclaration returns { required: false }', () => {
-    expect(PAYMENT_IDENTIFIER.buildDeclaration({})).toEqual({ required: false });
+  it('buildDeclaration returns the canonical extension envelope', () => {
+    expect(PAYMENT_IDENTIFIER.buildDeclaration({})).toEqual({
+      info: { required: false },
+      schema: {
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        type: 'object',
+        properties: {
+          id: { type: 'string', minLength: 16, maxLength: 128, pattern: '^[a-zA-Z0-9_-]+$' },
+          required: { type: 'boolean' },
+        },
+        required: ['required'],
+      },
+    });
   });
 
   it('readDeclaration parses a valid wire shape', () => {
-    expect(PAYMENT_IDENTIFIER.readDeclaration({ required: true })).toEqual({ required: true });
-    expect(PAYMENT_IDENTIFIER.readDeclaration({ required: false })).toEqual({ required: false });
+    const optional = PAYMENT_IDENTIFIER.buildDeclaration({});
+    expect(PAYMENT_IDENTIFIER.readDeclaration(optional)).toEqual(optional);
+    expect(PAYMENT_IDENTIFIER.readDeclaration({ ...optional, info: { required: true } })).toEqual({
+      ...optional,
+      info: { required: true },
+    });
+  });
+
+  it('preserves server-provided extension information for the payload echo', () => {
+    const declaration = PAYMENT_IDENTIFIER.buildDeclaration({});
+    const serverDeclaration = {
+      info: { ...declaration.info, policy: 'single-use' },
+      schema: { ...declaration.schema, title: 'Payment identifier' },
+    };
+
+    const parsed = PAYMENT_IDENTIFIER.readDeclaration(serverDeclaration);
+
+    expect(parsed).toEqual(serverDeclaration);
+    expect(
+      parsed === null
+        ? null
+        : PAYMENT_IDENTIFIER.buildPayloadEntry(parsed, {
+            providedPaymentId: 'pay_clientissuedabc1234567890',
+          }),
+    ).toEqual({
+      info: {
+        id: 'pay_clientissuedabc1234567890',
+        policy: 'single-use',
+        required: false,
+      },
+      schema: serverDeclaration.schema,
+    });
   });
 
   it('readDeclaration rejects malformed input', () => {
+    const declaration = PAYMENT_IDENTIFIER.buildDeclaration({});
     expect(PAYMENT_IDENTIFIER.readDeclaration(undefined)).toBeNull();
     expect(PAYMENT_IDENTIFIER.readDeclaration(null)).toBeNull();
     expect(PAYMENT_IDENTIFIER.readDeclaration({})).toBeNull();
-    expect(PAYMENT_IDENTIFIER.readDeclaration({ required: 'yes' })).toBeNull();
+    expect(PAYMENT_IDENTIFIER.readDeclaration({ schema: declaration.schema })).toBeNull();
+    expect(PAYMENT_IDENTIFIER.readDeclaration({ info: declaration.info })).toBeNull();
+    expect(PAYMENT_IDENTIFIER.readDeclaration({ ...declaration, info: { required: 'yes' } })).toBeNull();
+    expect(PAYMENT_IDENTIFIER.readDeclaration({ ...declaration, schema: {} })).toBeNull();
+    expect(
+      PAYMENT_IDENTIFIER.readDeclaration({
+        ...declaration,
+        schema: {
+          ...declaration.schema,
+          properties: {
+            ...declaration.schema.properties,
+            id: { ...declaration.schema.properties.id, pattern: '^.*$' },
+          },
+        },
+      }),
+    ).toBeNull();
+    expect(
+      PAYMENT_IDENTIFIER.readDeclaration({
+        ...declaration,
+        schema: { ...declaration.schema, required: ['id', 'required'] },
+      }),
+    ).toBeNull();
     expect(PAYMENT_IDENTIFIER.readDeclaration('payment-identifier')).toBeNull();
   });
 
   it('buildPayloadEntry returns null when no payment id is supplied', () => {
-    expect(PAYMENT_IDENTIFIER.buildPayloadEntry({ required: false }, {})).toBeNull();
+    const declaration = PAYMENT_IDENTIFIER.buildDeclaration({});
+    expect(PAYMENT_IDENTIFIER.buildPayloadEntry(declaration, {})).toBeNull();
   });
 
   it('buildPayloadEntry returns the entry when a valid id is supplied', () => {
     const id = generatePaymentId();
-    expect(PAYMENT_IDENTIFIER.buildPayloadEntry({ required: false }, { providedPaymentId: id })).toEqual({
-      paymentId: id,
+    const declaration = PAYMENT_IDENTIFIER.buildDeclaration({});
+    expect(PAYMENT_IDENTIFIER.buildPayloadEntry(declaration, { providedPaymentId: id })).toEqual({
+      info: { id, required: false },
+      schema: declaration.schema,
     });
   });
 
   it('buildPayloadEntry rejects an invalid id silently with null', () => {
-    expect(PAYMENT_IDENTIFIER.buildPayloadEntry({ required: true }, { providedPaymentId: 'too-short' })).toBeNull();
+    const declaration = PAYMENT_IDENTIFIER.buildDeclaration({});
+    expect(
+      PAYMENT_IDENTIFIER.buildPayloadEntry(
+        { ...declaration, info: { required: true } },
+        { providedPaymentId: 'too-short' },
+      ),
+    ).toBeNull();
   });
 
   it('EXTENSION_REGISTRY includes PAYMENT_IDENTIFIER under its declared name', () => {
@@ -177,11 +249,12 @@ describe('getExtension / setExtension', () => {
   });
 
   it('getExtension returns undefined when the name is absent', () => {
-    expect(getExtension({ other: { required: true } }, PAYMENT_IDENTIFIER)).toBeUndefined();
+    expect(getExtension({ other: PAYMENT_IDENTIFIER.buildDeclaration({}) }, PAYMENT_IDENTIFIER)).toBeUndefined();
   });
 
   it('getExtension returns the parsed declaration when present', () => {
-    expect(getExtension({ 'payment-identifier': { required: true } }, PAYMENT_IDENTIFIER)).toEqual({ required: true });
+    const declaration = PAYMENT_IDENTIFIER.buildDeclaration({});
+    expect(getExtension({ 'payment-identifier': declaration }, PAYMENT_IDENTIFIER)).toEqual(declaration);
   });
 
   it('getExtension returns undefined when the raw value fails to parse', () => {
@@ -190,15 +263,17 @@ describe('getExtension / setExtension', () => {
 
   it('setExtension writes the entry and returns a new object', () => {
     const original: Record<string, unknown> = { other: 'x' };
-    const updated = setExtension(original, PAYMENT_IDENTIFIER, { required: true });
-    expect(updated).toEqual({ other: 'x', 'payment-identifier': { required: true } });
+    const declaration = PAYMENT_IDENTIFIER.buildDeclaration({});
+    const updated = setExtension(original, PAYMENT_IDENTIFIER, declaration);
+    expect(updated).toEqual({ other: 'x', 'payment-identifier': declaration });
     expect(updated).not.toBe(original);
     expect(original).toEqual({ other: 'x' });
   });
 
   it('setExtension treats undefined input as an empty map', () => {
-    expect(setExtension(undefined, PAYMENT_IDENTIFIER, { required: false })).toEqual({
-      'payment-identifier': { required: false },
+    const declaration = PAYMENT_IDENTIFIER.buildDeclaration({});
+    expect(setExtension(undefined, PAYMENT_IDENTIFIER, declaration)).toEqual({
+      'payment-identifier': declaration,
     });
   });
 });

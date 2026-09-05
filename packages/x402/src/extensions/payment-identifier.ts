@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
-import type { ExtensionHandler } from './types.js';
+import type { DeclarationContext, ExtensionHandler } from './types.js';
 
 /** Extension name on the wire — the key in `extensions[]` maps. */
 export const EXTENSION_PAYMENT_IDENTIFIER = 'payment-identifier' as const;
@@ -8,8 +8,10 @@ export const EXTENSION_PAYMENT_IDENTIFIER = 'payment-identifier' as const;
 export const PAYMENT_ID_MIN_LENGTH = 16;
 export const PAYMENT_ID_MAX_LENGTH = 128;
 
+const PAYMENT_ID_PATTERN = '^[a-zA-Z0-9_-]+$' as const;
+
 /** Regex a valid payment identifier must match. Mirrors the x402 `payment-identifier` extension spec. */
-export const PAYMENT_ID_REGEX = /^[a-zA-Z0-9_-]+$/u;
+export const PAYMENT_ID_REGEX = new RegExp(PAYMENT_ID_PATTERN, 'u');
 
 /**
  * Regex a {@link generatePaymentId} prefix must match — same character class as {@link PAYMENT_ID_REGEX}, but allows the
@@ -25,17 +27,35 @@ export const PAYMENT_ID_DEFAULT_PREFIX = 'pay_';
 
 /** Declaration shape attached to `PaymentRequired.extensions['payment-identifier']`. */
 export interface PaymentIdentifierDeclaration {
-  /**
-   * When `true`, the payload's `extensions['payment-identifier'].paymentId` is mandatory; settlement fails without it.
-   * When `false`, the field is optional and may be omitted.
-   */
-  required: boolean;
+  info: {
+    /** Whether the payload must include an identifier. */
+    required: boolean;
+    [key: string]: unknown;
+  };
+  schema: PaymentIdentifierSchema;
 }
 
 /** Payload-entry shape attached to `PaymentPayload.extensions['payment-identifier']`. */
 export interface PaymentIdentifierPayloadEntry {
-  /** The identifier value, satisfying {@link validatePaymentId}. */
-  paymentId: string;
+  info: {
+    /** The identifier value, satisfying {@link validatePaymentId}. */
+    id: string;
+    /** Whether the server requires an identifier. */
+    required: boolean;
+    [key: string]: unknown;
+  };
+  schema: PaymentIdentifierSchema;
+}
+
+export interface PaymentIdentifierSchema {
+  [key: string]: unknown;
+  $schema: 'https://json-schema.org/draft/2020-12/schema';
+  type: 'object';
+  properties: {
+    id: { type: 'string'; minLength: 16; maxLength: 128; pattern: typeof PAYMENT_ID_PATTERN };
+    required: { type: 'boolean' };
+  };
+  required: ['required'];
 }
 
 /**
@@ -78,21 +98,71 @@ export function generatePaymentId(prefix: string = PAYMENT_ID_DEFAULT_PREFIX): s
  * Handler for the x402 `payment-identifier` extension. Used by the seller (`inflowAccepts`) and the buyer (signer flows
  * that compose external `x402Client` signers).
  */
-export const PAYMENT_IDENTIFIER: ExtensionHandler<PaymentIdentifierDeclaration, PaymentIdentifierPayloadEntry> = {
+export const PAYMENT_IDENTIFIER = {
   name: EXTENSION_PAYMENT_IDENTIFIER,
-  buildDeclaration(): PaymentIdentifierDeclaration {
-    return { required: false };
+  buildDeclaration(_context: DeclarationContext): PaymentIdentifierDeclaration {
+    return { info: { required: false }, schema: paymentIdentifierSchema() };
   },
   readDeclaration(decl: unknown): PaymentIdentifierDeclaration | null {
     if (decl === null || typeof decl !== 'object') return null;
-    const required = (decl as { required?: unknown }).required;
+    const { info, schema } = decl as { info?: unknown; schema?: unknown };
+    if (info === null || typeof info !== 'object' || !isPaymentIdentifierSchema(schema)) return null;
+    const extensionInfo = info as Record<string, unknown>;
+    const required = extensionInfo['required'];
     if (typeof required !== 'boolean') return null;
-    return { required };
+    return { info: { ...extensionInfo, required }, schema };
   },
-  buildPayloadEntry(_declaration, context): PaymentIdentifierPayloadEntry | null {
+  buildPayloadEntry(declaration, context): PaymentIdentifierPayloadEntry | null {
     const id = context.providedPaymentId;
     if (id === undefined) return null;
     if (!validatePaymentId(id)) return null;
-    return { paymentId: id };
+    return {
+      info: { ...declaration.info, id },
+      schema: declaration.schema,
+    };
   },
-};
+} satisfies ExtensionHandler<PaymentIdentifierDeclaration, PaymentIdentifierPayloadEntry>;
+
+function isPaymentIdentifierSchema(value: unknown): value is PaymentIdentifierSchema {
+  if (value === null || typeof value !== 'object') return false;
+  const schema = value as {
+    $schema?: unknown;
+    type?: unknown;
+    properties?: {
+      id?: { type?: unknown; minLength?: unknown; maxLength?: unknown; pattern?: unknown };
+      required?: { type?: unknown };
+    };
+    required?: unknown;
+  };
+  const properties = schema.properties;
+  return (
+    schema.$schema === 'https://json-schema.org/draft/2020-12/schema' &&
+    schema.type === 'object' &&
+    properties !== undefined &&
+    properties.id?.type === 'string' &&
+    properties.id.minLength === PAYMENT_ID_MIN_LENGTH &&
+    properties.id.maxLength === PAYMENT_ID_MAX_LENGTH &&
+    properties.id.pattern === PAYMENT_ID_PATTERN &&
+    properties.required?.type === 'boolean' &&
+    Array.isArray(schema.required) &&
+    schema.required.length === 1 &&
+    schema.required[0] === 'required'
+  );
+}
+
+function paymentIdentifierSchema(): PaymentIdentifierSchema {
+  return {
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    type: 'object',
+    properties: {
+      id: {
+        type: 'string',
+        minLength: PAYMENT_ID_MIN_LENGTH,
+        maxLength: PAYMENT_ID_MAX_LENGTH,
+        pattern: PAYMENT_ID_PATTERN,
+      },
+      required: { type: 'boolean' },
+    },
+    required: ['required'],
+  };
+}

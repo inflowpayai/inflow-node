@@ -331,11 +331,9 @@ function foldInflowExtensions(
       extensions = setExtension(extensions, handler, entry);
       continue;
     }
-    const required =
-      declaration !== null &&
-      typeof declaration === 'object' &&
-      'required' in declaration &&
-      declaration.required === true;
+    const info =
+      declaration !== null && typeof declaration === 'object' && 'info' in declaration ? declaration.info : null;
+    const required = info !== null && typeof info === 'object' && 'required' in info && info.required === true;
     if (required) {
       throw new Error(
         `InflowClient: extension "${handler.name}" is declared as required but no payload entry was produced`,

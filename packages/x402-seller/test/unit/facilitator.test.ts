@@ -2,6 +2,8 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
+import { PAYMENT_IDENTIFIER } from '@inflowpayai/x402/extensions';
+
 import { createInflowFacilitator, createUnauthenticatedInflowFacilitator } from '../../src/facilitator.js';
 import { SAMPLE_CONFIG, SAMPLE_SUPPORTED } from '../fixtures/config-response.js';
 
@@ -181,9 +183,11 @@ describe('createInflowFacilitator', () => {
       payload: {},
     };
     await fac.verify(payload, payload.accepted);
-    const entry = captured?.paymentPayload?.extensions?.['payment-identifier'] as { paymentId?: string } | undefined;
-    expect(typeof entry?.paymentId).toBe('string');
-    expect(entry?.paymentId).toMatch(/^pay_[a-f0-9]{32}$/u);
+    const entry = captured?.paymentPayload?.extensions?.['payment-identifier'] as
+      { info?: { id?: string; required?: boolean }; schema?: unknown } | undefined;
+    expect(entry?.info?.id).toMatch(/^pay_[a-f0-9]{32}$/u);
+    expect(entry?.info?.required).toBe(false);
+    expect(entry?.schema).toEqual(PAYMENT_IDENTIFIER.buildDeclaration({}).schema);
   });
 
   it('verify preserves a caller-supplied payment-identifier entry', async () => {
@@ -196,6 +200,10 @@ describe('createInflowFacilitator', () => {
     );
     const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
     const supplied = 'pay_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const suppliedEntry = PAYMENT_IDENTIFIER.buildPayloadEntry(PAYMENT_IDENTIFIER.buildDeclaration({}), {
+      providedPaymentId: supplied,
+    });
+    if (suppliedEntry === null) throw new Error('Invalid payment identifier test fixture');
     const payload = {
       x402Version: 2,
       accepted: {
@@ -208,11 +216,52 @@ describe('createInflowFacilitator', () => {
         extra: {},
       },
       payload: {},
-      extensions: { 'payment-identifier': { paymentId: supplied } },
+      extensions: { 'payment-identifier': suppliedEntry },
     };
     await fac.verify(payload, payload.accepted);
-    const entry = captured?.paymentPayload?.extensions?.['payment-identifier'] as { paymentId?: string } | undefined;
-    expect(entry?.paymentId).toBe(supplied);
+    expect(captured?.paymentPayload?.extensions?.['payment-identifier']).toEqual(suppliedEntry);
+  });
+
+  it('verify replaces a malformed entry without mutating the caller payload', async () => {
+    let captured: { paymentPayload?: { extensions?: Record<string, unknown> } } | undefined;
+    server.use(
+      http.post(`${PROD_BASE}/v1/x402/verify`, async ({ request }) => {
+        captured = (await request.json()) as typeof captured;
+        return HttpResponse.json({ isValid: true });
+      }),
+    );
+    const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
+    const extensions = {
+      'payment-identifier': { info: { id: 'too-short', required: false } },
+      receipt: { enabled: true },
+    };
+    const payload = {
+      x402Version: 2,
+      accepted: {
+        scheme: 'balance' as const,
+        network: 'inflow:1' as const,
+        asset: 'USDC',
+        amount: '1',
+        payTo: SAMPLE_CONFIG.sellerId,
+        maxTimeoutSeconds: 300,
+        extra: {},
+      },
+      payload: {},
+      extensions,
+    };
+
+    await fac.verify(payload, payload.accepted);
+
+    expect(extensions).toEqual({
+      'payment-identifier': { info: { id: 'too-short', required: false } },
+      receipt: { enabled: true },
+    });
+    expect(captured?.paymentPayload?.extensions?.['receipt']).toEqual({ enabled: true });
+    const entry = captured?.paymentPayload?.extensions?.['payment-identifier'] as
+      { info?: { id?: string; required?: boolean }; schema?: unknown } | undefined;
+    expect(entry?.info?.id).toMatch(/^pay_[a-f0-9]{32}$/u);
+    expect(entry?.info?.required).toBe(false);
+    expect(entry?.schema).toEqual(PAYMENT_IDENTIFIER.buildDeclaration({}).schema);
   });
 
   it('attaches the API key on outbound verify', async () => {
