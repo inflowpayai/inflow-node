@@ -168,6 +168,94 @@ describe('createInflowFacilitator', () => {
     expect(result.network).toBe('eip155:8453');
   });
 
+  it('retries a pending settlement with the same payment identifier', async () => {
+    const identifiers: string[] = [];
+    let attempts = 0;
+    server.use(
+      http.post(`${PROD_BASE}/v1/x402/settle`, async ({ request }) => {
+        attempts += 1;
+        const id = paymentIdFromBody(await request.json());
+        if (id !== undefined) identifiers.push(id);
+        if (attempts === 1) {
+          return HttpResponse.json(
+            { success: false, errorReason: 'idempotency_pending' },
+            { status: 409, headers: { 'Retry-After': '0' } },
+          );
+        }
+        return HttpResponse.json({ success: true, transaction: '0xtxhash', network: 'eip155:8453' });
+      }),
+    );
+    const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
+    const accepted = {
+      scheme: 'exact' as const,
+      network: 'eip155:8453' as const,
+      asset: '0xUSDC',
+      amount: '10000',
+      payTo: '0xPayTo',
+      maxTimeoutSeconds: 300,
+      extra: {},
+    };
+
+    const result = await fac.settle({ x402Version: 2, accepted, payload: { signature: '0xsigned' } }, accepted);
+
+    expect(result.success).toBe(true);
+    expect(identifiers).toHaveLength(2);
+    expect(identifiers[1]).toBe(identifiers[0]);
+  });
+
+  it('does not retry a payment identifier conflict', async () => {
+    let attempts = 0;
+    server.use(
+      http.post(`${PROD_BASE}/v1/x402/settle`, () => {
+        attempts += 1;
+        return HttpResponse.json({ success: false, errorReason: 'idempotency_conflict' }, { status: 409 });
+      }),
+    );
+    const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
+    const accepted = {
+      scheme: 'exact' as const,
+      network: 'eip155:8453' as const,
+      asset: '0xUSDC',
+      amount: '10000',
+      payTo: '0xPayTo',
+      maxTimeoutSeconds: 300,
+      extra: {},
+    };
+
+    await expect(
+      fac.settle({ x402Version: 2, accepted, payload: { signature: '0xsigned' } }, accepted),
+    ).rejects.toMatchObject({ httpStatus: 409, body: { errorReason: 'idempotency_conflict' } });
+    expect(attempts).toBe(1);
+  });
+
+  it('stops retrying a pending settlement at the bounded attempt limit', async () => {
+    let attempts = 0;
+    server.use(
+      http.post(`${PROD_BASE}/v1/x402/settle`, () => {
+        attempts += 1;
+        return HttpResponse.json(
+          { success: false, errorReason: 'idempotency_pending' },
+          { status: 409, headers: { 'Retry-After': '0' } },
+        );
+      }),
+    );
+    const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
+    const accepted = {
+      scheme: 'exact' as const,
+      network: 'eip155:8453' as const,
+      asset: '0xUSDC',
+      amount: '10000',
+      payTo: '0xPayTo',
+      maxTimeoutSeconds: 300,
+      extra: {},
+    };
+
+    await expect(
+      fac.settle({ x402Version: 2, accepted, payload: { signature: '0xsigned' } }, accepted),
+    ).rejects.toMatchObject({ httpStatus: 409, body: { errorReason: 'idempotency_pending' } });
+    expect(attempts).toBe(5);
+  });
+
   it('verify auto-embeds a payment-identifier extension entry when absent', async () => {
     let captured: { paymentPayload?: { extensions?: Record<string, unknown> } } | undefined;
     server.use(

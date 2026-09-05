@@ -17,6 +17,11 @@ const SUPPORTED_PATH = '/v1/x402/supported';
 const VERIFY_PATH = '/v1/x402/verify';
 const SETTLE_PATH = '/v1/x402/settle';
 
+const IDEMPOTENCY_PENDING = 'idempotency_pending';
+const SETTLE_PENDING_DEFAULT_RETRY_MS = 5000;
+const SETTLE_PENDING_MAX_ATTEMPTS = 5;
+const SETTLE_PENDING_MAX_RETRY_MS = 5000;
+
 /**
  * Spec-defined error code paired with HTTP 412 Precondition Failed when the Permit2 allowance check fails. See
  * {@link https://github.com/coinbase/x402/blob/main/specs/schemes/exact/scheme_exact_evm.md
@@ -166,15 +171,19 @@ function buildFacilitator(
       }
     },
     async settle(paymentPayload, paymentRequirements) {
-      return http.post<SettleResponse>(
-        SETTLE_PATH,
-        {
-          x402Version: X402_VERSION,
-          paymentPayload: ensurePaymentIdentifier(paymentPayload),
-          paymentRequirements,
-        },
-        { retries: 0 },
-      );
+      const request = {
+        x402Version: X402_VERSION,
+        paymentPayload: ensurePaymentIdentifier(paymentPayload),
+        paymentRequirements,
+      };
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          return await http.post<SettleResponse>(SETTLE_PATH, request, { retries: 0 });
+        } catch (error) {
+          if (!isPendingSettlementError(error) || attempt === SETTLE_PENDING_MAX_ATTEMPTS) throw error;
+          await wait(retryDelayMilliseconds(error.headers?.['retry-after']));
+        }
+      }
     },
   };
   return asFacilitatorClient(shape);
@@ -187,6 +196,21 @@ function buildFacilitator(
  */
 function isVerifyResponseShape(body: unknown): body is VerifyResponse {
   return typeof body === 'object' && body !== null && 'isValid' in body && 'invalidReason' in body;
+}
+
+function isPendingSettlementError(error: unknown): error is InflowApiError {
+  if (!(error instanceof InflowApiError) || error.httpStatus !== 409) return false;
+  const body = error.body;
+  return body !== null && typeof body === 'object' && 'errorReason' in body && body.errorReason === IDEMPOTENCY_PENDING;
+}
+
+function retryDelayMilliseconds(value: string | undefined): number {
+  if (value === undefined || !/^\d+$/u.test(value)) return SETTLE_PENDING_DEFAULT_RETRY_MS;
+  return Math.min(Number(value) * 1000, SETTLE_PENDING_MAX_RETRY_MS);
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 /**
