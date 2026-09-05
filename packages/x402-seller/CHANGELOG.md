@@ -1,5 +1,32 @@
 # @inflowpayai/x402-seller
 
+## 0.7.1
+
+### Patch Changes
+
+- [#56](https://github.com/inflowpayai/inflow-node/pull/56)
+  [`8ca7290`](https://github.com/inflowpayai/inflow-node/commit/8ca729022e9c2520eb5b1848ded7378eac44d76e) Thanks
+  [@nkavian](https://github.com/nkavian)! - Encode x402 payment identifiers using the standard extension envelope.
+
+- [#58](https://github.com/inflowpayai/inflow-node/pull/58)
+  [`5f180b7`](https://github.com/inflowpayai/inflow-node/commit/5f180b7cc2f1a7ae9c034f993b4d743c72b9b344) Thanks
+  [@nkavian](https://github.com/nkavian)! - Retry identical settlement requests while the facilitator reports that the
+  original request is still pending.
+
+- [#55](https://github.com/inflowpayai/inflow-node/pull/55)
+  [`8701978`](https://github.com/inflowpayai/inflow-node/commit/8701978aae71a5b81ea96e069a89daa973b9a1b1) Thanks
+  [@mnebliienko](https://github.com/mnebliienko)! - Document and verify payment response cache controls across the
+  supported foundation adapters.
+
+- [#57](https://github.com/inflowpayai/inflow-node/pull/57)
+  [`d1d2eb4`](https://github.com/inflowpayai/inflow-node/commit/d1d2eb4fa32fb2fca45ba37452cc60469ff7c32d) Thanks
+  [@nkavian](https://github.com/nkavian)! - Reuse one derived payment identifier across x402 verification, settlement,
+  and retries.
+
+- Updated dependencies
+  [[`8ca7290`](https://github.com/inflowpayai/inflow-node/commit/8ca729022e9c2520eb5b1848ded7378eac44d76e)]:
+  - @inflowpayai/x402@0.9.1
+
 ## 0.7.0
 
 ### Minor Changes
