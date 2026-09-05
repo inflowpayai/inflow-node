@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { InflowApiError, InflowHttpClient, X402_VERSION } from '@inflowpayai/x402';
 import type {
   InflowPaymentPayload,
@@ -6,12 +8,7 @@ import type {
   VerifyResponse,
   X402FacilitatorSupportedResponse,
 } from '@inflowpayai/x402';
-import {
-  EXTENSION_PAYMENT_IDENTIFIER,
-  PAYMENT_IDENTIFIER,
-  generatePaymentId,
-  validatePaymentId,
-} from '@inflowpayai/x402/extensions';
+import { EXTENSION_PAYMENT_IDENTIFIER, PAYMENT_IDENTIFIER, validatePaymentId } from '@inflowpayai/x402/extensions';
 import type { FacilitatorClient } from '@x402/core/server';
 
 import type { InflowFacilitatorOptions, InflowUnauthenticatedFacilitatorOptions } from './types.js';
@@ -194,8 +191,8 @@ function isVerifyResponseShape(body: unknown): body is VerifyResponse {
 
 /**
  * Returns a payload that carries a valid `payment-identifier` extension entry. If the buyer already supplied one
- * (server-signed InFlow payloads always do; foundation buyers may), it is preserved unchanged. Otherwise a fresh
- * `pay_<32-hex>` identifier is generated so settle/verify retries land in the server's idempotency cache.
+ * (server-signed InFlow payloads always do; foundation buyers may), it is preserved unchanged. Otherwise the identifier
+ * is derived from payment-specific wire material so verification and settlement retries use the same cache key.
  */
 function ensurePaymentIdentifier(payload: InflowPaymentPayload): InflowPaymentPayload {
   const existing = payload.extensions?.[EXTENSION_PAYMENT_IDENTIFIER];
@@ -210,7 +207,7 @@ function ensurePaymentIdentifier(payload: InflowPaymentPayload): InflowPaymentPa
     }
   }
 
-  const paymentId = generatePaymentId();
+  const paymentId = paymentIdForPayload(payload);
   const payloadEntry = PAYMENT_IDENTIFIER.buildPayloadEntry(PAYMENT_IDENTIFIER.buildDeclaration({}), {
     providedPaymentId: paymentId,
   });
@@ -224,4 +221,20 @@ function ensurePaymentIdentifier(payload: InflowPaymentPayload): InflowPaymentPa
       [EXTENSION_PAYMENT_IDENTIFIER]: payloadEntry,
     },
   };
+}
+
+function paymentIdForPayload(payload: InflowPaymentPayload): string {
+  const data = payload.payload as Record<string, unknown>;
+  for (const key of ['transactionId', 'transaction', 'signature'] as const) {
+    const value = data[key];
+    if (typeof value === 'string' && value.length > 0) {
+      return hashPaymentMaterial(`${key}:${value}`);
+    }
+  }
+
+  return hashPaymentMaterial(`payload:${JSON.stringify(data)}`);
+}
+
+function hashPaymentMaterial(material: string): string {
+  return `pay_${createHash('sha256').update(material).digest('hex').slice(0, 32)}`;
 }

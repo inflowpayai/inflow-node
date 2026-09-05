@@ -20,6 +20,14 @@ interface CallCounts {
   settle: number;
 }
 
+function paymentIdFromBody(body: unknown): string | undefined {
+  const request = body as {
+    paymentPayload?: { extensions?: Record<string, { info?: { id?: unknown } }> };
+  };
+  const id = request.paymentPayload?.extensions?.['payment-identifier']?.info?.id;
+  return typeof id === 'string' ? id : undefined;
+}
+
 function installDefaultHandlers(counts: CallCounts = { supported: 0, verify: 0, settle: 0 }): CallCounts {
   server.use(
     http.get(`${PROD_BASE}/v1/x402/supported`, () => {
@@ -262,6 +270,86 @@ describe('createInflowFacilitator', () => {
     expect(entry?.info?.id).toMatch(/^pay_[a-f0-9]{32}$/u);
     expect(entry?.info?.required).toBe(false);
     expect(entry?.schema).toEqual(PAYMENT_IDENTIFIER.buildDeclaration({}).schema);
+  });
+
+  it.each([
+    ['an EVM signature', { signature: '0xsigned-payment', authorization: { nonce: '0x01' } }],
+    ['a Solana transaction', { transaction: 'AQABAgMEBQYH' }],
+    ['an InFlow transaction', { transactionId: '00000000-0000-0000-0000-000000000abc' }],
+  ])('derives one identifier across verify and repeated settlement from %s', async (_label, signedPayload) => {
+    const seen: string[] = [];
+    server.use(
+      http.post(`${PROD_BASE}/v1/x402/verify`, async ({ request }) => {
+        const id = paymentIdFromBody(await request.json());
+        if (id !== undefined) seen.push(id);
+        return HttpResponse.json({ isValid: true });
+      }),
+      http.post(`${PROD_BASE}/v1/x402/settle`, async ({ request }) => {
+        const id = paymentIdFromBody(await request.json());
+        if (id !== undefined) seen.push(id);
+        return HttpResponse.json({
+          success: true,
+          payer: '0xpayer',
+          transaction: '0xtxhash',
+          network: 'eip155:8453',
+        });
+      }),
+    );
+    const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
+    const payload = {
+      x402Version: 2,
+      accepted: {
+        scheme: 'exact' as const,
+        network: 'eip155:8453' as const,
+        asset: '0xUSDC',
+        amount: '10000',
+        payTo: '0xPayTo',
+        maxTimeoutSeconds: 300,
+        extra: {},
+      },
+      payload: signedPayload,
+    };
+
+    await fac.verify(payload, payload.accepted);
+    await fac.settle({ ...payload, payload: { ...signedPayload } }, payload.accepted);
+    await fac.settle({ ...payload, payload: { ...signedPayload } }, payload.accepted);
+
+    expect(seen).toHaveLength(3);
+    expect(seen[0]).toMatch(/^pay_[a-f0-9]{32}$/u);
+    expect(seen[1]).toBe(seen[0]);
+    expect(seen[2]).toBe(seen[0]);
+  });
+
+  it('derives different identifiers from different signed payments', async () => {
+    const seen: string[] = [];
+    server.use(
+      http.post(`${PROD_BASE}/v1/x402/settle`, async ({ request }) => {
+        const id = paymentIdFromBody(await request.json());
+        if (id !== undefined) seen.push(id);
+        return HttpResponse.json({
+          success: true,
+          payer: '0xpayer',
+          transaction: '0xtxhash',
+          network: 'eip155:8453',
+        });
+      }),
+    );
+    const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
+    const accepted = {
+      scheme: 'exact' as const,
+      network: 'eip155:8453' as const,
+      asset: '0xUSDC',
+      amount: '10000',
+      payTo: '0xPayTo',
+      maxTimeoutSeconds: 300,
+      extra: {},
+    };
+
+    await fac.settle({ x402Version: 2, accepted, payload: { signature: '0xfirst' } }, accepted);
+    await fac.settle({ x402Version: 2, accepted, payload: { signature: '0xsecond' } }, accepted);
+
+    expect(seen).toHaveLength(2);
+    expect(seen[1]).not.toBe(seen[0]);
   });
 
   it('attaches the API key on outbound verify', async () => {
