@@ -138,6 +138,50 @@ describe('createInflowFacilitator', () => {
     });
   });
 
+  it('returns the standard invalid response for a Permit2 allowance requirement', async () => {
+    server.use(
+      http.post(`${PROD_BASE}/v1/x402/verify`, () =>
+        HttpResponse.json({ isValid: false, invalidReason: 'PERMIT2_ALLOWANCE_REQUIRED' }, { status: 412 }),
+      ),
+    );
+    const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
+    const accepted = {
+      scheme: 'exact' as const,
+      network: 'eip155:8453' as const,
+      asset: '0xUSDC',
+      amount: '10000',
+      payTo: '0xPayTo',
+      maxTimeoutSeconds: 300,
+      extra: { assetTransferMethod: 'permit2' },
+    };
+
+    await expect(
+      fac.verify({ x402Version: 2, accepted, payload: { signature: '0xsigned' } }, accepted),
+    ).resolves.toEqual({ isValid: false, invalidReason: 'PERMIT2_ALLOWANCE_REQUIRED' });
+  });
+
+  it('rejects a malformed HTTP 412 response instead of presenting it as a verification result', async () => {
+    server.use(
+      http.post(`${PROD_BASE}/v1/x402/verify`, () =>
+        HttpResponse.json({ code: 'PRECONDITION_FAILED' }, { status: 412 }),
+      ),
+    );
+    const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
+    const accepted = {
+      scheme: 'exact' as const,
+      network: 'eip155:8453' as const,
+      asset: '0xUSDC',
+      amount: '10000',
+      payTo: '0xPayTo',
+      maxTimeoutSeconds: 300,
+      extra: { assetTransferMethod: 'permit2' },
+    };
+
+    await expect(
+      fac.verify({ x402Version: 2, accepted, payload: { signature: '0xsigned' } }, accepted),
+    ).rejects.toMatchObject({ httpStatus: 412 });
+  });
+
   it('settle posts to /v1/x402/settle and decodes the response', async () => {
     const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
     const result = await fac.settle(

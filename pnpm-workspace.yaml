@@ -4,6 +4,9 @@ packages:
 
 engineStrict: true
 
+overrides:
+  esbuild: ^0.28.2
+
 publicHoistPattern:
   - '*eslint*'
   - '*prettier*'
