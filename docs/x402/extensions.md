@@ -62,20 +62,14 @@ buyer to embed an ID.
 The default ID format is `pay_<32 hex chars>` (36 chars total), but any string satisfying the regex + length rules is
 valid.
 
-### Server behavior
+### Identifier generation
 
-**InFlow never auto-generates a `payment-identifier`.** The extension is an opt-in idempotency hint — the buyer asks for
-it, the server echoes it back, and the facilitator dedupes retries keyed on the identifier. If the caller doesn't supply
-one, no `payment-identifier` is embedded and there is nothing to dedupe on — retries produce fresh transactions.
+The InFlow facilitator adapter preserves a valid identifier supplied by the buyer. When the payload has no valid
+identifier, the adapter derives one from payment-specific wire material. The same payload therefore carries the same
+identifier through verification, settlement, and settlement retries without retaining process-local state.
 
-Rationale:
-
-- The foundation spec scopes the extension as opt-in (`required: false` by default). Auto-attaching imposes it on
-  callers who never asked.
-- For Solana the on-chain Memo v2 instruction is always emitted (foundation parity) for transaction-uniqueness, but it
-  carries the seller's `extra.memo` if declared, or a random hex nonce otherwise — independent of whether the off-chain
-  `payment-identifier` extension is present. So skipping the off-chain extension when the caller didn't ask never
-  affects on-chain tx uniqueness.
+The declaration remains optional (`required: false`). Automatic generation improves idempotency when an InFlow
+facilitator is used; it does not require buyers to understand or provide the extension.
 
 To opt in, pass `SignOptions.paymentId` on `prepareInflowPayment`:
 
@@ -94,12 +88,11 @@ round trip if the format is bad. When a valid value is forwarded, the InFlow ser
 the resulting Approval — the caller's value always wins over any server-side default.
 
 For payloads signed by a foundation-registered scheme (the non-InFlow branch of `InflowClient.createPaymentPayload`),
-the SDK runs the extension handlers against the seller's declarations after the foundation client returns the payload
-and embeds any produced entries into `PaymentPayload.extensions[name]`. The runner lives in `foldInflowExtensions`
-(`packages/x402-buyer/src/inflow-client.ts`). The one-shot `createPaymentPayload` API doesn't carry a per-call
-`paymentId`, so the default handler returns `null` for `payment-identifier` (no entry) when the seller's declaration is
-`required: false`. A declaration marked `required: true` whose handler returns `null` throws — the override never sends
-a payload it knows can't satisfy the seller.
+the SDK runs the extension handlers against the seller's declarations after the foundation client returns a payload. The
+one-shot API has no caller-supplied `paymentId`, so an optional declaration does not add an entry at that point. An
+InFlow facilitator derives and adds a stable identifier before forwarding the payload to its verify or settle endpoint.
+A declaration marked `required: true` cannot be satisfied without a caller-supplied identifier and throws before the
+buyer sends the payload.
 
 ## Reading and writing extension entries
 
