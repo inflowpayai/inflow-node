@@ -19,6 +19,7 @@
 import { Buffer } from 'node:buffer';
 
 import type { InflowPaymentPayload, PaymentRequirements } from '@inflowpayai/x402';
+import { PAYMENT_IDENTIFIER } from '@inflowpayai/x402/extensions';
 import type { PaymentPayload } from '@x402/core/types';
 import { x402Client, x402HTTPClient } from '@x402/core/client';
 import { describe, expect, it } from 'vitest';
@@ -118,11 +119,16 @@ describe('encoding round trip — JS encode → Java-equivalent decode', () => {
   });
 
   it('preserves a payload carrying an extensions map (payment-identifier)', () => {
+    const declaration = PAYMENT_IDENTIFIER.buildDeclaration({});
+    const extension = PAYMENT_IDENTIFIER.buildPayloadEntry(declaration, {
+      providedPaymentId: 'pay_clientissuedabc1234567890',
+    });
+    if (extension === null) throw new Error('Invalid payment identifier test fixture');
     const payload: InflowPaymentPayload = {
       x402Version: 2,
       accepted: BALANCE_REQ,
       payload: { transactionId: '00000000-0000-0000-0000-000000000def' },
-      extensions: { 'payment-identifier': { paymentId: 'pay_clientissuedabc1234567890' } },
+      extensions: { 'payment-identifier': extension },
     };
     const http = new x402HTTPClient(new x402Client());
     const headers = http.encodePaymentSignatureHeader(payload as unknown as PaymentPayload);

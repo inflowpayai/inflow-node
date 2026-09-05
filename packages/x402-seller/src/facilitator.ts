@@ -6,7 +6,12 @@ import type {
   VerifyResponse,
   X402FacilitatorSupportedResponse,
 } from '@inflowpayai/x402';
-import { EXTENSION_PAYMENT_IDENTIFIER, generatePaymentId, validatePaymentId } from '@inflowpayai/x402/extensions';
+import {
+  EXTENSION_PAYMENT_IDENTIFIER,
+  PAYMENT_IDENTIFIER,
+  generatePaymentId,
+  validatePaymentId,
+} from '@inflowpayai/x402/extensions';
 import type { FacilitatorClient } from '@x402/core/server';
 
 import type { InflowFacilitatorOptions, InflowUnauthenticatedFacilitatorOptions } from './types.js';
@@ -194,18 +199,29 @@ function isVerifyResponseShape(body: unknown): body is VerifyResponse {
  */
 function ensurePaymentIdentifier(payload: InflowPaymentPayload): InflowPaymentPayload {
   const existing = payload.extensions?.[EXTENSION_PAYMENT_IDENTIFIER];
-  if (existing !== undefined && existing !== null && typeof existing === 'object') {
-    const { paymentId } = existing as { paymentId?: unknown };
-    if (typeof paymentId === 'string' && validatePaymentId(paymentId)) {
-      return payload;
+  const declaration = PAYMENT_IDENTIFIER.readDeclaration(existing);
+  if (declaration !== null && existing !== null && typeof existing === 'object') {
+    const { info } = existing as { info?: unknown };
+    if (info !== null && typeof info === 'object') {
+      const { id } = info as { id?: unknown };
+      if (typeof id === 'string' && validatePaymentId(id)) {
+        return payload;
+      }
     }
   }
+
   const paymentId = generatePaymentId();
+  const payloadEntry = PAYMENT_IDENTIFIER.buildPayloadEntry(PAYMENT_IDENTIFIER.buildDeclaration({}), {
+    providedPaymentId: paymentId,
+  });
+  if (payloadEntry === null) {
+    throw new Error('Unable to construct a payment-identifier extension');
+  }
   return {
     ...payload,
     extensions: {
       ...(payload.extensions ?? {}),
-      [EXTENSION_PAYMENT_IDENTIFIER]: { paymentId },
+      [EXTENSION_PAYMENT_IDENTIFIER]: payloadEntry,
     },
   };
 }

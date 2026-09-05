@@ -16,7 +16,18 @@ key — retrying settlement against the same identifier is a no-op once the paym
 ```jsonc
 {
   "extensions": {
-    "payment-identifier": { "required": false },
+    "payment-identifier": {
+      "info": { "required": false },
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "minLength": 16, "maxLength": 128 },
+          "required": { "type": "boolean" },
+        },
+        "required": ["required"],
+      },
+    },
   },
 }
 ```
@@ -29,7 +40,21 @@ buyer to embed an ID.
 ```jsonc
 {
   "extensions": {
-    "payment-identifier": { "paymentId": "pay_abc1234567890_xyz" },
+    "payment-identifier": {
+      "info": {
+        "id": "pay_abc1234567890_xyz",
+        "required": false,
+      },
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "minLength": 16, "maxLength": 128 },
+          "required": { "type": "boolean" },
+        },
+        "required": ["required"],
+      },
+    },
   },
 }
 ```
@@ -85,10 +110,12 @@ import { getExtension, setExtension, PAYMENT_IDENTIFIER } from '@inflowpayai/x40
 
 // Read the declaration from a 402 response body.
 const decl = getExtension(paymentRequired.extensions, PAYMENT_IDENTIFIER);
-//    ^?  { required: boolean } | undefined
+//    ^?  PaymentIdentifierDeclaration | undefined
 
 // Override an entry on an extensions map without mutating the input.
-const updated = setExtension(extensions, PAYMENT_IDENTIFIER, { required: true });
+const declaration = PAYMENT_IDENTIFIER.buildDeclaration({});
+const requiredDeclaration = { ...declaration, info: { required: true } };
+const updated = setExtension(extensions, PAYMENT_IDENTIFIER, requiredDeclaration);
 ```
 
 `getExtension` returns `undefined` if the entry is missing or if its shape doesn't match the handler's expected
@@ -115,7 +142,7 @@ interface ExtensionHandler<TDeclaration, TPayloadEntry> {
   recognize (never throw).
 - `buildPayloadEntry` is called inside `InflowClient.createPaymentPayload` after the foundation-signed branch returns a
   payload, and inside the InFlow signer for the two-phase `prepareInflowPayment` flow (via the underlying `sign` call).
-  Returning `null` skips the entry — common when `declaration.required` is `false` and the caller didn't opt in.
+  Returning `null` skips the entry — common when the declaration is optional and the caller didn't opt in.
 
 The `PAYMENT_IDENTIFIER` handler is the reference implementation:
 [packages/x402/src/extensions/payment-identifier.ts](../../packages/x402/src/extensions/payment-identifier.ts).

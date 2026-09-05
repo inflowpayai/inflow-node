@@ -8,6 +8,7 @@ import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { InflowApiError } from '@inflowpayai/x402';
+import { PAYMENT_IDENTIFIER } from '@inflowpayai/x402/extensions';
 
 import { X402AdapterRoutingError, X402ApprovalFailedError } from '../../src/errors.js';
 import { createInflowClient, InflowClient } from '../../src/inflow-client.js';
@@ -265,7 +266,7 @@ describe('InflowClient.createPaymentPayload — foundation delegate branch', () 
       // optional declarations without a provided id. The result must
       // still pass through unchanged.
       const result = await client.createPaymentPayload(
-        paymentRequired([EVM_REQ], { 'payment-identifier': { required: false } }),
+        paymentRequired([EVM_REQ], { 'payment-identifier': PAYMENT_IDENTIFIER.buildDeclaration({}) }),
       );
       expect(result).toEqual(foundationPayload);
     } finally {
@@ -284,7 +285,11 @@ describe('InflowClient.createPaymentPayload — foundation delegate branch', () 
     const superSpy = vi.spyOn(x402Client.prototype, 'createPaymentPayload').mockResolvedValue(foundationPayload);
     try {
       await expect(
-        client.createPaymentPayload(paymentRequired([EVM_REQ], { 'payment-identifier': { required: true } })),
+        client.createPaymentPayload(
+          paymentRequired([EVM_REQ], {
+            'payment-identifier': { ...PAYMENT_IDENTIFIER.buildDeclaration({}), info: { required: true } },
+          }),
+        ),
       ).rejects.toThrow(/payment-identifier.*required.*no payload entry/u);
     } finally {
       superSpy.mockRestore();

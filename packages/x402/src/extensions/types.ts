@@ -44,8 +44,8 @@ export interface ExtensionHandler<TDeclaration, TPayloadEntry> {
    */
   readDeclaration(decl: unknown): TDeclaration | null;
   /**
-   * Build the per-payload entry. Return `null` to skip embedding for this call — common when the declaration was
-   * `required: false` and the caller did not opt in.
+   * Build the per-payload entry. Return `null` to skip embedding for this call — common when the declaration marks the
+   * extension optional and the caller did not opt in.
    *
    * @param declaration - The parsed declaration the server emitted on the matching 402.
    * @param context - {@link SignContext}.

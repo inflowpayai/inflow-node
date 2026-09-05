@@ -22,6 +22,15 @@ const SUPPORTED = {
   ],
 };
 
+const OPTIONAL_PAYMENT_IDENTIFIER = PAYMENT_IDENTIFIER.buildDeclaration({});
+const REQUIRED_PAYMENT_IDENTIFIER = { ...OPTIONAL_PAYMENT_IDENTIFIER, info: { required: true } };
+
+function paymentIdentifierEntry(id: string) {
+  const entry = PAYMENT_IDENTIFIER.buildPayloadEntry(OPTIONAL_PAYMENT_IDENTIFIER, { providedPaymentId: id });
+  if (entry === null) throw new Error('Invalid payment identifier test fixture');
+  return entry;
+}
+
 function installSupported(): void {
   server.use(http.get(`${PROD_BASE}/v1/transactions/x402-supported`, () => HttpResponse.json(SUPPORTED)));
 }
@@ -94,11 +103,11 @@ describe('InflowClient.createPaymentPayload — foundation-branch extension fold
     const foundationPayload = baseFoundationPayload();
     const superSpy = vi.spyOn(x402Client.prototype, 'createPaymentPayload').mockResolvedValue(foundationPayload);
     try {
-      // payment-identifier with `required: false` and no providedPaymentId
+      // An optional payment-identifier with no providedPaymentId
       // → handler returns null → fold skips, payload passes through.
       const client = await createInflowClient({ apiKey: 'sk_test' });
       const result = (await client.createPaymentPayload(
-        paymentRequired({ 'payment-identifier': { required: false } }),
+        paymentRequired({ 'payment-identifier': OPTIONAL_PAYMENT_IDENTIFIER }),
       )) as unknown as InflowPaymentPayload;
       expect(result.extensions).toBeUndefined();
     } finally {
@@ -113,7 +122,7 @@ describe('InflowClient.createPaymentPayload — foundation-branch extension fold
     try {
       const client = await createInflowClient({ apiKey: 'sk_test' });
       await expect(
-        client.createPaymentPayload(paymentRequired({ 'payment-identifier': { required: true } })),
+        client.createPaymentPayload(paymentRequired({ 'payment-identifier': REQUIRED_PAYMENT_IDENTIFIER })),
       ).rejects.toThrow(/payment-identifier.*required.*no payload entry/u);
     } finally {
       superSpy.mockRestore();
@@ -154,14 +163,14 @@ describe('InflowClient.createPaymentPayload — foundation-branch extension fold
     // exercises the entry-fold branch and the merge-return path.
     const handlerSpy = vi
       .spyOn(PAYMENT_IDENTIFIER, 'buildPayloadEntry')
-      .mockReturnValue({ paymentId: 'pay_spyfoldedvalue1234567890' });
+      .mockReturnValue(paymentIdentifierEntry('pay_spyfoldedvalue1234567890'));
     try {
       const client = await createInflowClient({ apiKey: 'sk_test' });
       const result = (await client.createPaymentPayload(
-        paymentRequired({ 'payment-identifier': { required: false } }),
+        paymentRequired({ 'payment-identifier': OPTIONAL_PAYMENT_IDENTIFIER }),
       )) as unknown as InflowPaymentPayload;
       expect(result.extensions).toEqual({
-        'payment-identifier': { paymentId: 'pay_spyfoldedvalue1234567890' },
+        'payment-identifier': paymentIdentifierEntry('pay_spyfoldedvalue1234567890'),
       });
       // Pre-existing payload fields are preserved verbatim.
       expect(result.payload).toEqual(foundationPayload.payload);
@@ -181,15 +190,15 @@ describe('InflowClient.createPaymentPayload — foundation-branch extension fold
     const superSpy = vi.spyOn(x402Client.prototype, 'createPaymentPayload').mockResolvedValue(foundationPayload);
     const handlerSpy = vi
       .spyOn(PAYMENT_IDENTIFIER, 'buildPayloadEntry')
-      .mockReturnValue({ paymentId: 'pay_spyfoldedvalue1234567890' });
+      .mockReturnValue(paymentIdentifierEntry('pay_spyfoldedvalue1234567890'));
     try {
       const client = await createInflowClient({ apiKey: 'sk_test' });
       const result = (await client.createPaymentPayload(
-        paymentRequired({ 'payment-identifier': { required: false } }),
+        paymentRequired({ 'payment-identifier': OPTIONAL_PAYMENT_IDENTIFIER }),
       )) as unknown as InflowPaymentPayload;
       expect(result.extensions).toEqual({
         'eip2612-gas-sponsoring': { sponsorSignature: '0xabc' },
-        'payment-identifier': { paymentId: 'pay_spyfoldedvalue1234567890' },
+        'payment-identifier': paymentIdentifierEntry('pay_spyfoldedvalue1234567890'),
       });
     } finally {
       handlerSpy.mockRestore();
@@ -218,7 +227,7 @@ describe('InflowClient.createPaymentPayload — foundation-branch extension fold
       // The InFlow server-signed branch returns extensions verbatim from
       // the server. A required declaration on the seller side must NOT
       // cause the override to second-guess the server's response.
-      extensions: { 'payment-identifier': { paymentId: 'pay_serverissuedabc123' } },
+      extensions: { 'payment-identifier': paymentIdentifierEntry('pay_serverissuedabc123') },
     };
     server.use(
       http.post(`${PROD_BASE}/v1/transactions/x402`, () =>
@@ -241,10 +250,10 @@ describe('InflowClient.createPaymentPayload — foundation-branch extension fold
       x402Version: 2,
       resource: { url: 'https://example.com/api/widgets', description: 'demo' },
       accepts: [inflowReq] as unknown as PaymentRequired['accepts'],
-      extensions: { 'payment-identifier': { required: true } },
+      extensions: { 'payment-identifier': REQUIRED_PAYMENT_IDENTIFIER },
     })) as unknown as InflowPaymentPayload;
     expect(result.extensions).toEqual({
-      'payment-identifier': { paymentId: 'pay_serverissuedabc123' },
+      'payment-identifier': paymentIdentifierEntry('pay_serverissuedabc123'),
     });
   });
 });

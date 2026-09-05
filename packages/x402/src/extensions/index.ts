@@ -13,7 +13,11 @@ export {
   generatePaymentId,
   validatePaymentId,
 } from './payment-identifier.js';
-export type { PaymentIdentifierDeclaration, PaymentIdentifierPayloadEntry } from './payment-identifier.js';
+export type {
+  PaymentIdentifierDeclaration,
+  PaymentIdentifierPayloadEntry,
+  PaymentIdentifierSchema,
+} from './payment-identifier.js';
 
 // Source list for EXTENSION_REGISTRY below. Kept module-local: there's no public reason for consumers to iterate
 // "all extensions" — they look up handlers by name via EXTENSION_REGISTRY, or by importing the named handler module
