@@ -240,6 +240,31 @@ describe('InflowClient.prepareInflowPayment — awaitPayload happy paths', () =>
     expect(result.encodedPayload).toBe(encodedFor(payload));
   });
 
+  it('retries immediately when the first poll after synchronous approval fails', async () => {
+    installSupported();
+    const payload = makePayload();
+    let calls = 0;
+    server.use(
+      http.post(`${PROD_BASE}/v1/transactions/x402`, () =>
+        HttpResponse.json({ approvalId: 'a', approvalStatus: 'APPROVED', transactionId: 'tx' }),
+      ),
+      http.get(`${PROD_BASE}/v1/transactions/tx/x402`, () => {
+        calls += 1;
+        if (calls === 1) return HttpResponse.json({ code: 'UNEXPECTED' }, { status: 500 });
+        return HttpResponse.json({
+          status: 'SETTLED',
+          encodedPayload: encodedFor(payload),
+          paymentPayload: payload,
+        });
+      }),
+    );
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    const prepared = await client.prepareInflowPayment(REQUIREMENT, CONTEXT);
+    const result = await prepared.awaitPayload({ pollIntervalMs: 60_000 });
+    expect(result.encodedPayload).toBe(encodedFor(payload));
+    expect(calls).toBe(2);
+  });
+
   it('returns the same in-flight promise to concurrent awaitPayload callers', async () => {
     installSupported();
     const payload = makePayload();

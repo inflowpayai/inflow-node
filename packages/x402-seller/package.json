@@ -49,7 +49,7 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^5.0.0",
     "@x402/core": "^2.22.0",
     "@x402/express": "^2.22.0",
     "@x402/fastify": "^2.22.0",
@@ -57,10 +57,10 @@
     "@x402/next": "^2.22.0",
     "express": "^5.2.1",
     "fast-check": "^3.23.2",
-    "fastify": "^5.12.1",
-    "hono": "^4.13.5",
+    "fastify": "^5.12.3",
+    "hono": "^4.13.7",
     "msw": "^2.15.0",
-    "next": "~16.2.12"
+    "next": "~16.3.4"
   },
   "publishConfig": {
     "access": "public",

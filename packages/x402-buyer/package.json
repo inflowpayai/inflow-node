@@ -57,7 +57,7 @@
     }
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^5.0.0",
     "@x402/core": "^2.22.0",
     "fast-check": "^3.23.2",
     "msw": "^2.15.0"

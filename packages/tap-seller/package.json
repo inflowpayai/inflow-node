@@ -37,7 +37,7 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9"
+    "@vitest/coverage-v8": "^5.0.0"
   },
   "publishConfig": {
     "access": "public",

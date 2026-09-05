@@ -479,6 +479,26 @@ describe('InflowClient.selectInflowRequirement', () => {
     const match = await client.selectInflowRequirement(paymentRequired([balanceRow('USDT'), balanceRow('USDC')]));
     expect(match?.extra?.['assetName']).toBe('USDT');
   });
+
+  it('skips malformed or unmatched balance requirements when an affordable entry follows', async () => {
+    installSupported();
+    server.use(
+      http.get(`${PROD_BASE}/v1/balances`, () =>
+        HttpResponse.json({
+          balances: [{ currency: 'USDC', available: '1' }],
+        }),
+      ),
+    );
+    const missingAssetName = { ...balanceRow('USDC'), extra: {} };
+    const unmatchedAsset = balanceRow('USDT');
+    const invalidAmount = { ...balanceRow('USDC'), amount: 'not-an-integer' };
+    const affordable = balanceRow('USDC');
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    const match = await client.selectInflowRequirement(
+      paymentRequired([missingAssetName, unmatchedAsset, invalidAmount, affordable]),
+    );
+    expect(match).toEqual(affordable);
+  });
 });
 
 describe('InflowClient.getX402Payload', () => {

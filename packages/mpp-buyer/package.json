@@ -61,7 +61,7 @@
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^5.0.0",
     "mppx": "^0.8.17",
     "msw": "^2.15.0"
   },
