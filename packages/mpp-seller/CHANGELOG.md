@@ -1,5 +1,14 @@
 # @inflowpayai/mpp-seller
 
+## 0.8.2
+
+### Patch Changes
+
+- [#52](https://github.com/inflowpayai/inflow-node/pull/52)
+  [`537056b`](https://github.com/inflowpayai/inflow-node/commit/537056b6d0666d81eee55457be3932133d87e224) Thanks
+  [@mnebliienko](https://github.com/mnebliienko)! - Preserve single-use payment credentials while retaining idempotent
+  recovery for broadcast transport retries.
+
 ## 0.8.1
 
 ### Patch Changes

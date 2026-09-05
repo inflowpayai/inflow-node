@@ -1,5 +1,17 @@
 # @inflowpayai/x402-buyer
 
+## 0.9.1
+
+### Patch Changes
+
+- [#56](https://github.com/inflowpayai/inflow-node/pull/56)
+  [`8ca7290`](https://github.com/inflowpayai/inflow-node/commit/8ca729022e9c2520eb5b1848ded7378eac44d76e) Thanks
+  [@nkavian](https://github.com/nkavian)! - Encode x402 payment identifiers using the standard extension envelope.
+
+- Updated dependencies
+  [[`8ca7290`](https://github.com/inflowpayai/inflow-node/commit/8ca729022e9c2520eb5b1848ded7378eac44d76e)]:
+  - @inflowpayai/x402@0.9.1
+
 ## 0.9.0
 
 ### Minor Changes
