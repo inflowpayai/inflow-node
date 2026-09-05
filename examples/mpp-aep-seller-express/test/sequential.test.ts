@@ -174,18 +174,19 @@ async function startFixture() {
   let aepPassed = 0;
   const handlerRequests: Record<string, string | undefined>[] = [];
   const credentialStore = createInMemoryServiceCredentialStore();
+  const expiresAt = new Date(Date.now() + 60_000).toISOString();
   await credentialStore.saveCredential({
     agentDid: 'did:web:agent.example',
     createdAt: new Date().toISOString(),
     credential: {
       api_key: apiKey,
       credential_id: 'credential-1',
-      expires_at: new Date(Date.now() + 60_000).toISOString(),
+      expires_at: expiresAt,
       header: 'x-aep-api-key',
       scopes: ['read:widgets', 'write:uploads'],
     },
     credentialId: 'credential-1',
-    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    expiresAt,
     grantType: AEP_GRANT_TYPE_API_KEY,
   });
   const configApp = express();
