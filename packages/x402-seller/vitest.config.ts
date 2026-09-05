@@ -5,6 +5,12 @@ export default defineConfig({
     environment: 'node',
     include: ['test/**/*.test.ts'],
     passWithNoTests: true,
+    // Next.js resolves @x402/next's `next/server` import through its bundler; inline the adapter so Vitest does the same.
+    server: {
+      deps: {
+        inline: ['@x402/next'],
+      },
+    },
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],

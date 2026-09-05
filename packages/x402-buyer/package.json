@@ -57,10 +57,10 @@
     }
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.0",
+    "@vitest/coverage-v8": "^2.1.9",
     "@x402/core": "^2.22.0",
-    "fast-check": "^3.22.0",
-    "msw": "^2.4.0"
+    "fast-check": "^3.23.2",
+    "msw": "^2.15.0"
   },
   "publishConfig": {
     "access": "public",

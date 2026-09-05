@@ -11,12 +11,12 @@
   },
   "dependencies": {
     "@inflowpayai/mpp-buyer": "workspace:^",
-    "dotenv": "^16.4.0",
+    "dotenv": "^16.6.1",
     "mppx": "^0.8.17"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
-    "tsx": "^4.0.0",
-    "typescript": "^5.6.0"
+    "@types/node": "^24.13.3",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3"
   }
 }

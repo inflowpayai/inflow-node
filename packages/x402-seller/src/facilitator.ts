@@ -44,8 +44,8 @@ function newEntry<T>(): CacheEntry<T> {
 /**
  * Construct an authed InFlow facilitator. The returned object satisfies the foundation V2 `FacilitatorClient` contract
  * from `@x402/core` (`verify` / `settle` / `getSupported` only) and drops directly into the foundation middleware's
- * `facilitatorClients` array (`@x402/express`, `@x402/hono`) — first claimer of a `(scheme, network)` in declaration
- * order wins verify/settle routing.
+ * `facilitatorClients` array across the supported foundation adapters — first claimer of a `(scheme, network)` in
+ * declaration order wins verify/settle routing.
  *
  * Seller-authed endpoints (`/v1/x402/config`, `getSignerAddresses`) live on the separate
  * {@link createInflowSellerClient} factory; this client carries the seller's API key only for `verify` / `settle` /

@@ -2,7 +2,7 @@ import type { Environment } from '@inflowpayai/x402';
 
 /**
  * Constructor options for {@link createInflowFacilitator}. The authed facilitator drops directly into the foundation V2
- * middleware's `facilitatorClients` array (`@x402/express`, `@x402/hono`).
+ * middleware's `facilitatorClients` array across the supported foundation adapters.
  */
 export interface InflowFacilitatorOptions {
   /** Selects one of the public environments. */

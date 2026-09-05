@@ -5,17 +5,17 @@ deliver an x402 integration.
 
 ## What InFlow ships vs. what the foundation owns
 
-InFlow does **not** ship seller middleware. The foundation already ships `paymentMiddlewareFromConfig` in
-`@x402/express` and `@x402/hono`; it owns the request loop, paywall, settlement hooks, and multi-facilitator resolution
-via declaration order. InFlow plugs into that — the seller-side value-add is three factories and one helper:
+InFlow does **not** ship seller middleware. The foundation already ships adapters for Express, Fastify, Hono, and
+Next.js; it owns the request loop, payment response cache controls, paywall, settlement hooks, and multi-facilitator
+resolution via declaration order. InFlow plugs into that — the seller-side value-add is three factories and two helpers:
 
-| InFlow surface                           | Returns                         | Drops into                                                                                      |
-| ---------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `createInflowFacilitator`                | foundation `FacilitatorClient`  | `paymentMiddlewareFromConfig`'s `facilitatorClients[]`                                          |
-| `createUnauthenticatedInflowFacilitator` | foundation `FacilitatorClient`  | same — for facilitator-only deployments                                                         |
-| `createInflowSellerClient`               | `InflowSellerClient`            | drives `inflowAccepts`                                                                          |
-| `inflowAccepts(client, options)`         | foundation `PaymentOption[]`    | a route's `accepts` field in `RoutesConfig`                                                     |
-| `inflowSchemeRegistrations(client)`      | `Promise<SchemeRegistration[]>` | `paymentMiddlewareFromConfig`'s third `schemes` arg — the foundation refuses to boot without it |
+| InFlow surface                           | Returns                         | Drops into                                                                                             |
+| ---------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `createInflowFacilitator`                | foundation `FacilitatorClient`  | a foundation adapter's `facilitatorClients` argument                                                   |
+| `createUnauthenticatedInflowFacilitator` | foundation `FacilitatorClient`  | same — for facilitator-only deployments                                                                |
+| `createInflowSellerClient`               | `InflowSellerClient`            | drives `inflowAccepts`                                                                                 |
+| `inflowAccepts(client, options)`         | foundation `PaymentOption[]`    | a route's `accepts` field in `RoutesConfig`                                                            |
+| `inflowSchemeRegistrations(client)`      | `Promise<SchemeRegistration[]>` | a foundation adapter's `schemes` argument — the foundation refuses to boot without these registrations |
 
 The buyer side ships `InflowClient`, a subclass of the foundation's `x402Client`. The buyer composes by passing the
 `InflowClient` instance to the foundation's `x402HTTPClient` transport and to any `registerExactEvmScheme` /
@@ -172,9 +172,9 @@ middleware.
 The foundation middleware checks `hasRegisteredScheme(scheme, network)` before it consults any
 `FacilitatorClient.getSupported()`. A facilitator that advertises support for a scheme the middleware doesn't know how
 to **register** cannot be used: the middleware refuses to boot. `inflowSchemeRegistrations()` returns the passthrough
-`SchemeRegistration[]` for `balance` (and any future InFlow-managed schemes) and is meant to be passed as the third
-argument to `paymentMiddlewareFromConfig` alongside any framework-native registrations (`registerExactEvmScheme` /
-`registerExactSvmScheme`):
+`SchemeRegistration[]` for `balance` (and any future InFlow-managed schemes) and is meant to be passed in the adapter's
+`schemes` argument alongside any framework-native registrations (`registerExactEvmScheme` / `registerExactSvmScheme`).
+For Express and Hono:
 
 ```ts
 paymentMiddlewareFromConfig(
