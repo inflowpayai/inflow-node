@@ -15,6 +15,7 @@ const lcovFiles = [
   'packages/x402-buyer/coverage/lcov.info',
   'packages/x402-seller/coverage/lcov.info',
 ];
+const sourcePaths = ['packages'];
 
 if (!Number.isFinite(target) || target < 0 || target > 100) {
   throw new Error(`PATCH_COVERAGE_TARGET must be a percentage from 0 through 100; got ${String(target)}.`);
@@ -28,6 +29,7 @@ const changed = changedSourceLines(baseRef);
 let covered = 0;
 let executable = 0;
 const missing = [];
+const fileCoverageResults = [];
 
 for (const [file, lines] of [...changed.entries()].sort()) {
   const fileCoverage = coverage.get(file);
@@ -35,14 +37,23 @@ for (const [file, lines] of [...changed.entries()].sort()) {
     missing.push({ file, lines: [...lines].sort((left, right) => left - right), reason: 'no coverage data' });
     continue;
   }
+  let fileCovered = 0;
+  let fileExecutable = 0;
   for (const line of [...lines].sort((left, right) => left - right)) {
     const hits = fileCoverage.get(line);
     if (hits === undefined) continue;
     executable += 1;
+    fileExecutable += 1;
     if (hits === 0) missing.push({ file, lines: [line], reason: 'uncovered' });
     else if (isPartiallyCovered(branchCoverage.get(file)?.get(line)))
       missing.push({ file, lines: [line], reason: 'partially covered' });
-    else covered += 1;
+    else {
+      covered += 1;
+      fileCovered += 1;
+    }
+  }
+  if (fileExecutable > 0) {
+    fileCoverageResults.push({ file, covered: fileCovered, executable: fileExecutable });
   }
 }
 
@@ -52,17 +63,31 @@ if (executable === 0 && missing.length === 0) {
 }
 
 const percentage = executable === 0 ? 0 : (covered / executable) * 100;
+const failingFiles = fileCoverageResults.filter(({ covered: fileCovered, executable: fileExecutable }) => {
+  return (fileCovered / fileExecutable) * 100 < target;
+});
 process.stdout.write(
   `Changed-line coverage: ${covered}/${executable} executable changed source lines (${percentage.toFixed(2)}%).\n`,
 );
+if (failingFiles.length > 0) {
+  process.stdout.write('Changed files below target:\n');
+  for (const { file, covered: fileCovered, executable: fileExecutable } of failingFiles) {
+    const filePercentage = (fileCovered / fileExecutable) * 100;
+    process.stdout.write(`- ${file}: ${fileCovered}/${fileExecutable} (${filePercentage.toFixed(2)}%)\n`);
+  }
+}
 if (missing.length > 0) {
   process.stdout.write('Uncovered changed lines:\n');
   for (const item of collapseMissing(missing)) {
     process.stdout.write(`- ${item.file}:${item.lines} (${item.reason})\n`);
   }
 }
-if (missing.some((item) => item.reason === 'no coverage data') || percentage < target) {
-  process.stderr.write(`Changed-line coverage target not met: ${percentage.toFixed(2)}% < ${target.toFixed(2)}%.\n`);
+if (missing.some((item) => item.reason === 'no coverage data') || percentage < target || failingFiles.length > 0) {
+  const failures = [];
+  if (percentage < target) failures.push(`aggregate ${percentage.toFixed(2)}% < ${target.toFixed(2)}%`);
+  if (failingFiles.length > 0) failures.push(`${String(failingFiles.length)} changed file(s) below target`);
+  if (missing.some((item) => item.reason === 'no coverage data')) failures.push('changed source missing coverage data');
+  process.stderr.write(`Changed-line coverage target not met: ${failures.join('; ')}.\n`);
   process.exit(1);
 }
 
@@ -99,16 +124,20 @@ function normalizeSourcePath(packageRoot, sourceFile) {
 }
 
 function changedSourceLines(ref) {
-  const diff = execFileSync('git', ['diff', '--unified=0', `${ref}...HEAD`, '--', 'packages'], {
+  const mergeBase = execFileSync('git', ['merge-base', ref, 'HEAD'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  }).trim();
+  const diff = execFileSync('git', ['diff', '--unified=0', mergeBase, '--', ...sourcePaths], {
     cwd: repoRoot,
     encoding: 'utf8',
   });
   const changedLines = new Map();
   let currentFile;
   for (const line of diff.split('\n')) {
-    if (line.startsWith('+++ b/')) {
-      const file = line.slice('+++ b/'.length);
-      currentFile = file.includes('/src/') && /\.[cm]?[jt]sx?$/.test(file) ? file : undefined;
+    if (line.startsWith('+++ ')) {
+      const file = line.startsWith('+++ b/') ? line.slice('+++ b/'.length) : undefined;
+      currentFile = file !== undefined && isIncludedSource(file) ? file : undefined;
     } else if (currentFile !== undefined && line.startsWith('@@')) {
       const match = /\+(\d+)(?:,(\d+))?/.exec(line);
       if (match === null) continue;
@@ -119,7 +148,20 @@ function changedSourceLines(ref) {
       changedLines.set(currentFile, lines);
     }
   }
+  const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard', '--', ...sourcePaths], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  for (const file of untracked.split('\n').filter(isIncludedSource)) {
+    const contents = readFileSync(resolve(repoRoot, file), 'utf8');
+    const count = contents.length === 0 ? 0 : contents.split('\n').length - (contents.endsWith('\n') ? 1 : 0);
+    changedLines.set(file, new Set(Array.from({ length: count }, (_value, index) => index + 1)));
+  }
   return changedLines;
+}
+
+function isIncludedSource(file) {
+  return file.includes('/src/') && /\.[cm]?[jt]sx?$/.test(file);
 }
 
 function collapseMissing(items) {

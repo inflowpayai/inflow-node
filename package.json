@@ -21,7 +21,7 @@
     "build": "turbo run build",
     "verify": "pnpm format && pnpm typecheck && pnpm lint && pnpm test && pnpm tap:conformance && pnpm coverage:changed && pnpm typedoc && pnpm build",
     "dev": "turbo run dev --parallel",
-    "test": "turbo run test",
+    "test": "node --test scripts/*.test.mjs && turbo run test",
     "update:all": "pnpm update --recursive --depth Infinity",
     "update:simple": "pnpm update --recursive --depth Infinity \"!mppx\" \"!@mppx/*\" \"!@x402/*\"",
     "coverage:changed": "node scripts/check-changed-coverage.mjs",
