@@ -375,6 +375,9 @@ importers:
       '@x402/core':
         specifier: ^2.22.0
         version: 2.22.0
+      '@x402/evm':
+        specifier: ^2.22.0
+        version: 2.22.0(typescript@5.9.3)
       '@x402/express':
         specifier: ^2.22.0
         version: 2.22.0(express@5.2.1)(typescript@5.9.3)
@@ -604,6 +607,9 @@ importers:
       '@x402/core':
         specifier: ^2.22.0
         version: 2.22.0
+      '@x402/evm':
+        specifier: ^2.22.0
+        version: 2.22.0(typescript@5.9.3)
       '@x402/express':
         specifier: ^2.22.0
         version: 2.22.0(express@5.2.1)(typescript@5.9.3)
@@ -634,6 +640,9 @@ importers:
       next:
         specifier: ~16.3.4
         version: 16.3.4(@types/node@24.13.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      viem:
+        specifier: ^2.48.11
+        version: 2.56.3(typescript@5.9.3)(zod@4.4.3)
 
 packages:
 
