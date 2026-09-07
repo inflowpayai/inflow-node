@@ -1,4 +1,5 @@
 import { EXTRA_KEYS, SCHEMES } from '@inflowpayai/x402';
+import type { PaymentScheme } from '@inflowpayai/x402';
 import { getExtra } from '@inflowpayai/x402/extras';
 import { SDK_DEFAULT_ASSET_TRANSFER_METHOD } from '@x402/core/server';
 import type {
@@ -12,6 +13,7 @@ import type {
 } from '@x402/core/types';
 
 import type { InflowSellerClient } from './seller-client.js';
+import { uptoSupportedKind } from './upto.js';
 
 /**
  * Structural shape of the foundation adapters' `SchemeRegistration` interface — `{ network, server }` — declared
@@ -23,6 +25,11 @@ export interface InflowSchemeRegistration {
   server: SchemeNetworkServer;
 }
 
+export interface InflowSchemeRegistrationsOptions {
+  /** Match the route's scheme selection. `upto` requires explicit inclusion and the optional `@x402/evm` peer. */
+  schemes?: PaymentScheme[];
+}
+
 interface RegistrationAccumulator {
   network: string;
   scheme: string;
@@ -31,16 +38,19 @@ interface RegistrationAccumulator {
 }
 
 /**
- * Build the passthrough `SchemeRegistration[]` for every `(scheme, network)` pair the seller's `/v1/x402/config` can
- * emit. Pass the result through the foundation adapter's `schemes` argument — the foundation refuses to boot otherwise
- * (`hasRegisteredScheme` is checked before facilitator support). Deduplicated: multiple assets on the same network
- * collapse to one registration. See the architecture doc for the rationale.
+ * Pass these registrations through the foundation adapter's `schemes` argument: scheme registration is checked before
+ * facilitator support. Multiple assets on one network share a registration. `upto` requires explicit selection and
+ * loads the optional `@x402/evm` peer; fixed-price schemes use passthrough servers.
  */
-export async function inflowSchemeRegistrations(client: InflowSellerClient): Promise<InflowSchemeRegistration[]> {
+export async function inflowSchemeRegistrations(
+  client: InflowSellerClient,
+  options: InflowSchemeRegistrationsOptions = {},
+): Promise<InflowSchemeRegistration[]> {
   const config = await client.config();
   const registrations = new Map<string, RegistrationAccumulator>();
 
   function add(scheme: string, network: string, assetTransferMethod: unknown): void {
+    if (options.schemes !== undefined && !options.schemes.includes(scheme)) return;
     const key = `${scheme}|${network}`;
     // Foundation uses the SDK-only `default` sentinel when requirements
     // omit an on-wire assetTransferMethod. Non-string config values are
@@ -69,6 +79,9 @@ export async function inflowSchemeRegistrations(client: InflowSellerClient): Pro
   // method in config declaration order.
   for (const asset of config.assets) {
     add(SCHEMES.EXACT, asset.network, asset.assetTransferMethod);
+    if (options.schemes?.includes(SCHEMES.UPTO) && uptoSupportedKind(config, asset) !== undefined) {
+      add(SCHEMES.UPTO, asset.network, 'permit2');
+    }
   }
 
   // Non-blockchain entries: scheme + network from each payment method
@@ -78,12 +91,25 @@ export async function inflowSchemeRegistrations(client: InflowSellerClient): Pro
     add(method.scheme, method.network, getExtra<unknown>(method.extra, EXTRA_KEYS.ASSET_TRANSFER_METHOD));
   }
 
+  let uptoServer: SchemeNetworkServer | undefined;
+  if ([...registrations.values()].some((registration) => registration.scheme === SCHEMES.UPTO)) {
+    try {
+      const { UptoEvmScheme } = await import('@x402/evm/upto/server');
+      uptoServer = new UptoEvmScheme();
+    } catch (cause) {
+      throw new Error('Cannot load the upto scheme. Install the optional peer @x402/evm@^2.22.0.', { cause });
+    }
+  }
+
   return [...registrations.values()].map((registration) => ({
     // Boundary cast to the foundation's `${string}:${string}` Network
     // type. Every value passing through (CAIP-2 chain ids and
     // `'inflow:1'`) is CAIP-2 shaped at runtime.
     network: registration.network as Network,
-    server: inflowPassthroughScheme(registration.scheme, registration.assetTransferMethods),
+    server:
+      registration.scheme === SCHEMES.UPTO && uptoServer !== undefined
+        ? uptoServer
+        : inflowPassthroughScheme(registration.scheme, registration.assetTransferMethods),
   }));
 }
 

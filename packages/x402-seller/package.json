@@ -40,17 +40,22 @@
     "@inflowpayai/x402": "workspace:^"
   },
   "peerDependencies": {
-    "@x402/core": "^2.22.0"
+    "@x402/core": "^2.22.0",
+    "@x402/evm": "^2.22.0"
   },
   "peerDependenciesMeta": {
     "@x402/core": {
       "optional": false
+    },
+    "@x402/evm": {
+      "optional": true
     }
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@vitest/coverage-v8": "^5.0.0",
     "@x402/core": "^2.22.0",
+    "@x402/evm": "^2.22.0",
     "@x402/express": "^2.22.0",
     "@x402/fastify": "^2.22.0",
     "@x402/hono": "^2.22.0",
@@ -60,7 +65,8 @@
     "fastify": "^5.12.3",
     "hono": "^4.13.7",
     "msw": "^2.15.0",
-    "next": "~16.3.4"
+    "next": "~16.3.4",
+    "viem": "^2.48.11"
   },
   "publishConfig": {
     "access": "public",

@@ -23,6 +23,7 @@ export const HEADERS = {
 export const SCHEMES = {
   BALANCE: 'balance',
   EXACT: 'exact',
+  UPTO: 'upto',
   INSTRUMENT: 'instrument',
 } as const;
 
@@ -57,6 +58,7 @@ export const EXTRA_KEYS = {
   ASSET_NAME: 'assetName',
   ASSET_TRANSFER_METHOD: 'assetTransferMethod',
   FEE_PAYER: 'feePayer',
+  FACILITATOR_ADDRESS: 'facilitatorAddress',
   NAME: 'name',
   PERMIT2_PROXY: 'permit2Proxy',
   VERSION: 'version',

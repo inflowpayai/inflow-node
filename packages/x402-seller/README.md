@@ -45,10 +45,10 @@ cannot load Seller configuration; `createInflowSellerClient()` rejects with an `
   60-minute TTL.
 - `inflowAccepts(client, options)` — async helper. Returns a foundation `PaymentOption[]` ready to splat into a route's
   `accepts` field. The prices are pre-resolved to `AssetAmount` form (asset contract address + atomic-unit amount).
-- `inflowSchemeRegistrations(client)` — async helper. Reads the seller's `/v1/x402/config` and returns one passthrough
-  `SchemeRegistration` per `(scheme, network)` pair the server can emit, with authorization-only payment flows for the
-  exact asset transfer methods declared by config. Pass these through the adapter's `schemes` argument; the foundation
-  refuses to boot without registrations covering every advertised scheme.
+- `inflowSchemeRegistrations(client, options?)` — async helper. Reads the seller's `/v1/x402/config` and returns one
+  `SchemeRegistration` per selected `(scheme, network)` pair, with authorization-only payment flows. Fixed-price
+  registrations are passthrough; explicitly selected `upto` uses the foundation EVM server. Pass these through the
+  adapter's `schemes` argument; the foundation refuses to boot without registrations covering every advertised scheme.
 - `X402PriceParseError` — typed error thrown by `inflowAccepts` when a price string doesn't parse.
 
 ### Price formats
@@ -69,7 +69,6 @@ that matches any stablecoin asset the seller has configured.
 ```ts
 import { paymentMiddlewareFromConfig } from '@x402/express';
 import express from 'express';
-import { registerExactEvmScheme } from '@x402/evm/exact/client';
 import {
   createInflowFacilitator,
   createInflowSellerClient,
@@ -77,7 +76,8 @@ import {
   inflowSchemeRegistrations,
 } from '@inflowpayai/x402-seller';
 
-const apiKey = process.env.INFLOW_API_KEY!;
+const apiKey = process.env['INFLOW_API_KEY'];
+if (!apiKey) throw new Error('Set INFLOW_API_KEY to a sandbox seller key.');
 const inflow = createInflowFacilitator({ environment: 'sandbox', apiKey });
 const client = await createInflowSellerClient({ environment: 'sandbox', apiKey });
 
@@ -97,11 +97,32 @@ app.use(
       },
     },
     [inflow],
-    [...(await inflowSchemeRegistrations(client)), registerExactEvmScheme()],
+    await inflowSchemeRegistrations(client),
   ),
 );
 app.listen(3000);
 ```
+
+## Metered EVM payments
+
+Install the optional `@x402/evm@^2.22.0` peer and pass the same `schemes: ['upto']` selection to `inflowAccepts` and
+`inflowSchemeRegistrations`. The price is the maximum the external blockchain buyer authorizes. Both helpers omit `upto`
+unless explicitly selected; fixed-price exact and balance routes need no EVM peer.
+
+The seller configuration must advertise a matching `upto` supported kind with `assetTransferMethod: 'permit2'`, the
+metered `permit2Proxy`, and `facilitatorAddress`. Assets must advertise Permit2 capability through their own
+`permit2Proxy`, including assets whose exact transfer method is EIP-3009. An unavailable combination produces no accepts
+entries; check for an empty array before starting the route.
+
+In the handler, call `setSettlementOverrides(response, { amount: actualAtomicUnits })` from `@x402/express` before
+sending the response. Use an integer string in the selected asset's atomic units, between zero and the authorized
+maximum. The middleware sends this amount to settlement while retaining the buyer's signed ceiling. If the handler omits
+the override, settlement uses the full advertised maximum. In this authorization flow, Express skips settlement for
+handler responses with HTTP status 400 or higher and buffers successful responses until settlement finishes.
+
+See the runnable [metered hashing example](../../examples/x402-seller-express/src/upto.ts), which charges one atomic
+USDC unit per input byte. External buyers register `UptoEvmScheme` from `@x402/evm/upto/client` on the foundation
+`x402Client`; this is not an InFlow treasury-buyer signing path.
 
 ## Multi-facilitator
 
