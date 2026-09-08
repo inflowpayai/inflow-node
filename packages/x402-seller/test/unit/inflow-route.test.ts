@@ -187,7 +187,10 @@ const FOUNDATION_NETWORK = 'eip155:8453';
 const FOUNDATION_BUYER = '0x2222222222222222222222222222222222222222';
 
 async function foundationComposition(inflowFirst = true) {
-  const { client, config, asset } = fixture({ assetTransferMethod: 'eip3009' });
+  const { client, config, asset } = fixture({
+    assetTransferMethod: 'eip3009',
+    assetId: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  });
   config.wallets = [{ address: FOUNDATION_BUYER, blockchain: asset.blockchain, network: FOUNDATION_NETWORK }];
   const route = await inflowRoute(client, {
     price: '0.01 USDC',

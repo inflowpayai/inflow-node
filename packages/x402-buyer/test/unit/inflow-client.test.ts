@@ -111,6 +111,7 @@ describe('Permit2 treasury boundary', () => {
   const requirement: PaymentRequirements = {
     ...EVM_REQ,
     network: 'eip155:8453',
+    asset: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
     extra: { ...EVM_REQ.extra, assetTransferMethod: 'permit2' },
   };
 
@@ -118,7 +119,15 @@ describe('Permit2 treasury boundary', () => {
     installSupported();
     const client = await createInflowClient({ apiKey: 'sk_test' });
     const createPaymentPayload = vi.fn(() => Promise.resolve({ x402Version: 2, payload: { signature: 'external' } }));
-    client.register('eip155:8453', { scheme: 'exact', createPaymentPayload });
+    const externalScheme = {
+      scheme: 'exact',
+      createPaymentPayload,
+      findDefaultAsset: (asset: string, network: string) =>
+        asset === requirement.asset && network === requirement.network
+          ? { asset, decimals: 6, symbol: 'USDC' }
+          : undefined,
+    };
+    client.register('eip155:8453', externalScheme);
     const required = paymentRequired([requirement]);
     expect(await client.selectInflowRequirement(required)).toBeNull();
     expect((await client.createPaymentPayload(required)).payload).toEqual({ signature: 'external' });
