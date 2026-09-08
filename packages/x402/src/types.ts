@@ -265,6 +265,8 @@ export interface X402AssetInfo {
    * {@link CONTRACTS.PERMIT2_PROXY} before signing.
    */
   permit2Proxy?: string;
+  /** Explicit token-contract support for EIP-2612 permits; omission means unconfirmed. */
+  supportsEip2612?: boolean;
   /** EIP-712 domain name. Present only for EVM assets. */
   tokenName?: string;
   /** EIP-712 domain version. Present only for EVM assets. */

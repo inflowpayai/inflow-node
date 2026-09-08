@@ -7,11 +7,11 @@ into the adapter's `facilitatorClients` argument.
 ## Install
 
 ```bash
-pnpm add @inflowpayai/x402-seller @x402/express @x402/core
+pnpm add @inflowpayai/x402-seller @x402/express @x402/core @x402/extensions
 # …or @x402/fastify, @x402/hono, or @x402/next in place of @x402/express
 ```
 
-`@inflowpayai/x402` is a runtime dependency (bundled via workspace); `@x402/core` is a peer dependency.
+`@inflowpayai/x402` is a runtime dependency; `@x402/core` and `@x402/extensions` are peer dependencies.
 
 ## Payment response caching
 
@@ -45,6 +45,7 @@ cannot load Seller configuration; `createInflowSellerClient()` rejects with an `
   60-minute TTL.
 - `inflowAccepts(client, options)` — async helper. Returns a foundation `PaymentOption[]` ready to splat into a route's
   `accepts` field. The prices are pre-resolved to `AssetAmount` form (asset contract address + atomic-unit amount).
+- `inflowRoute(client, options)` — builds `accepts` and compatible EIP-2612 sponsorship declarations. See below for explicit Permit2 selection.
 - `inflowSchemeRegistrations(client)` — async helper. Reads the seller's `/v1/x402/config` and returns one passthrough
   `SchemeRegistration` per `(scheme, network)` pair the server can emit, with authorization-only payment flows for the
   exact asset transfer methods declared by config. Pass these through the adapter's `schemes` argument; the foundation
@@ -69,7 +70,6 @@ that matches any stablecoin asset the seller has configured.
 ```ts
 import { paymentMiddlewareFromConfig } from '@x402/express';
 import express from 'express';
-import { registerExactEvmScheme } from '@x402/evm/exact/client';
 import {
   createInflowFacilitator,
   createInflowSellerClient,
@@ -77,7 +77,8 @@ import {
   inflowSchemeRegistrations,
 } from '@inflowpayai/x402-seller';
 
-const apiKey = process.env.INFLOW_API_KEY!;
+const apiKey = process.env['INFLOW_API_KEY'];
+if (!apiKey) throw new Error('Set INFLOW_API_KEY');
 const inflow = createInflowFacilitator({ environment: 'sandbox', apiKey });
 const client = await createInflowSellerClient({ environment: 'sandbox', apiKey });
 
@@ -97,11 +98,46 @@ app.use(
       },
     },
     [inflow],
-    [...(await inflowSchemeRegistrations(client)), registerExactEvmScheme()],
+    await inflowSchemeRegistrations(client),
   ),
 );
 app.listen(3000);
 ```
+
+## Gasless Permit2 approval for external wallets
+
+Use `inflowRoute` when an external-wallet buyer needs an EIP-2612 permit bundled atomically with settlement. It checks
+the seller's token metadata and refreshes facilitator support before declaring sponsorship. The configured token must
+explicitly support EIP-2612, provide its signing domain, and use the canonical Permit2 proxy. InFlow-managed buyers
+cannot sign Permit2 payments; they can use a separate balance or EIP-3009 offer.
+
+```ts
+import { inflowRoute } from '@inflowpayai/x402-seller';
+
+const sponsoredRoute = await inflowRoute(client, {
+  price: '0.01 USDC',
+  schemes: ['exact'],
+  networks: ['eip155:84532'],
+  assetTransferMethod: 'permit2',
+});
+// Pass sponsoredRoute directly as the route value in paymentMiddlewareFromConfig.
+```
+
+Without `assetTransferMethod`, offers retain the server-configured defaults. Explicit Permit2 selection omits on-chain
+assets without a configured canonical proxy; balance offers are unaffected. `inflowSchemeRegistrations` registers the
+configured Permit2 alternative without adding it to ordinary `inflowAccepts` offers.
+
+Declarations apply to a whole route. If any Permit2 offer lacks EIP-2612 capability, the route omits EIP-2612 sponsorship;
+use separate routes or a currency filter for incompatible tokens. Missing metadata or facilitator support never implies
+sponsorship. The helper does not declare ERC-20 approval batching.
+
+Pass the matching InFlow facilitator first in the middleware's facilitator list for sponsored routes. The helper checks
+that client's capabilities, not the middleware's final routing: an earlier facilitator claiming the same pair takes
+precedence even if it cannot sponsor approval.
+
+External buyers register the foundation `@x402/evm/exact/client` scheme. Foundation 2.22.0 signs the permit when the
+declaration is present and allowance is insufficient. Supply the matching chain's `schemeOptions.rpcUrl` for nonce and
+allowance reads. Do not attach external permit signatures to an InFlow-generated treasury payload.
 
 ## Multi-facilitator
 

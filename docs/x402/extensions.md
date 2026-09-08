@@ -94,6 +94,17 @@ InFlow facilitator derives and adds a stable identifier before forwarding the pa
 A declaration marked `required: true` cannot be satisfied without a caller-supplied identifier and throws before the
 buyer sends the payload.
 
+## EIP-2612 gas sponsorship
+
+`inflowRoute` in `@inflowpayai/x402-seller` declares sponsorship for compatible Permit2 offers using the foundation
+`@x402/extensions` declaration. The external buyer's `@x402/evm/exact/client` scheme signs the token permit when
+allowance is insufficient. This extension does not use InFlow's handler registry. With sufficient allowance, the
+foundation can echo the unsigned declaration into the payment payload without creating a permit.
+
+See the [seller guide](../../packages/x402-seller/README.md#gasless-permit2-approval-for-external-wallets) for token
+capability checks, facilitator ordering, and setup. InFlow-managed buyers cannot sign Permit2 payments. Generic ERC-20
+approval batching is not declared.
+
 ## Reading and writing extension entries
 
 Use the typed accessors in `@inflowpayai/x402/extensions`:
@@ -116,7 +127,7 @@ declaration shape. This keeps `noUncheckedIndexedAccess` strict-clean: no bangs,
 
 ## The handler contract
 
-Every extension is a single object satisfying `ExtensionHandler`:
+InFlow-owned extension handlers satisfy `ExtensionHandler`; foundation-owned extensions use their foundation APIs:
 
 ```ts
 interface ExtensionHandler<TDeclaration, TPayloadEntry> {
@@ -140,7 +151,7 @@ interface ExtensionHandler<TDeclaration, TPayloadEntry> {
 The `PAYMENT_IDENTIFIER` handler is the reference implementation:
 [packages/x402/src/extensions/payment-identifier.ts](../../packages/x402/src/extensions/payment-identifier.ts).
 
-## Adding a new extension
+## Adding an InFlow-owned extension
 
 1. Create a new file under `packages/x402/src/extensions/` (e.g. `webhook-callback.ts`).
 2. Define and export the handler.
@@ -154,14 +165,12 @@ the `extensions[]` maps). Pick the spec's canonical name.
 
 ## Forward compatibility
 
-Server-declared extensions whose `name` doesn't appear in `EXTENSION_REGISTRY` are forwarded with an empty `{}`
-declaration on the seller side, and ignored (but tolerated) on the buyer side. This means a server can declare a new
-extension before the SDK is updated and nothing breaks — buyers just see the declaration without a handler.
+The foundation preserves route declarations that no registered extension enriches. On the foundation-signed buyer path,
+`InflowClient` folds only handlers registered in `EXTENSION_REGISTRY`; other entries remain as returned by the
+foundation. Preserving an entry does not establish that the buyer or facilitator supports its semantics.
 
-If a server marks an extension `required: true` and the buyer's `InflowClient` has no handler for it in
-`EXTENSION_REGISTRY`, the override throws inside `createPaymentPayload`: the foundation-signed branch runs the extension
-fold-up loop right before returning the payload, and any required declaration whose handler returns `null` raises an
-error. The integrator either upgrades the SDK so a handler ships, or stops trying to pay that resource.
+A recognized declaration marked `required: true` throws when its InFlow handler produces no payload entry. Unknown
+extensions do not reach this check, even if marked required; integrators must validate support for required extensions.
 
 ## See also
 

@@ -59,6 +59,7 @@ export const EXTRA_KEYS = {
   FEE_PAYER: 'feePayer',
   NAME: 'name',
   PERMIT2_PROXY: 'permit2Proxy',
+  SUPPORTS_EIP2612: 'supportsEip2612',
   VERSION: 'version',
 } as const;
 

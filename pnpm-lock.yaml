@@ -604,9 +604,15 @@ importers:
       '@x402/core':
         specifier: ^2.22.0
         version: 2.22.0
+      '@x402/evm':
+        specifier: ^2.22.0
+        version: 2.22.0(typescript@5.9.3)
       '@x402/express':
         specifier: ^2.22.0
         version: 2.22.0(express@5.2.1)(typescript@5.9.3)
+      '@x402/extensions':
+        specifier: ^2.22.0
+        version: 2.22.0(typescript@5.9.3)
       '@x402/fastify':
         specifier: ^2.22.0
         version: 2.22.0(fastify@5.12.3)(typescript@5.9.3)

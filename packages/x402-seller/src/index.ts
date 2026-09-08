@@ -7,6 +7,9 @@ export type { InflowSellerClient, InflowSellerClientOptions } from './seller-cli
 export { inflowAccepts } from './inflow-accepts.js';
 export type { InflowAcceptsOptions, PriceSpec } from './inflow-accepts.js';
 
+export { inflowRoute } from './inflow-route.js';
+export type { InflowRouteOptions } from './inflow-route.js';
+
 export { inflowSchemeRegistrations } from './scheme-registrations.js';
 export type { InflowSchemeRegistration } from './scheme-registrations.js';
 

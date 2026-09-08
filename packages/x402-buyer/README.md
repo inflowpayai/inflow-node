@@ -65,6 +65,11 @@ variant that swaps `fetch` for an axios call and decodes the response header wit
 
 ## Composing with foundation schemes
 
+Permit2 payments always use an external wallet registered with the foundation scheme. They are excluded from InFlow's
+managed signing path, including `prepareInflowPayment`. For EIP-2612 sponsorship, use foundation `@x402/evm` 2.22.0 or
+later and supply the network's `schemeOptions.rpcUrl` for nonce and allowance reads. The seller must declare sponsorship
+for a compatible token; the foundation signs an exact-amount permit when allowance is insufficient.
+
 `InflowClient` extends `@x402/core`'s `x402Client`, so foundation registration helpers accept it directly:
 
 ```ts

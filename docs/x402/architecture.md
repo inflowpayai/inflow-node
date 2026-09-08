@@ -7,7 +7,7 @@ deliver an x402 integration.
 
 InFlow does **not** ship seller middleware. The foundation already ships adapters for Express, Fastify, Hono, and
 Next.js; it owns the request loop, payment response cache controls, paywall, settlement hooks, and multi-facilitator
-resolution via declaration order. InFlow plugs into that — the seller-side value-add is three factories and two helpers:
+resolution via declaration order. InFlow plugs into that with these factories and helpers:
 
 | InFlow surface                           | Returns                         | Drops into                                                                                             |
 | ---------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------ |
@@ -15,6 +15,7 @@ resolution via declaration order. InFlow plugs into that — the seller-side val
 | `createUnauthenticatedInflowFacilitator` | foundation `FacilitatorClient`  | same — for facilitator-only deployments                                                                |
 | `createInflowSellerClient`               | `InflowSellerClient`            | drives `inflowAccepts`                                                                                 |
 | `inflowAccepts(client, options)`         | foundation `PaymentOption[]`    | a route's `accepts` field in `RoutesConfig`                                                            |
+| `inflowRoute(client, options)`           | foundation `RouteConfig`        | a route's offers and token-gated EIP-2612 sponsorship declarations                                    |
 | `inflowSchemeRegistrations(client)`      | `Promise<SchemeRegistration[]>` | a foundation adapter's `schemes` argument — the foundation refuses to boot without these registrations |
 
 The buyer side ships `InflowClient`, a subclass of the foundation's `x402Client`. The buyer composes by passing the
@@ -145,8 +146,9 @@ paymentMiddlewareFromConfig({/* routes */}, [
 
 The buyer side uses a different but parallel rule: `InflowClient.createPaymentPayload` checks the InFlow buyer
 capability cache first (in `prefer`-scheme order), then falls back to `super.createPaymentPayload` for any requirement
-InFlow can't sign. The fallback uses the foundation's own selector against the schemes registered on the client. InFlow
-always wins when its cache matches; foundation schemes only run when no InFlow `(scheme, network)` pair fits.
+InFlow can't sign. The fallback uses the foundation's own selector against the schemes registered on the client.
+Permit2 offers are excluded from managed signing even when the same `(scheme, network)` is in the cache. Foundation
+schemes handle those external-wallet payments.
 
 ## `inflowAccepts` algorithm
 
@@ -163,31 +165,32 @@ Given an `InflowSellerClient` and a `PriceSpec`, `inflowAccepts` produces a foun
 
 Ordering: on-chain entries by wallet declaration order, then payment methods in declaration order.
 
-Extension declarations are not produced by `inflowAccepts` — per-route declarations live on `RouteConfig.extensions`,
-and facilitator-wide declarations come from each `FacilitatorClient.getSupported().extensions` and are merged by the
-middleware.
+Extension declarations are not produced by `inflowAccepts`. `inflowRoute` places EIP-2612 declarations on
+`RouteConfig.extensions` only when every Permit2 offer has explicit token capability and matching facilitator support.
+Its optional `assetTransferMethod: 'permit2'` selects configured Permit2 alternatives without changing ordinary offers.
+`FacilitatorClient.getSupported().extensions` advertises capability names, not route declarations.
 
 ## `inflowSchemeRegistrations`
 
 The foundation middleware checks `hasRegisteredScheme(scheme, network)` before it consults any
 `FacilitatorClient.getSupported()`. A facilitator that advertises support for a scheme the middleware doesn't know how
 to **register** cannot be used: the middleware refuses to boot. `inflowSchemeRegistrations()` returns the passthrough
-`SchemeRegistration[]` for `balance` (and any future InFlow-managed schemes) and is meant to be passed in the adapter's
-`schemes` argument alongside any framework-native registrations (`registerExactEvmScheme` / `registerExactSvmScheme`).
+`SchemeRegistration[]` for the configured schemes and is meant to be passed in the adapter's `schemes` argument.
 For Express and Hono:
 
 ```ts
 paymentMiddlewareFromConfig(
   routes,
   [inflowFacilitator /* others */],
-  [...(await inflowSchemeRegistrations(client)), registerExactEvmScheme(), registerExactSvmScheme()],
+  await inflowSchemeRegistrations(client),
 );
 ```
 
 The registrations are passthrough — they don't sign or settle anything themselves; the InFlow facilitator handles both.
 They satisfy the middleware's scheme-knowledge check at boot and declare the foundation's lifecycle contract. For each
-`(scheme, network)`, the helper aggregates exactly the `assetTransferMethod` values emitted by config; methods that omit
-that field use the foundation's SDK-only `default` sentinel. Every resulting entry supports only the `authorization`
+`(scheme, network)`, the helper aggregates the `assetTransferMethod` values emitted by config and Permit2 alternatives
+with a configured canonical proxy. Methods that omit that field use the foundation's SDK-only `default` sentinel.
+Every resulting entry supports only the `authorization`
 flow, preserving verify-before-handler and settle-after-handler behavior. The helper never enables `upfront` or `escrow`
 implicitly.
 

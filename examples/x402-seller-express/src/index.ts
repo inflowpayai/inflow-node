@@ -5,6 +5,7 @@ import {
   createInflowFacilitator,
   createInflowSellerClient,
   inflowAccepts,
+  inflowRoute,
   inflowSchemeRegistrations,
 } from '@inflowpayai/x402-seller';
 
@@ -16,8 +17,8 @@ if (apiKey === undefined || apiKey === '') {
 
 // 1. Authed InFlow facilitator — `verify`, `settle`, `getSupported`.
 //    Drops into the foundation's `facilitatorClients` array. The seller
-//    can prepend or append other facilitators; first claimer of a
-//    (scheme, network) pair via `getSupported()` wins routing.
+//    can append other facilitators; InFlow must claim sponsored
+//    (scheme, network) pairs before any competing facilitator.
 const inflow = createInflowFacilitator({ environment: 'sandbox', apiKey });
 
 // 2. Seller-authed client — owns `/v1/x402/config` and signer-discovery.
@@ -37,6 +38,12 @@ app.use(express.json());
 app.use(
   paymentMiddlewareFromConfig(
     {
+      'GET /api/sponsored': await inflowRoute(seller, {
+        price: '0.01 USDC',
+        schemes: ['exact'],
+        networks: ['eip155:84532'],
+        assetTransferMethod: 'permit2',
+      }),
       'GET /api/widgets': {
         accepts: await inflowAccepts(seller, {
           price: '$0.01',
@@ -57,6 +64,10 @@ app.use(
 
 app.get('/api/widgets', (_req, res) => {
   res.json({ widgets: [1, 2, 3] });
+});
+
+app.get('/api/sponsored', (_req, res) => {
+  res.json({ paid: true });
 });
 
 app.post('/api/upload', (_req, res) => {
