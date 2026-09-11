@@ -440,7 +440,7 @@ describe('InflowClient.prepareInflowPayment — Permit2 path', () => {
     },
   };
 
-  it('prepare forwards a Permit2 requirement byte-for-byte to the InFlow server', async () => {
+  it('rejects a Permit2 requirement before creating a managed approval', async () => {
     installSupported();
     let captured: { accept?: PaymentRequirements } | undefined;
     server.use(
@@ -450,16 +450,13 @@ describe('InflowClient.prepareInflowPayment — Permit2 path', () => {
       }),
     );
     const client = await createInflowClient({ apiKey: 'sk_test' });
-    await client.prepareInflowPayment(PERMIT2_REQUIREMENT, CONTEXT);
-    // The server-side Web3PaymentSigner dispatches on
-    // extra.assetTransferMethod; the buyer must forward the seller's
-    // accept entry verbatim (including extra.permit2Proxy) so the
-    // facilitator's binding validator sees the same accept JSON it
-    // stored at transaction-create time.
-    expect(captured?.accept).toEqual(PERMIT2_REQUIREMENT);
+    await expect(client.prepareInflowPayment(PERMIT2_REQUIREMENT, CONTEXT)).rejects.toBeInstanceOf(
+      X402AdapterRoutingError,
+    );
+    expect(captured).toBeUndefined();
   });
 
-  it('awaitPayload surfaces the Permit2-shaped payload unchanged', async () => {
+  it('reads an existing Permit2 transaction without creating a managed approval', async () => {
     installSupported();
     // Spec-shaped Permit2 payload: a single `permit2Authorization`
     // envelope with `permitted`, `from`, canonical `spender`, `nonce`,
@@ -481,9 +478,6 @@ describe('InflowClient.prepareInflowPayment — Permit2 path', () => {
       },
     };
     server.use(
-      http.post(`${PROD_BASE}/v1/transactions/x402`, () =>
-        HttpResponse.json({ approvalId: 'a', approvalStatus: 'APPROVED', transactionId: 'tx' }),
-      ),
       http.get(`${PROD_BASE}/v1/transactions/tx/x402`, () =>
         HttpResponse.json({
           status: 'SETTLED',
@@ -493,8 +487,7 @@ describe('InflowClient.prepareInflowPayment — Permit2 path', () => {
       ),
     );
     const client = await createInflowClient({ apiKey: 'sk_test' });
-    const prepared = await client.prepareInflowPayment(PERMIT2_REQUIREMENT, CONTEXT);
-    const result = await prepared.awaitPayload();
+    const result = await client.getX402Payload('tx');
     expect(result.paymentPayload).toEqual(permit2Payload);
     expect(result.encodedPayload).toBe(encodedFor(permit2Payload));
   });

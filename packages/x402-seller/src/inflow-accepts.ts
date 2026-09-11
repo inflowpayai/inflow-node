@@ -1,5 +1,11 @@
-import { ASSET_TRANSFER_METHODS, EXTRA_KEYS, SCHEMES } from '@inflowpayai/x402';
-import type { PaymentMethodInfo, PaymentScheme, X402AssetInfo, X402WalletInfo } from '@inflowpayai/x402';
+import { ASSET_TRANSFER_METHODS, CONTRACTS, EXTRA_KEYS, SCHEMES } from '@inflowpayai/x402';
+import type {
+  PaymentMethodInfo,
+  PaymentScheme,
+  X402AssetInfo,
+  X402ConfigResponse,
+  X402WalletInfo,
+} from '@inflowpayai/x402';
 import type { PaymentOption } from '@x402/core/http';
 
 import { X402PriceParseError } from './errors.js';
@@ -70,10 +76,18 @@ export async function inflowAccepts(
   client: InflowSellerClient,
   options: InflowAcceptsOptions,
 ): Promise<PaymentOption[]> {
+  return buildInflowAccepts(await client.config(), options);
+}
+
+/** @internal */
+export function buildInflowAccepts(
+  config: X402ConfigResponse,
+  options: InflowAcceptsOptions,
+  assetTransferMethod?: 'permit2',
+): PaymentOption[] {
   const maxTimeoutSeconds = options.maxTimeoutSeconds ?? DEFAULT_MAX_TIMEOUT_SECONDS;
   const priceSpec = normalizePrice(options.price);
   const { amount: parsedAmount, currency: targetCurrency } = parsePriceSpec(priceSpec);
-  const config = await client.config();
   const entries: PaymentOption[] = [];
 
   // On-chain entries: one per (wallet, matching-asset, transfer-method).
@@ -82,7 +96,12 @@ export async function inflowAccepts(
       (a) => a.blockchain === wallet.blockchain && currencyMatches(a.currency, targetCurrency),
     );
     for (const asset of assets) {
-      const methods = resolveTransferMethods(asset);
+      const methods =
+        assetTransferMethod === undefined
+          ? resolveTransferMethods(asset)
+          : supportsPermit2(asset)
+            ? [assetTransferMethod]
+            : [];
       for (const method of methods) {
         if (!includeEntry(options, SCHEMES.EXACT, asset.network)) continue;
         entries.push(
@@ -159,6 +178,12 @@ function buildOnChainOption(args: OnChainOptionArgs): PaymentOption {
   if (method === ASSET_TRANSFER_METHODS.PERMIT2 && asset.permit2Proxy !== undefined) {
     extra[EXTRA_KEYS.PERMIT2_PROXY] = asset.permit2Proxy;
   }
+  if (method === ASSET_TRANSFER_METHODS.PERMIT2 && asset.supportsEip2612 === true) {
+    extra[EXTRA_KEYS.SUPPORTS_EIP2612] = true;
+  }
+  if (method === ASSET_TRANSFER_METHODS.PERMIT2 && asset.supportsEip7702 === true) {
+    extra[EXTRA_KEYS.SUPPORTS_EIP7702] = true;
+  }
   if (wallet.feePayer !== undefined) {
     extra[EXTRA_KEYS.FEE_PAYER] = wallet.feePayer;
   }
@@ -209,6 +234,13 @@ function buildPaymentMethodOption(args: PaymentMethodOptionArgs): PaymentOption 
  */
 function resolveTransferMethods(asset: X402AssetInfo): readonly (string | undefined)[] {
   return [asset.assetTransferMethod];
+}
+
+/** @internal */
+export function supportsPermit2(asset: X402AssetInfo): boolean {
+  return (
+    asset.network.startsWith('eip155:') && asset.permit2Proxy?.toLowerCase() === CONTRACTS.PERMIT2_PROXY.toLowerCase()
+  );
 }
 
 function includeEntry(options: InflowAcceptsOptions, scheme: PaymentScheme, network: string): boolean {

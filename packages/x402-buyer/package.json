@@ -24,6 +24,14 @@
       },
       "default": "./dist/probe/index.js"
     },
+    "./eip7702": {
+      "types": "./dist/eip7702/index.d.ts",
+      "node": {
+        "import": "./dist/eip7702/index.js",
+        "require": "./dist/eip7702/index.cjs"
+      },
+      "default": "./dist/eip7702/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -49,18 +57,28 @@
     "bs58": "^6.0.0"
   },
   "peerDependencies": {
-    "@x402/core": "^2.22.0"
+    "@x402/core": "^2.22.0",
+    "@x402/evm": "^2.22.0",
+    "viem": "^2.56.3"
   },
   "peerDependenciesMeta": {
     "@x402/core": {
       "optional": false
+    },
+    "@x402/evm": {
+      "optional": true
+    },
+    "viem": {
+      "optional": true
     }
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^5.0.0",
     "@x402/core": "^2.22.0",
+    "@x402/evm": "^2.22.0",
     "fast-check": "^3.23.2",
-    "msw": "^2.15.0"
+    "msw": "^2.15.0",
+    "viem": "^2.56.3"
   },
   "publishConfig": {
     "access": "public",

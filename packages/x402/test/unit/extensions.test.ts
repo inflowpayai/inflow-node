@@ -12,7 +12,16 @@ import {
   PAYMENT_IDENTIFIER,
   generatePaymentId,
   validatePaymentId,
+  declareInflowEip7702GasSponsoringExtension,
+  INFLOW_EIP7702_GAS_SPONSORING,
 } from '../../src/extensions/index.js';
+
+it('declares only EIP-7702 version metadata without adding a managed-signing handler', () => {
+  const declaration = declareInflowEip7702GasSponsoringExtension();
+  expect(declaration).toEqual({ [INFLOW_EIP7702_GAS_SPONSORING]: { info: { version: '1' } } });
+  expect(EXTENSION_REGISTRY.has(INFLOW_EIP7702_GAS_SPONSORING)).toBe(false);
+  expect(declareInflowEip7702GasSponsoringExtension()).not.toBe(declaration);
+});
 
 describe('validatePaymentId', () => {
   it('accepts ids of minimum length consisting of allowed chars', () => {

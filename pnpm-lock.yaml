@@ -582,12 +582,18 @@ importers:
       '@x402/core':
         specifier: ^2.22.0
         version: 2.22.0
+      '@x402/evm':
+        specifier: ^2.22.0
+        version: 2.22.0(typescript@5.9.3)
       fast-check:
         specifier: ^3.23.2
         version: 3.23.2
       msw:
         specifier: ^2.15.0
         version: 2.15.0(@types/node@24.13.3)(typescript@5.9.3)
+      viem:
+        specifier: ^2.56.3
+        version: 2.56.3(typescript@5.9.3)(zod@4.4.3)
 
   packages/x402-seller:
     dependencies:
@@ -604,9 +610,15 @@ importers:
       '@x402/core':
         specifier: ^2.22.0
         version: 2.22.0
+      '@x402/evm':
+        specifier: ^2.22.0
+        version: 2.22.0(typescript@5.9.3)
       '@x402/express':
         specifier: ^2.22.0
         version: 2.22.0(express@5.2.1)(typescript@5.9.3)
+      '@x402/extensions':
+        specifier: ^2.22.0
+        version: 2.22.0(typescript@5.9.3)
       '@x402/fastify':
         specifier: ^2.22.0
         version: 2.22.0(fastify@5.12.3)(typescript@5.9.3)

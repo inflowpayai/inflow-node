@@ -1,6 +1,9 @@
 import type { ExtensionHandler } from './types.js';
 import { PAYMENT_IDENTIFIER } from './payment-identifier.js';
 
+export { INFLOW_EIP7702_GAS_SPONSORING, declareInflowEip7702GasSponsoringExtension } from './eip7702.js';
+export type { InflowEip7702GasSponsoringDeclaration, InflowEip7702GasSponsoringInfo } from './eip7702.js';
+
 export type { DeclarationContext, ExtensionHandler, SignContext } from './types.js';
 export { getExtension, setExtension } from './access.js';
 export {
