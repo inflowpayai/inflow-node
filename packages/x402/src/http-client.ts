@@ -42,9 +42,8 @@ export interface InflowClientOptions {
 }
 
 /**
- * Options accepted by {@link InflowHttpClient} when constructed without an API key. Only used by the seller-side
- * `createUnauthenticatedInflowFacilitator` factory; buyer-side flows and the seller client never construct anonymous
- * transports. Sends no `X-API-KEY` header on outbound requests.
+ * Options accepted by {@link InflowHttpClient} without an API key, for public facilitator and external-wallet
+ * preparation endpoints. Sends no `X-API-KEY` header on outbound requests.
  */
 export interface InflowAnonymousClientOptions {
   /** Marker field — must be omitted or `undefined`. */
@@ -132,8 +131,8 @@ export class InflowHttpClient {
    * @param options - {@link InflowClientOptions}, {@link InflowAnonymousClientOptions}, or
    *   {@link InflowBearerClientOptions}. The authed form requires `apiKey` to be a non-empty string; the anonymous form
    *   omits it entirely and sends no `X-API-KEY` header; the bearer form supplies an async `getAccessToken` callback
-   *   invoked once per HTTP attempt. Anonymous mode is used only by `createUnauthenticatedInflowFacilitator` in
-   *   `@inflowpayai/x402-seller`.
+   *   invoked once per HTTP attempt. Anonymous mode is used for public facilitator and external-wallet preparation
+   *   endpoints.
    * @throws {Error} When `apiKey` is present but empty, when `apiKey` and `getAccessToken` are both set, or when
    *   `getAccessToken` is set but not a function. (Server-side codes are mapped to {@link InflowApiError}; these are
    *   local precondition failures.)

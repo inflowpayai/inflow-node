@@ -181,6 +181,9 @@ function buildOnChainOption(args: OnChainOptionArgs): PaymentOption {
   if (method === ASSET_TRANSFER_METHODS.PERMIT2 && asset.supportsEip2612 === true) {
     extra[EXTRA_KEYS.SUPPORTS_EIP2612] = true;
   }
+  if (method === ASSET_TRANSFER_METHODS.PERMIT2 && asset.supportsEip7702 === true) {
+    extra[EXTRA_KEYS.SUPPORTS_EIP7702] = true;
+  }
   if (wallet.feePayer !== undefined) {
     extra[EXTRA_KEYS.FEE_PAYER] = wallet.feePayer;
   }

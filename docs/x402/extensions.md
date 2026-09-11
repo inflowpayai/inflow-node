@@ -103,7 +103,20 @@ foundation can echo the unsigned declaration into the payment payload without cr
 
 See the [seller guide](../../packages/x402-seller/README.md#gasless-permit2-approval-for-external-wallets) for token
 capability checks, facilitator ordering, and setup. InFlow-managed buyers cannot sign Permit2 payments. Generic ERC-20
-approval batching is not declared.
+raw-transaction approval batching is not declared.
+
+## InFlow EIP-7702 sponsorship
+
+`inflowEip7702GasSponsoring` is an opt-in custom extension for external-wallet Permit2 payments. Its route declaration
+is `{ info: { version: '1' } }`. A signed entry contains `info.version`, `info.sponsorshipId`, the owner's personal-sign
+`info.signature`, and an optional `info.authorizationSignature` for delegation. An unchanged declaration is not a signed
+sponsorship.
+
+The asynchronous foundation `ClientExtension` lives at `@inflowpayai/x402-buyer/eip7702`, outside InFlow's synchronous
+handler registry. It reuses the selected Permit2 payment and the configured InFlow preparation endpoint, not a URL from
+the merchant. See the [buyer guide](../../packages/x402-buyer/README.md#eip-7702-sponsorship-for-external-wallets) for
+signing, consent, dependency requirements and persistent-delegation risks. The standard EIP-2612 and managed-buyer paths
+are independent.
 
 ## Reading and writing extension entries
 

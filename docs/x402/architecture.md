@@ -15,7 +15,7 @@ resolution via declaration order. InFlow plugs into that with these factories an
 | `createUnauthenticatedInflowFacilitator` | foundation `FacilitatorClient`  | same — for facilitator-only deployments                                                                |
 | `createInflowSellerClient`               | `InflowSellerClient`            | drives `inflowAccepts`                                                                                 |
 | `inflowAccepts(client, options)`         | foundation `PaymentOption[]`    | a route's `accepts` field in `RoutesConfig`                                                            |
-| `inflowRoute(client, options)`           | foundation `RouteConfig`        | a route's offers and token-gated EIP-2612 sponsorship declarations                                    |
+| `inflowRoute(client, options)`           | foundation `RouteConfig`        | a route's offers and token-gated sponsorship declarations                                             |
 | `inflowSchemeRegistrations(client)`      | `Promise<SchemeRegistration[]>` | a foundation adapter's `schemes` argument — the foundation refuses to boot without these registrations |
 
 The buyer side ships `InflowClient`, a subclass of the foundation's `x402Client`. The buyer composes by passing the
@@ -167,8 +167,13 @@ Ordering: on-chain entries by wallet declaration order, then payment methods in 
 
 Extension declarations are not produced by `inflowAccepts`. `inflowRoute` places EIP-2612 declarations on
 `RouteConfig.extensions` only when every Permit2 offer has explicit token capability and matching facilitator support.
-Its optional `assetTransferMethod: 'permit2'` selects configured Permit2 alternatives without changing ordinary offers.
-`FacilitatorClient.getSupported().extensions` advertises capability names, not route declarations.
+Otherwise it independently checks explicit EIP-7702 asset and per-kind facilitator support before declaring the custom
+`inflowEip7702GasSponsoring` extension. The optional external-buyer extension prepares and signs an atomic approval and
+Permit2 settlement operation; the facilitator broadcasts only at settlement. Delegation itself persists after execution
+failure.
+
+`inflowRoute`'s optional `assetTransferMethod: 'permit2'` selects configured Permit2 alternatives without changing ordinary
+offers. `FacilitatorClient.getSupported().extensions` advertises capability names, not route declarations.
 
 ## `inflowSchemeRegistrations`
 

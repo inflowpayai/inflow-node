@@ -1,4 +1,8 @@
 import { ASSET_TRANSFER_METHODS, CONTRACTS, type X402AssetInfo, type X402ConfigResponse } from '@inflowpayai/x402';
+import {
+  INFLOW_EIP7702_GAS_SPONSORING,
+  declareInflowEip7702GasSponsoringExtension,
+} from '@inflowpayai/x402/extensions';
 import { x402Client } from '@x402/core/client';
 import { decodePaymentRequiredHeader, x402HTTPResourceServer, type HTTPAdapter } from '@x402/core/http';
 import { x402ResourceServer, type FacilitatorClient } from '@x402/core/server';
@@ -38,6 +42,41 @@ function fixture(assetOverrides: Partial<X402AssetInfo> = {}) {
 }
 
 describe('inflowRoute', () => {
+  function eip7702Fixture() {
+    const f = fixture({ supportsEip2612: false, supportsEip7702: true });
+    f.supported.extensions.push(INFLOW_EIP7702_GAS_SPONSORING);
+    f.supported.kinds = [{ x402Version: 2, scheme: 'exact', network: 'eip155:8453', extra: { supportsEip7702: true } }];
+    return f;
+  }
+
+  it('declares EIP-7702 independently of token permit support and signing-domain metadata', async () => {
+    const { client, asset } = eip7702Fixture();
+    delete asset.tokenName;
+    delete asset.tokenVersion;
+    const route = await inflowRoute(client, { price: '$0.01' });
+    expect(route.extensions).toEqual(declareInflowEip7702GasSponsoringExtension());
+    expect(route.accepts).toHaveProperty('0.extra.supportsEip7702', true);
+  });
+
+  it.each(['asset', 'extension', 'kind', 'chain'] as const)(
+    'does not infer EIP-7702 capability without matching %s support',
+    async (missing) => {
+      const { client, asset, supported } = eip7702Fixture();
+      if (missing === 'asset') delete asset.supportsEip7702;
+      if (missing === 'extension') supported.extensions = [];
+      if (missing === 'kind') supported.kinds = [{ x402Version: 2, scheme: 'exact', network: 'eip155:8453' }];
+      if (missing === 'chain')
+        supported.kinds = [{ x402Version: 2, scheme: 'exact', network: 'eip155:1', extra: { supportsEip7702: true } }];
+      expect((await inflowRoute(client, { price: '$0.01' })).extensions).toBeUndefined();
+    },
+  );
+
+  it('prefers standard EIP-2612 when both sponsorship methods are supported', async () => {
+    const { client, asset } = eip7702Fixture();
+    asset.supportsEip2612 = true;
+    expect((await inflowRoute(client, { price: '$0.01' })).extensions).toEqual(declareEip2612GasSponsoringExtension());
+  });
+
   it('uses the foundation declaration at route level for compatible Permit2 offers', async () => {
     const { client } = fixture();
     const route = await inflowRoute(client, { price: '$0.01' });

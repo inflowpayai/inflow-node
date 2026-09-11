@@ -60,6 +60,7 @@ export const EXTRA_KEYS = {
   NAME: 'name',
   PERMIT2_PROXY: 'permit2Proxy',
   SUPPORTS_EIP2612: 'supportsEip2612',
+  SUPPORTS_EIP7702: 'supportsEip7702',
   VERSION: 'version',
 } as const;
 

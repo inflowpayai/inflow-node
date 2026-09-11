@@ -45,7 +45,8 @@ cannot load Seller configuration; `createInflowSellerClient()` rejects with an `
   60-minute TTL.
 - `inflowAccepts(client, options)` — async helper. Returns a foundation `PaymentOption[]` ready to splat into a route's
   `accepts` field. The prices are pre-resolved to `AssetAmount` form (asset contract address + atomic-unit amount).
-- `inflowRoute(client, options)` — builds `accepts` and compatible EIP-2612 sponsorship declarations. See below for explicit Permit2 selection.
+- `inflowRoute(client, options)` — builds `accepts` and compatible sponsorship declarations. See below for explicit
+  Permit2 selection.
 - `inflowSchemeRegistrations(client)` — async helper. Reads the seller's `/v1/x402/config` and returns one passthrough
   `SchemeRegistration` per `(scheme, network)` pair the server can emit, with authorization-only payment flows for the
   exact asset transfer methods declared by config. Pass these through the adapter's `schemes` argument; the foundation
@@ -127,9 +128,16 @@ Without `assetTransferMethod`, offers retain the server-configured defaults. Exp
 assets without a configured canonical proxy; balance offers are unaffected. `inflowSchemeRegistrations` registers the
 configured Permit2 alternative without adding it to ordinary `inflowAccepts` offers.
 
-Declarations apply to a whole route. If any Permit2 offer lacks EIP-2612 capability, the route omits EIP-2612 sponsorship;
-use separate routes or a currency filter for incompatible tokens. Missing metadata or facilitator support never implies
-sponsorship. The helper does not declare ERC-20 approval batching.
+Declarations apply to a whole route. If any Permit2 offer lacks EIP-2612 capability, the route omits EIP-2612
+sponsorship; use separate routes or a currency filter for incompatible tokens. Missing metadata or facilitator support
+never implies sponsorship.
+
+When EIP-2612 cannot be declared, the helper can declare the custom `inflowEip7702GasSponsoring` extension. Every
+Permit2 offer must carry explicit `supportsEip7702: true` from seller configuration, and the refreshed facilitator
+response must advertise both the extension and matching kinds with `extra.supportsEip7702: true`. External buyers opt in
+through [`@inflowpayai/x402-buyer/eip7702`](../x402-buyer/README.md#eip-7702-sponsorship-for-external-wallets). They
+authorize persistent delegation and sign the exact atomic approval-and-payment operation. The helper does not declare
+the standard `erc20ApprovalGasSponsoring` extension.
 
 Pass the matching InFlow facilitator first in the middleware's facilitator list for sponsored routes. The helper checks
 that client's capabilities, not the middleware's final routing: an earlier facilitator claiming the same pair takes
