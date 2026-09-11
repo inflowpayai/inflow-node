@@ -22,7 +22,7 @@ import {
 
 const owner = privateKeyToAccount(`0x${'01'.repeat(32)}`);
 const other = privateKeyToAccount(`0x${'02'.repeat(32)}`);
-const asset = '0x1111111111111111111111111111111111111111';
+const asset = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const delegation = '0x77021100bD87b7008E5E1989d0eB38555d0d0000';
 const BATCH_ABI = parseAbi(['function executeBatch((address target,uint256 value,bytes data)[] calls)']);
 

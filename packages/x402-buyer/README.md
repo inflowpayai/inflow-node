@@ -125,6 +125,10 @@ callback must show the chain and delegation address to the owner and return true
 delegation is needed, before `signAuthorization`. Wallets that cannot authorize this specific delegation cannot use this
 extension.
 
+With `@x402/core` 2.25.0 or later, use `x402Client.fromConfig` to explicitly allow non-default tokens through
+`spendControls.allowedAssets`, specifying the network, token address and an atomic `maxAmountPerPayment` cap.
+Sponsorship does not bypass the foundation client's spending controls.
+
 The seller must declare `inflowEip7702GasSponsoring`. When allowance is insufficient, the extension calls the configured
 InFlow environment's `/v1/x402/eip7702/prepare`, validates the exact approval-and-payment batch and operation hash, then
 collects the owner's signatures. It never broadcasts. The facilitator submits the prepared operation at settlement. The
