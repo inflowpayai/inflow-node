@@ -4,6 +4,7 @@ import type { PaymentOption } from '@x402/core/http';
 
 import { X402PriceParseError } from './errors.js';
 import type { InflowSellerClient } from './seller-client.js';
+import { uptoSupportedKind } from './upto.js';
 
 const DEFAULT_MAX_TIMEOUT_SECONDS = 300;
 
@@ -47,7 +48,8 @@ export interface InflowAcceptsOptions {
   maxTimeoutSeconds?: number;
   /**
    * Optional filter: emit only entries whose `scheme` is in this list. Combined with
-   * {@link InflowAcceptsOptions.networks} as logical AND. Omit (or pass `undefined`) for "any scheme."
+   * {@link InflowAcceptsOptions.networks} as logical AND. Metered `upto` entries require explicit inclusion; omitting
+   * this filter emits fixed-price entries only. For `upto`, `price` is the maximum authorized charge.
    */
   schemes?: PaymentScheme[];
   /**
@@ -94,6 +96,22 @@ export async function inflowAccepts(
             maxTimeoutSeconds,
           }),
         );
+      }
+      if (options.schemes?.includes(SCHEMES.UPTO) && includeEntry(options, SCHEMES.UPTO, asset.network)) {
+        const kind = uptoSupportedKind(config, asset);
+        if (kind !== undefined) {
+          entries.push(
+            buildOnChainOption({
+              wallet,
+              asset,
+              method: ASSET_TRANSFER_METHODS.PERMIT2,
+              amount: factorParsed(parsedAmount, asset.decimals, priceSpec.amount),
+              maxTimeoutSeconds,
+              scheme: SCHEMES.UPTO,
+              schemeExtra: kind.extra,
+            }),
+          );
+        }
       }
     }
   }
@@ -142,6 +160,8 @@ interface OnChainOptionArgs {
   method: string | undefined;
   amount: string;
   maxTimeoutSeconds: number;
+  scheme?: PaymentScheme;
+  schemeExtra?: Record<string, unknown> | undefined;
 }
 
 function buildOnChainOption(args: OnChainOptionArgs): PaymentOption {
@@ -163,7 +183,7 @@ function buildOnChainOption(args: OnChainOptionArgs): PaymentOption {
     extra[EXTRA_KEYS.FEE_PAYER] = wallet.feePayer;
   }
   return {
-    scheme: SCHEMES.EXACT,
+    scheme: args.scheme ?? SCHEMES.EXACT,
     // CAIP-2 string — narrower than the foundation `Network` template
     // literal type would assume from the assignment site, so cast at the
     // construction boundary.
@@ -171,7 +191,7 @@ function buildOnChainOption(args: OnChainOptionArgs): PaymentOption {
     payTo: wallet.address,
     price: { asset: asset.assetId, amount },
     maxTimeoutSeconds,
-    extra,
+    extra: { ...extra, ...args.schemeExtra },
   };
 }
 

@@ -8,6 +8,6 @@ export { inflowAccepts } from './inflow-accepts.js';
 export type { InflowAcceptsOptions, PriceSpec } from './inflow-accepts.js';
 
 export { inflowSchemeRegistrations } from './scheme-registrations.js';
-export type { InflowSchemeRegistration } from './scheme-registrations.js';
+export type { InflowSchemeRegistration, InflowSchemeRegistrationsOptions } from './scheme-registrations.js';
 
 export { X402PriceParseError } from './errors.js';

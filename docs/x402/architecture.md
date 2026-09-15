@@ -159,7 +159,13 @@ Given an `InflowSellerClient` and a `PriceSpec`, `inflowAccepts` produces a foun
    `extra.permit2Proxy` is set from `asset.permit2Proxy`.
 2. **Non-blockchain entries**: for each `paymentMethod` (`balance`, future `instrument`), emit one `PaymentOption` using
    the method's own `payTo` and decimals.
-3. **Filter**: `options.schemes` and `options.networks` are combined as logical AND. Omit either for "any."
+3. **Metered entries**: only when `options.schemes` explicitly includes `upto`, match each Permit2-capable EVM asset
+   (`asset.permit2Proxy` present) to its network's `config.supported` entry for `upto`. That entry supplies
+   `extra.assetTransferMethod: 'permit2'`, `extra.permit2Proxy` for the metered proxy, and `extra.facilitatorAddress`
+   for the signed witness. The route price is the authorization ceiling. Exact entries retain the asset's configured
+   transfer method; metered support does not imply an exact Permit2 alternative.
+4. **Filter**: `options.schemes` and `options.networks` are combined as logical AND. Without a scheme filter, emit
+   fixed-price entries only.
 
 Ordering: on-chain entries by wallet declaration order, then payment methods in declaration order.
 
@@ -190,6 +196,12 @@ They satisfy the middleware's scheme-knowledge check at boot and declare the fou
 that field use the foundation's SDK-only `default` sentinel. Every resulting entry supports only the `authorization`
 flow, preserving verify-before-handler and settle-after-handler behavior. The helper never enables `upfront` or `escrow`
 implicitly.
+
+Metered routes pass the same explicit `schemes` selection to `inflowSchemeRegistrations(client, { schemes })`. For
+qualifying `upto` networks, the helper loads `UptoEvmScheme` from the optional `@x402/evm/upto/server` peer; fixed-price
+integrations do not load that peer. The foundation owns request-local settlement overrides and forwards the handler's
+actual atomic amount in settlement requirements without changing the signed maximum. See
+[metered seller usage](../../packages/x402-seller/README.md#metered-evm-payments).
 
 ## Orphan approvals
 

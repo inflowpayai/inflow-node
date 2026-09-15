@@ -156,7 +156,7 @@ function buildFacilitator(
       } catch (err) {
         // The facilitator emits HTTP 412 with the standard VerifyResponse
         // body when Permit2 reports an allowance gap
-        // (`invalidReason: PERMIT2_ALLOWANCE_REQUIRED`). The SDK normalises
+        // (`invalidReason: permit2_allowance_required`). The SDK normalises
         // the non-2xx into the same isValid:false VerifyResponse shape the
         // caller already handles for every other invalid case, so callers
         // get a single, branchable surface.

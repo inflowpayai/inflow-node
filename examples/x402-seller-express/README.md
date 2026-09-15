@@ -36,3 +36,13 @@ Hit it with the matching buyer example or any other x402 client:
 cd ../x402-buyer-fetch
 INFLOW_API_KEY=$INFLOW_API_KEY TARGET_URL=http://localhost:3000/api/widgets pnpm start
 ```
+
+## Metered Permit2 route
+
+Run `pnpm start:upto` for `POST /api/hash`. This variant requires the sandbox seller configuration to advertise `upto`
+for USDC and a deployed metered Permit2 proxy. It accepts a `text/plain` body of at most 100000 bytes, authorizes a
+maximum of 0.10 USDC, and settles one atomic USDC unit per input byte. The foundation's
+`setSettlementOverrides(response, { amount })` carries the measured usage to the facilitator.
+
+Pay with an external wallet using `UptoEvmScheme` from `@x402/evm/upto/client`, registered on a foundation `x402Client`.
+The wallet needs token allowance to Permit2. InFlow treasury buyers do not sign this payment method.
