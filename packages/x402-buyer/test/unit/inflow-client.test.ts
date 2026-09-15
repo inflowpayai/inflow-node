@@ -107,6 +107,45 @@ describe('createInflowClient — construction', () => {
   });
 });
 
+describe('Permit2 treasury boundary', () => {
+  const requirement: PaymentRequirements = {
+    ...EVM_REQ,
+    network: 'eip155:8453',
+    asset: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+    extra: { ...EVM_REQ.extra, assetTransferMethod: 'permit2' },
+  };
+
+  it('routes Permit2 to the external scheme even when InFlow supports the same exact network', async () => {
+    installSupported();
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    const createPaymentPayload = vi.fn(() => Promise.resolve({ x402Version: 2, payload: { signature: 'external' } }));
+    const externalScheme = {
+      scheme: 'exact',
+      createPaymentPayload,
+      findDefaultAsset: (asset: string, network: string) =>
+        asset === requirement.asset && network === requirement.network
+          ? { asset, decimals: 6, symbol: 'USDC' }
+          : undefined,
+    };
+    client.register('eip155:8453', externalScheme);
+    const required = paymentRequired([requirement]);
+    expect(await client.selectInflowRequirement(required)).toBeNull();
+    expect((await client.createPaymentPayload(required)).payload).toEqual({ signature: 'external' });
+    expect(createPaymentPayload).toHaveBeenCalledOnce();
+  });
+
+  it('rejects both two-phase and direct managed signing before any payment request', async () => {
+    installSupported();
+    const signer = await createInflowSigner({ apiKey: 'sk_test' });
+    const client = new InflowClient(signer);
+    const context = { x402Version: 2, resource: { url: 'https://example.com/payment' } };
+    expect(signer.supports(requirement)).toBe(false);
+    await expect(client.prepareInflowPayment(requirement, context)).rejects.toBeInstanceOf(X402AdapterRoutingError);
+    await expect(signer.prepare(requirement, context)).rejects.toBeInstanceOf(X402AdapterRoutingError);
+    await expect(signer.sign(requirement, context)).rejects.toBeInstanceOf(X402AdapterRoutingError);
+  });
+});
+
 describe('InflowClient.createPaymentPayload — InFlow branch', () => {
   it('routes a supported requirement through the InFlow signer and returns the parsed paymentPayload', async () => {
     installSupported();

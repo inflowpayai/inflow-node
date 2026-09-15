@@ -1,4 +1,4 @@
-import { EXTRA_KEYS, SCHEMES } from '@inflowpayai/x402';
+import { ASSET_TRANSFER_METHODS, EXTRA_KEYS, SCHEMES } from '@inflowpayai/x402';
 import type { PaymentScheme } from '@inflowpayai/x402';
 import { getExtra } from '@inflowpayai/x402/extras';
 import { SDK_DEFAULT_ASSET_TRANSFER_METHOD } from '@x402/core/server';
@@ -13,6 +13,7 @@ import type {
 } from '@x402/core/types';
 
 import type { InflowSellerClient } from './seller-client.js';
+import { supportsPermit2 } from './inflow-accepts.js';
 import { uptoSupportedKind } from './upto.js';
 
 /**
@@ -79,6 +80,7 @@ export async function inflowSchemeRegistrations(
   // method in config declaration order.
   for (const asset of config.assets) {
     add(SCHEMES.EXACT, asset.network, asset.assetTransferMethod);
+    if (supportsPermit2(asset)) add(SCHEMES.EXACT, asset.network, ASSET_TRANSFER_METHODS.PERMIT2);
     if (options.schemes?.includes(SCHEMES.UPTO) && uptoSupportedKind(config, asset) !== undefined) {
       add(SCHEMES.UPTO, asset.network, 'permit2');
     }

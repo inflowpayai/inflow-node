@@ -1,4 +1,10 @@
-import { InflowApiError, InflowHttpClient, normalizeDecimalString } from '@inflowpayai/x402';
+import {
+  ASSET_TRANSFER_METHODS,
+  EXTRA_KEYS,
+  InflowApiError,
+  InflowHttpClient,
+  normalizeDecimalString,
+} from '@inflowpayai/x402';
 import type {
   InflowPaymentPayload,
   PaymentRequirements,
@@ -6,8 +12,10 @@ import type {
   X402BuyerSupportedResponse,
 } from '@inflowpayai/x402';
 import { EXTENSION_REGISTRY, validatePaymentId } from '@inflowpayai/x402/extensions';
+import { getExtra } from '@inflowpayai/x402/extras';
 
 import {
+  X402AdapterRoutingError,
   X402ApprovalCancelledError,
   X402ApprovalFailedError,
   X402ApprovalTimeoutError,
@@ -94,6 +102,7 @@ export async function createInflowSigner(options: SignerOptions): Promise<Inflow
   }
 
   function supports(requirement: PaymentRequirements): boolean {
+    if (getExtra(requirement.extra, EXTRA_KEYS.ASSET_TRANSFER_METHOD) === ASSET_TRANSFER_METHODS.PERMIT2) return false;
     const cached = supportedCache.value;
     if (cached === undefined) return false;
     return cached.kinds.some((k) => k.scheme === requirement.scheme && k.network === requirement.network);
@@ -125,6 +134,9 @@ export async function createInflowSigner(options: SignerOptions): Promise<Inflow
     context: SigningContext,
     callOptions?: SignOptions,
   ): Promise<PreparedPayment> {
+    if (getExtra(requirement.extra, EXTRA_KEYS.ASSET_TRANSFER_METHOD) === ASSET_TRANSFER_METHODS.PERMIT2) {
+      throw new X402AdapterRoutingError(requirement.scheme, requirement.network);
+    }
     const merged = { ...options.signDefaults, ...callOptions };
     if (merged.paymentId !== undefined && !validatePaymentId(merged.paymentId)) {
       throw new X402PaymentIdFormatError(merged.paymentId);

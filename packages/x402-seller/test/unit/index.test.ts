@@ -22,6 +22,7 @@ describe('@inflowpayai/x402-seller — public surface', () => {
 
   it('exposes the accepts helper', () => {
     expect(typeof seller.inflowAccepts).toBe('function');
+    expect(typeof seller.inflowRoute).toBe('function');
   });
 
   it('exposes the scheme-registration helper', () => {
