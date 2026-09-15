@@ -41,7 +41,8 @@
   },
   "peerDependencies": {
     "@x402/core": "^2.22.0",
-    "@x402/evm": "^2.22.0"
+    "@x402/evm": "^2.22.0",
+    "@x402/extensions": "^2.22.0"
   },
   "peerDependenciesMeta": {
     "@x402/core": {
@@ -49,6 +50,9 @@
     },
     "@x402/evm": {
       "optional": true
+    },
+    "@x402/extensions": {
+      "optional": false
     }
   },
   "devDependencies": {
@@ -57,6 +61,7 @@
     "@x402/core": "^2.22.0",
     "@x402/evm": "^2.22.0",
     "@x402/express": "^2.22.0",
+    "@x402/extensions": "^2.22.0",
     "@x402/fastify": "^2.22.0",
     "@x402/hono": "^2.22.0",
     "@x402/next": "^2.22.0",
