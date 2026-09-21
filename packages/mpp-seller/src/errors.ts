@@ -106,3 +106,34 @@ export class MppUnsupportedRailError extends Error {
     super(`inflow: rail "${rail}" is not supported for currency "${currency}" and intent "${intent}"`);
   }
 }
+
+/** Thrown when the authenticated seller cannot safely advertise Stripe through the PSP config. */
+export class MppStripeUnavailableError extends Error {
+  override readonly name = 'MppStripeUnavailableError';
+
+  constructor() {
+    super(
+      'stripe: this seller has no verified Stripe business profile; connect one in InFlow before offering Stripe payments',
+    );
+  }
+}
+
+/** Thrown before challenge issuance when a Stripe USD amount cannot be represented or accepted exactly. */
+export class MppStripeAmountError extends Error {
+  override readonly name = 'MppStripeAmountError';
+
+  /** @param reason - Actionable constraint violated by the amount. */
+  constructor(reason: string) {
+    super(`stripe: ${reason}`);
+  }
+}
+
+/** Thrown before challenge issuance when Stripe request fields would be rejected by the buyer or PSP. */
+export class MppStripeRequestError extends Error {
+  override readonly name = 'MppStripeRequestError';
+
+  /** @param reason - Actionable request constraint violated by the seller. */
+  constructor(reason: string) {
+    super(`stripe: ${reason}`);
+  }
+}

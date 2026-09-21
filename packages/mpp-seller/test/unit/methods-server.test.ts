@@ -178,6 +178,93 @@ function decodeChallengeRequest(response: Response): Record<string, unknown> {
 }
 
 describe('native issuance: currency → rail in the minted 402', () => {
+  it.each(['inflow', 'subscription', 'tempo'] as const)(
+    'uses the default API origin for %s without a base URL override',
+    async (kind) => {
+      const origin = kind === 'subscription' ? 'https://sandbox.inflowpay.ai' : 'https://api.inflowpay.ai';
+      let hits = 0;
+      server.use(
+        http.get(`${origin}/v1/mpp/config`, ({ request }) => {
+          hits += 1;
+          expect(request.headers.get('X-API-Key')).toBe('sk_test');
+          return HttpResponse.json(config());
+        }),
+      );
+      const customFetch = vi.fn<typeof fetch>((input, init) => globalThis.fetch(input, init));
+      const method =
+        kind === 'subscription'
+          ? inflow.subscription({ apiKey: 'sk_test', environment: 'sandbox', timeoutMs: 5000, fetch: customFetch })
+          : kind === 'tempo'
+            ? tempo({ apiKey: 'sk_test', currency: TEMPO_ASSET, recipient: TEMPO_RECIPIENT })
+            : inflow({ apiKey: 'sk_test' });
+      const mppx = Mppx.create({ methods: [method], secretKey: SECRET, realm: REALM });
+      const challenge =
+        kind === 'subscription'
+          ? await mppx.challenge.inflow.subscription(SUB)
+          : kind === 'tempo'
+            ? await mppx.challenge.tempo.charge({ amount: '1' })
+            : await mppx.challenge.inflow.charge({ amount: '1', currency: 'USDC' });
+      expect(challenge.request).toMatchObject({
+        amount: kind === 'subscription' ? SUB.amount : '1',
+        recipient: kind === 'tempo' ? TEMPO_RECIPIENT : SELLER,
+      });
+      if (method.name === 'tempo') {
+        server.use(
+          http.post(`${origin}/v1/mpp/broadcast`, () =>
+            HttpResponse.json({
+              receipt: {
+                method: 'tempo',
+                reference: 'ref-origin',
+                status: 'success',
+                timestamp: '2026-05-31T00:00:00Z',
+              },
+            }),
+          ),
+        );
+        if (method.broadcast === undefined) throw new Error('expected broadcast hook');
+        // The challenge helper returns a broader type than the concrete Tempo request.
+        const receipt = await method.broadcast({
+          credential: { challenge, payload: { type: 'transaction', signature: '0x76deadbeef' } },
+          request: challenge.request,
+        } as TempoValidateArg);
+        expect(receipt).toMatchObject({ status: 'success', reference: 'ref-origin' });
+      }
+      expect(hits).toBe(1);
+      if (kind === 'subscription') expect(customFetch).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('applies Tempo defaults when its request hook receives only an amount', async () => {
+    mockConfig();
+    const method = tempo({ apiKey: 'sk_test', baseUrl: BASE, currency: TEMPO_ASSET, recipient: TEMPO_RECIPIENT });
+    if (method.request === undefined) throw new Error('expected request hook');
+    expect(await method.request({ request: { amount: '10' } })).toEqual({
+      amount: '10',
+      currency: TEMPO_ASSET,
+      recipient: TEMPO_RECIPIENT,
+      methodDetails: { feePayer: false, supportedModes: ['pull'] },
+    });
+  });
+
+  it('rejects an advertised rail that the InFlow method cannot implement', async () => {
+    mockConfig(
+      config({
+        supportedMethods: [
+          {
+            id: 'inflow',
+            label: 'InFlow',
+            supportedCurrencies: ['USDC'],
+            supportedIntents: ['charge'],
+            methodDetails: { currencyRails: { USDC: { rail: 'blockchain' } } },
+          },
+        ],
+      }),
+    );
+    const { mppx } = makeMppx();
+    await expect(mppx.challenge.inflow.charge({ amount: '1', currency: 'USDC' })).rejects.toThrow(
+      new MppUnsupportedRailError('USDC', 'charge', 'unknown'),
+    );
+  });
   it('mints a single balance-rail challenge for a crypto currency (USDC)', async () => {
     mockConfig();
     const { mppx } = makeMppx();
@@ -584,6 +671,36 @@ describe('stableBinding', () => {
 });
 
 describe('credential lifecycle', () => {
+  it('limits the combined receipt extensions while retaining later small fields', async () => {
+    mockConfig();
+    mockValidateSuccess();
+    mockBroadcastSuccess('inflow', {
+      challengeId: undefined,
+      first: 'a'.repeat(8000),
+      second: 'b'.repeat(8000),
+      oversized: 'c'.repeat(1000),
+      last: 'retained',
+    });
+    const { mppx } = makeMppx();
+    const challenge = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC' });
+    const authorization = Credential.serialize({
+      challenge,
+      payload: { transactionId: 'tx-limited', type: 'balance' },
+    });
+    const result = await mppx.charge({ amount: '10', currency: 'USDC' })(
+      new Request('https://app.test/r', {
+        headers: { Authorization: authorization },
+      }),
+    );
+    expect(result.status).toBe(200);
+    if (result.status !== 200) throw new Error('expected 200');
+    const header = result.withReceipt(new Response('ok')).headers.get('Payment-Receipt');
+    if (header === null) throw new Error('expected receipt');
+    const receipt = decodeReceipt(header);
+    expect(receipt).toMatchObject({ first: 'a'.repeat(8000), second: 'b'.repeat(8000), last: 'retained' });
+    expect(receipt).not.toHaveProperty('oversized');
+    expect(receipt).not.toHaveProperty('challengeId');
+  });
   it('recovers Tempo broadcast after a failed configuration warmup', async () => {
     let configHits = 0;
     const fetchConfig: typeof fetch = async (input, init) => {
@@ -1251,6 +1368,19 @@ describe('inflow subscription: issuance, binding, verify', () => {
       subscriptionExpires: '2027-01-01T00:00:00Z',
       externalId: 'plan_pro',
     });
+  });
+
+  it('includes the instrument in subscription binding when supplied', () => {
+    mockConfig();
+    const { method } = makeSubMppx();
+    if (method.stableBinding === undefined) throw new Error('expected stable binding hook');
+    expect(
+      method.stableBinding({
+        ...SUB,
+        recipient: SELLER,
+        methodDetails: { rail: 'instrument', instrumentId: INSTRUMENT },
+      }),
+    ).toEqual({ ...SUB, recipient: SELLER, rail: 'instrument', instrumentId: INSTRUMENT });
   });
 
   it('verify reflects the receipt and preserves the server-issued subscriptionId without masking authorization replay', async () => {
