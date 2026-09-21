@@ -11,6 +11,7 @@ import {
 import { UNSAFE_OBJECT_KEYS, sanitizeJsonValue } from '@inflowpayai/mpp-internal';
 import type {
   InflowChargeRequestInput,
+  Environment,
   MppChallenge,
   MppBroadcastRequest,
   MppCredential,
@@ -21,12 +22,16 @@ import type {
 } from '@inflowpayai/mpp';
 import { Method, Receipt } from 'mppx';
 import type { Credential } from 'mppx';
+import { Methods as StripeMethods } from 'mppx/stripe';
 
 import { createConfigClient } from './config-client.js';
 import {
   MppAmbiguousRailError,
   MppInstrumentRequiredError,
   MppCredentialProblemError,
+  MppStripeAmountError,
+  MppStripeRequestError,
+  MppStripeUnavailableError,
   MppUnsupportedCurrencyError,
   MppUnsupportedRailError,
 } from './errors.js';
@@ -51,6 +56,50 @@ interface ResolvedMethodDetails {
   rail: 'balance' | 'instrument';
   instrumentId?: string;
 }
+
+interface StripeConfig {
+  featureFlags: LoadedConfig['featureFlags'];
+  networkId: string;
+  paymentMethodTypes: string[];
+}
+
+type StripeDefaults = {
+  currency: 'usd';
+  decimals: 2;
+  networkId: string;
+  paymentMethodTypes: string[];
+};
+
+/** Constructor parameters for the seller-side Stripe charge method. */
+export interface StripeSellerParameters {
+  /** InFlow API key. Stripe merchant credentials remain encrypted on the InFlow server. */
+  apiKey: string;
+  /** Selects one of the public environments. Defaults to `'production'`. */
+  environment?: Environment;
+  /** Override the environment-derived API base URL. Takes precedence over `environment`. */
+  baseUrl?: string;
+  /** Per-request timeout (milliseconds) for config and credential lifecycle calls. */
+  timeoutMs?: number;
+  /** Optional `fetch` implementation. Defaults to `globalThis.fetch`. Must conform to the WHATWG fetch API. */
+  fetch?: typeof fetch;
+  /** Decides whether the configured Stripe offer is available for a composed HTTP request. */
+  canOffer?: Method.CanOfferFn<typeof StripeMethods.charge>;
+}
+
+const STRIPE_MAX_MINOR_UNITS = 99_999_999n;
+const STRIPE_MAX_METADATA_ENTRIES = 45;
+const STRIPE_MAX_METADATA_KEY_LENGTH = 40;
+const STRIPE_MAX_METADATA_VALUE_LENGTH = 500;
+const STRIPE_MIN_MINOR_UNITS = 50n;
+const STRIPE_RESERVED_METADATA: ReadonlySet<string> = new Set([
+  'externalId',
+  'inflowMppTransactionId',
+  'mppChallengeId',
+  'mppIntent',
+  'mppMethod',
+  'stripeNetworkProfile',
+]);
+const STRIPE_USD_AMOUNT = /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/;
 
 /**
  * The seller-side `inflow` method, built as a **native mppx server method**. `Mppx.create({ methods: [inflow(...)],
@@ -300,6 +349,80 @@ export function tempo(
 }
 
 /**
+ * Build the seller-side Stripe one-time charge method backed by InFlow. The factory is asynchronous because the
+ * authenticated `/v1/mpp/config` response is the authority for the seller's Stripe business-profile id and allowed
+ * payment methods. Stripe credentials and settlement stay on InFlow; this method only mints the HMAC-bound challenge
+ * locally and delegates non-mutating validation and terminal broadcast to the PSP.
+ *
+ * @param parameters - InFlow authentication, environment, and optional offer policy.
+ * @returns The configured Stripe server method to pass into `Mppx.create`.
+ * @throws {@link MppStripeUnavailableError} When this seller has no verified Stripe profile capability.
+ */
+export async function stripe(
+  parameters: StripeSellerParameters,
+): Promise<Method.Server<typeof StripeMethods.charge, StripeDefaults>> {
+  const client = new MppClient({
+    apiKey: parameters.apiKey,
+    ...(parameters.environment !== undefined ? { environment: parameters.environment } : {}),
+    ...(parameters.baseUrl !== undefined ? { baseUrl: parameters.baseUrl } : {}),
+    ...(parameters.timeoutMs !== undefined ? { timeoutMs: parameters.timeoutMs } : {}),
+    ...(parameters.fetch !== undefined ? { fetch: parameters.fetch } : {}),
+  });
+  const loaded = resolveStripeConfig(await client.getConfig());
+  const defaults: StripeDefaults = {
+    currency: 'usd',
+    decimals: 2,
+    networkId: loaded.networkId,
+    paymentMethodTypes: [...loaded.paymentMethodTypes],
+  };
+
+  return Method.toServer(StripeMethods.charge, {
+    canOffer: parameters.canOffer,
+    defaults,
+
+    request({ request }) {
+      assertStripeAmount(request.amount);
+      assertStripeRequest(request);
+      return {
+        ...request,
+        currency: defaults.currency,
+        decimals: defaults.decimals,
+        networkId: defaults.networkId,
+        paymentMethodTypes: [...defaults.paymentMethodTypes],
+      };
+    },
+
+    stableBinding(request) {
+      return {
+        amount: request.amount,
+        currency: request.currency,
+        description: request.description,
+        externalId: request.externalId,
+        methodDetails: request.methodDetails,
+        recipient: request.recipient,
+      };
+    },
+
+    async broadcast({ credential }) {
+      return broadcast(credential, client, loaded);
+    },
+
+    async validate({ credential }) {
+      const details = await validateCredential(credential, client);
+      return {
+        challenge: credential.challenge,
+        credential,
+        details,
+        intent: StripeMethods.charge.intent,
+        method: StripeMethods.charge.name,
+        request: credential.challenge.request,
+        ...(credential.source !== undefined ? { source: credential.source } : {}),
+      };
+    },
+  });
+}
+
+/**
  * Build the mppx request `defaults` from the seller parameters — only the keys the seller actually pinned, so unset
  * fields remain caller-supplied.
  *
@@ -390,6 +513,81 @@ function deriveTempoMethodDetails(
   };
 }
 
+function resolveStripeConfig(config: Awaited<ReturnType<MppClient['getConfig']>>): StripeConfig {
+  const method = config.supportedMethods.find((entry) => entry.id === 'stripe');
+  const methodDetails: Record<string, unknown> | undefined = method?.methodDetails;
+  const networkId = methodDetails?.['networkId'];
+  const paymentMethodTypes = methodDetails?.['paymentMethodTypes'];
+  if (
+    method === undefined ||
+    !method.supportedCurrencies.includes('USD') ||
+    !method.supportedIntents.includes('charge') ||
+    typeof networkId !== 'string' ||
+    networkId.trim().length === 0 ||
+    !isNonEmptyStringArray(paymentMethodTypes)
+  ) {
+    throw new MppStripeUnavailableError();
+  }
+  return {
+    featureFlags: config.featureFlags,
+    networkId,
+    paymentMethodTypes: [...paymentMethodTypes],
+  };
+}
+
+function isNonEmptyStringArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((entry) => typeof entry === 'string' && entry.trim().length > 0)
+  );
+}
+
+function assertStripeAmount(amount: string): void {
+  if (!STRIPE_USD_AMOUNT.test(amount)) {
+    throw new MppStripeAmountError('USD amount must be a decimal with at most two fractional digits');
+  }
+  const decimalIndex = amount.indexOf('.');
+  const whole = decimalIndex === -1 ? amount : amount.slice(0, decimalIndex);
+  const fraction = decimalIndex === -1 ? '' : amount.slice(decimalIndex + 1);
+  const minorUnits = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
+  if (minorUnits < STRIPE_MIN_MINOR_UNITS) {
+    throw new MppStripeAmountError('USD amount must be at least 0.50');
+  }
+  if (minorUnits > STRIPE_MAX_MINOR_UNITS) {
+    throw new MppStripeAmountError('USD amount must not exceed 999999.99');
+  }
+}
+
+function assertStripeRequest(request: {
+  externalId?: string | undefined;
+  metadata?: Record<string, unknown> | undefined;
+}): void {
+  if (request.externalId !== undefined && request.externalId.length > 255) {
+    throw new MppStripeRequestError('externalId must be at most 255 characters');
+  }
+  const metadata = request.metadata;
+  if (metadata === undefined) return;
+  const entries = Object.entries(metadata);
+  if (entries.length > STRIPE_MAX_METADATA_ENTRIES) {
+    throw new MppStripeRequestError('metadata may contain at most 45 entries');
+  }
+  for (const [key, value] of entries) {
+    if (
+      key.trim().length === 0 ||
+      key.length > STRIPE_MAX_METADATA_KEY_LENGTH ||
+      key.includes('[') ||
+      key.includes(']') ||
+      STRIPE_RESERVED_METADATA.has(key)
+    ) {
+      throw new MppStripeRequestError(`metadata key "${key}" is invalid or reserved`);
+    }
+    if (typeof value !== 'string' || value.length > STRIPE_MAX_METADATA_VALUE_LENGTH) {
+      throw new MppStripeRequestError(`metadata value for "${key}" must be a string of at most 500 characters`);
+    }
+  }
+}
+
 /** Ask the PSP whether a credential is currently acceptable without consuming payment state. */
 async function validateCredential(
   credential: Credential.Credential<Record<string, unknown>>,
@@ -425,7 +623,7 @@ async function validateCredential(
 async function broadcast(
   credential: Credential.Credential<Record<string, unknown>>,
   client: MppClient,
-  loaded: LoadedConfig,
+  loaded: Pick<LoadedConfig, 'featureFlags'>,
 ): Promise<Receipt.Receipt> {
   const wireCredential = toWireCredential(credential);
   const body: MppBroadcastRequest = { credential: wireCredential };

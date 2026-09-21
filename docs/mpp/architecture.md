@@ -15,7 +15,10 @@ During the credential lifecycle it correlates by the server-stamped `transaction
   problem). `mppx` composes these into its compatibility `verify` hook. This is the direct analog of x402-seller
   delegating validation/settlement to the InFlow facilitator. For the `inflow` method, a single charge advertises one
   currency; to offer several, the seller emits one challenge per currency via `compose(...)` — surfaced by the package's
-  `inflowCharges` helper, the MPP analog of x402-seller's `inflowAccepts`.
+  `inflowCharges` helper, the MPP analog of x402-seller's `inflowAccepts`. The Stripe seller method follows the same
+  validate/broadcast boundary but reuses mppx's official `stripe/charge` schema. It initializes asynchronously so the
+  required business-profile id and payment types come from the authenticated InFlow config, never from route input.
+  InFlow retains the Stripe key and owns PaymentIntent replay, recovery, and settlement.
 - The **buyer** package's `Method.toClient.createCredential` methods do not sign locally. They forward the parsed
   challenge to `POST /v1/transactions/mpp`, poll `GET /v1/transactions/{id}/mpp` through the `pending → ready`
   lifecycle, and return the server-produced credential, re-serialised for the `Authorization: Payment` header.

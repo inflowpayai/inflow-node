@@ -19,7 +19,7 @@ for x402's.
 | `@inflowpayai/mpp-seller`                | `Method.toServer` + InFlow redeem/settle driver                | Accepting MPP payments as a seller. |
 | `@inflowpayai/mpp-buyer`                 | `Method.toClient` + InFlow buyer-endpoint driver               | Paying via MPP.                     |
 
-All packages publish under the `@inflowpayai` scope and declare [`mppx`](https://github.com/wevm/mppx)`@^0.6.28` as a
+All packages publish under the `@inflowpayai` scope and declare [`mppx`](https://github.com/wevm/mppx)`@^0.8.17` as a
 peer. The seller/buyer packages additionally re-export `Mppx` from the appropriate `mppx` entry (`mppx/server` /
 `mppx/client`) so consumers get a single import.
 
@@ -72,10 +72,11 @@ const tx = await mpp.createTransaction({ challenge });
 
 The seller package (`@inflowpayai/mpp-seller`) attaches non-mutating validation and authoritative broadcast behavior to
 `Method.toServer`: an unpaid request returns a locally issued `402` challenge, and a paid one is validated and settled
-through InFlow. It exports seller methods for `inflow` and `tempo`. To accept **multiple InFlow currencies** on one
-route (one challenge per currency), use the package's `inflowCharges` / `inflowChargesNodeListener` helpers over the
-core `mppx/server` instance — the framework adapters expose only the single-currency `charge`. See
-[architecture.md](./architecture.md) for the PSP boundary, and
+through InFlow. It exports seller methods for `inflow`, `tempo`, and one-time Stripe charges. `await stripe(...)` reads
+the authenticated seller's Stripe profile capability from InFlow; merchant keys and PaymentIntent settlement never leave
+the server. To accept **multiple InFlow currencies** on one route (one challenge per currency), use the package's
+`inflowCharges` / `inflowChargesNodeListener` helpers over the core `mppx/server` instance — the framework adapters
+expose only the single-currency `charge`. See [architecture.md](./architecture.md) for the PSP boundary, and
 [`examples/mpp-seller-express`](../../examples/mpp-seller-express) or
 [`examples/mpp-seller-hono`](../../examples/mpp-seller-hono) for the complete runnable shape.
 
