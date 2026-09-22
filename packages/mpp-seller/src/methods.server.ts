@@ -20,7 +20,7 @@ import type {
   MppRequestOptions,
   TempoChargeRequestInput,
 } from '@inflowpayai/mpp';
-import { Method, Receipt } from 'mppx';
+import { Method, Receipt, z } from 'mppx';
 import type { Credential } from 'mppx';
 import { Methods as StripeMethods } from 'mppx/stripe';
 
@@ -62,6 +62,8 @@ interface StripeConfig {
   networkId: string;
   paymentMethodTypes: string[];
 }
+
+type StripeRequest = z.input<typeof StripeMethods.charge.schema.request>;
 
 type StripeDefaults = {
   currency: 'usd';
@@ -358,9 +360,7 @@ export function tempo(
  * @returns The configured Stripe server method to pass into `Mppx.create`.
  * @throws {@link MppStripeUnavailableError} When this seller has no verified Stripe profile capability.
  */
-export async function stripe(
-  parameters: StripeSellerParameters,
-): Promise<Method.Server<typeof StripeMethods.charge, StripeDefaults>> {
+export async function stripe(parameters: StripeSellerParameters) {
   const client = new MppClient({
     apiKey: parameters.apiKey,
     ...(parameters.environment !== undefined ? { environment: parameters.environment } : {}),
@@ -376,27 +376,37 @@ export async function stripe(
     paymentMethodTypes: [...loaded.paymentMethodTypes],
   };
 
-  return Method.toServer(StripeMethods.charge, {
-    canOffer: parameters.canOffer,
+  const method = Method.from({
+    ...StripeMethods.charge,
+    schema: {
+      ...StripeMethods.charge.schema,
+      // mppx parses offer-policy requests before running the request hook.
+      request: z.pipe(
+        z.transform((request: StripeRequest): StripeRequest => ({
+          ...request,
+          ...defaults,
+          paymentMethodTypes: [...defaults.paymentMethodTypes],
+        })),
+        StripeMethods.charge.schema.request,
+      ),
+    },
+  });
+  const canOffer = parameters.canOffer;
+
+  return Method.toServer<typeof method, StripeDefaults>(method, {
+    canOffer: canOffer === undefined ? undefined : (context) => canOffer(context),
     defaults,
 
     request({ request }) {
       assertStripeAmount(request.amount);
       assertStripeRequest(request);
-      return {
-        ...request,
-        currency: defaults.currency,
-        decimals: defaults.decimals,
-        networkId: defaults.networkId,
-        paymentMethodTypes: [...defaults.paymentMethodTypes],
-      };
+      return request;
     },
 
     stableBinding(request) {
       return {
         amount: request.amount,
         currency: request.currency,
-        description: request.description,
         externalId: request.externalId,
         methodDetails: request.methodDetails,
         recipient: request.recipient,

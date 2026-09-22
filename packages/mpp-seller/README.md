@@ -62,7 +62,8 @@ authoritative replay or authorization guard.
 - Errors: `MppUnsupportedCurrencyError` (charge currency has no rail in the PSP config), `MppCredentialProblemError`
   (credential validation or broadcast failed; carries the PSP's RFC 9457 problem), `MppStripeUnavailableError` (seller
   has no safe Stripe capability), and `MppStripeAmountError` (amount is below $0.50, above $999,999.99, or cannot be
-  expressed as exact cents).
+  expressed as exact cents). `MppStripeRequestError` identifies unsupported metadata or an `externalId` longer than 255
+  characters. Malformed request fields can raise the foundation schema's validation error before these SDK checks.
 
 ## Configuration
 
@@ -156,6 +157,11 @@ The method accepts USD amounts from `0.50` through `999999.99`, with no more tha
 values such as `0.49` or `0.501` before issuing a challenge instead of rounding them. The SDK always replaces any
 caller-supplied profile id, currency, decimals, or payment-method list with the authenticated server configuration. Only
 one-time Stripe charges are supported; this method does not advertise subscriptions or InFlow buyer initiation.
+
+For composed offers, `canOffer` receives the same authoritative request as the issued challenge, with the amount in
+integer cents. Metadata allows up to 45 string entries, with keys up to 40 characters and values up to 500 characters;
+keys cannot be blank, contain square brackets, or use `externalId`, `inflowMppTransactionId`, `mppChallengeId`,
+`mppIntent`, `mppMethod`, or `stripeNetworkProfile`.
 
 ## Multiple currencies
 

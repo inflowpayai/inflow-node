@@ -1,4 +1,4 @@
-import { decode, decodeReceipt, parseChallengeHeader } from '@inflowpayai/mpp';
+import { decode, decodeReceipt, encode, parseChallengeHeader } from '@inflowpayai/mpp';
 import type { MppConfigResponse } from '@inflowpayai/mpp';
 import { Credential, Receipt } from 'mppx';
 import { Mppx } from 'mppx/server';
@@ -205,6 +205,12 @@ describe('Stripe seller method', () => {
     expect(requestFrom(result.challenge)['amount']).toBe('50');
   });
 
+  it('rejects malformed amount syntax through the foundation schema', async () => {
+    mockConfig();
+    const { mppx } = await makeMppx();
+    expect(() => mppx.charge({ amount: '-1' })).toThrow('Invalid amount');
+  });
+
   it.each([
     [{ externalId: 'x'.repeat(256) }, 'externalId must be at most 255 characters'],
     [{ metadata: { externalId: 'order-123' } }, 'metadata key "externalId" is invalid or reserved'],
@@ -232,7 +238,6 @@ describe('Stripe seller method', () => {
       method.stableBinding?.({
         amount: '100',
         currency: 'usd',
-        description: 'Widget',
         externalId: 'order-123',
         methodDetails: {
           metadata: { campaign: 'agents' },
@@ -243,7 +248,6 @@ describe('Stripe seller method', () => {
     ).toEqual({
       amount: '100',
       currency: 'usd',
-      description: 'Widget',
       externalId: 'order-123',
       methodDetails: {
         metadata: { campaign: 'agents' },
@@ -291,14 +295,61 @@ describe('Stripe seller method', () => {
     });
   });
 
-  it('passes the transformed request to canOffer', async () => {
+  it('uses the same authoritative offer for canOffer, challenges, and payment dispatch', async () => {
     mockConfig();
+    const lifecycle = mockLifecycle();
+    const expectedRequest = {
+      amount: '100',
+      currency: 'usd',
+      externalId: 'order-123',
+      methodDetails: { networkId: NETWORK_ID, paymentMethodTypes: ['card', 'link'] },
+    };
     const canOffer = vi.fn<NonNullable<StripeSellerParameters['canOffer']>>(
-      ({ request }) => request.amount === '100' && request.currency === 'usd',
+      ({ request }) =>
+        request.amount === expectedRequest.amount &&
+        request.currency === expectedRequest.currency &&
+        request.methodDetails.networkId === NETWORK_ID &&
+        request.methodDetails.paymentMethodTypes.join(',') === 'card,link',
     );
     const method = await stripe({ apiKey: 'sk_test', baseUrl: BASE, canOffer });
     const mppx = Mppx.create({ methods: [method], realm: 'app.test', secretKey: SECRET });
-    await mppx.compose([method, { amount: '1.00' }])(new Request('https://app.test/widgets'));
+    const options = {
+      amount: '1.00',
+      currency: 'eur',
+      decimals: 3,
+      externalId: 'order-123',
+      networkId: 'caller-profile',
+      paymentMethodTypes: ['caller-method'],
+    };
+    const handler = mppx.compose([method, options]);
+    const unpaid = await handler(new Request('https://app.test/widgets'));
+    expect(unpaid.status).toBe(402);
+    if (unpaid.status !== 402) throw new Error('expected 402');
+    expect(requestFrom(unpaid.challenge)).toEqual(expectedRequest);
     expect(canOffer).toHaveBeenCalledOnce();
+    expect(canOffer.mock.calls[0]?.[0].request).toEqual(expectedRequest);
+
+    const challenge = await mppx.challenge.stripe.charge(options);
+    expect(challenge.request).toEqual(expectedRequest);
+    const authorization = Credential.serialize({
+      challenge,
+      payload: { externalId: 'order-123', spt: 'spt_test_123' },
+    });
+    const paid = await handler(new Request('https://app.test/widgets', { headers: { Authorization: authorization } }));
+    expect(paid.status).toBe(200);
+    expect(lifecycle.order).toEqual(['validate', 'broadcast']);
+    expect(lifecycle.broadcastBody()).toMatchObject({
+      credential: { challenge: { request: encode(expectedRequest) } },
+    });
+    expect(canOffer).toHaveBeenCalledOnce();
+  });
+
+  it('omits a composed Stripe offer when canOffer rejects it', async () => {
+    mockConfig();
+    const method = await stripe({ apiKey: 'sk_test', baseUrl: BASE, canOffer: () => false });
+    const mppx = Mppx.create({ methods: [method], realm: 'app.test', secretKey: SECRET });
+    await expect(mppx.compose([method, { amount: '1.00' }])(new Request('https://app.test/widgets'))).rejects.toThrow(
+      'No payment offers are available for this request',
+    );
   });
 });
