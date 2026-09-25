@@ -40,10 +40,14 @@ down to entries whose `asset` matches a chosen SPL Token mint. The default is Ci
 sandbox or seller that uses a custom test mint — the buyer wallet must hold (and have an ATA for) the chosen mint, so
 the override has to match a mint you actually have a balance in.
 
-On each 402, a KEEP/drop log line is printed for every payment requirement the seller offered, so you can inspect which
-mints the seller advertised and pick the right address to set in `SOLANA_PAYMENT_MINT`. If no offered entry matches, the
-foundation selector throws a clear "no matching payment requirement" error rather than silently signing against a mint
-the buyer has no balance for.
+The standard mint uses the foundation's default $1 per-payment cap. For a custom mint, also set
+`SOLANA_MAX_AMOUNT_ATOMIC` to a positive integer in that mint's smallest units. For example, `1000000` permits at most 1
+token per payment for a mint with 6 decimals. This is a token limit, not a USD valuation. The same setting can
+explicitly override the standard mint's cap.
+
+Spend controls run before the mint policy. The KEEP/drop log shows only requirements that passed those controls. An
+unapproved asset or an amount above the configured cap is rejected before signing; the policy then rejects any remaining
+entries for a different mint.
 
 Output looks like:
 

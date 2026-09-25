@@ -27,6 +27,15 @@ zeros on small keys — are normalized at the example boundary so the rest of th
 
 Default target is `http://localhost:3000/api/widgets`. Override with `TARGET_URL=...` in `.env`.
 
+The foundation client accepts recognized assets with a default limit of one US dollar per payment. Payments above that
+limit are rejected before signing. To change it deliberately, configure the client before creating the HTTP client:
+
+```ts
+core.setSpendControls({ maxAmountPerPayment: '$5' });
+```
+
+The runnable example keeps the default limit.
+
 Output looks like:
 
 ```

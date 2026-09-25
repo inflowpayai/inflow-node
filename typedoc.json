@@ -15,6 +15,11 @@
   "excludeNotDocumented": false,
   "excludePrivate": true,
   "excludeProtected": true,
+  "externalSymbolLinkMappings": {
+    "@x402/core": {
+      "DEFAULT_MAX_AMOUNT_PER_PAYMENT": "https://github.com/x402-foundation/x402/blob/main/typescript/packages/core/src/client/x402Client.ts"
+    }
+  },
   "githubPages": false,
   "logLevel": "Info",
   "navigationLinks": {

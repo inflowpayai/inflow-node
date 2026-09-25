@@ -12,7 +12,7 @@ middleware as a facilitator, generate your route's `accepts[]` from your seller 
 | [`@inflowpayai/x402-seller`](../../packages/x402-seller) | Facilitator client + seller client + `inflowAccepts` helper  | Accepting x402 payments as a seller.               |
 | [`@inflowpayai/x402-buyer`](../../packages/x402-buyer)   | `InflowClient` — foundation `x402Client` subclass for buyers | Paying via x402, with or without on-chain signers. |
 
-All packages publish under the `@inflowpayai` scope and depend on `@x402/core@^2.22.0` as a peer.
+All packages publish under the `@inflowpayai` scope and depend on `@x402/core@^2.27.0` as a peer.
 
 The SDK does **not** ship a seller middleware. Sellers use the foundation V2 middleware (`paymentMiddlewareFromConfig`
 from `@x402/express`, `@x402/hono`, `@x402/fastify`, or `@x402/next`) directly and pass the InFlow facilitator into its
@@ -81,8 +81,8 @@ For Hono, swap `@x402/express` for `@x402/hono`; everything else is the same. Fo
 (`paymentMiddlewareFromConfig(app, routes, [inflow], await inflowSchemeRegistrations(client))`). For Next 16, use
 `@x402/next`'s `paymentProxyFromConfig` from a root-level `proxy.ts` file (Next 16 renamed the convention from
 `middleware.ts`); see [`examples/x402-seller-next`](../../examples/x402-seller-next) for the complete shape including
-the `proxy.ts` placement, route-handler structure, and the required `next` pin (`~16.2.6`, to match
-`@x402/next@2.22.0`'s peer range).
+the `proxy.ts` placement and route-handler structure. The example pins `next` to `~16.3.4`, satisfying
+`@x402/next@2.27.0`'s `next >=16.2.6` peer requirement.
 
 The pieces:
 

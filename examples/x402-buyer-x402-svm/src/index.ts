@@ -17,6 +17,13 @@ import { decodeSolanaSecret } from './decode-svm-key.js';
  */
 const DEFAULT_SOLANA_USDC_MINT_DEVNET = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
 const paymentMint = process.env['SOLANA_PAYMENT_MINT'] ?? DEFAULT_SOLANA_USDC_MINT_DEVNET;
+const maxAmount = process.env['SOLANA_MAX_AMOUNT_ATOMIC'];
+if (paymentMint !== DEFAULT_SOLANA_USDC_MINT_DEVNET && maxAmount === undefined) {
+  throw new Error('Set SOLANA_MAX_AMOUNT_ATOMIC when using a custom SOLANA_PAYMENT_MINT.');
+}
+if (maxAmount !== undefined && !/^[1-9][0-9]*$/.test(maxAmount)) {
+  throw new Error("SOLANA_MAX_AMOUNT_ATOMIC must be a positive integer in the mint's smallest units.");
+}
 
 const privateKey = process.env['SOLANA_PRIVATE_KEY'];
 if (privateKey === undefined || privateKey === '') {
@@ -42,22 +49,14 @@ const signer = await createKeyPairSignerFromBytes(bytes);
 // `solana:<32-char-base58-genesis-hash>`.
 const core = new x402Client();
 registerExactSvmScheme(core, { signer, networks: [SOLANA_DEVNET_CAIP2] });
+if (maxAmount !== undefined) {
+  core.setSpendControls({
+    allowedAssets: [{ network: SOLANA_DEVNET_CAIP2, asset: paymentMint, maxAmountPerPayment: maxAmount }],
+  });
+}
 
-// Mint pinning. The foundation pipeline filters `accepts[]` by
-// registered scheme first (only Solana is registered here, so EVM
-// entries already drop out), then runs registered policies in
-// declaration order, then the default selector picks the first
-// surviving entry. This policy narrows the Solana entries to ONLY
-// those whose `asset` matches `paymentMint`. If the seller didn't
-// advertise that mint, the selector will throw — surfaced to the
-// caller as a clear "no matching payment requirement" error rather
-// than silently signing against a mint the buyer wallet has no
-// balance for.
-//
-// The KEEP/drop log lines on each 402 let an operator see exactly
-// which mints the seller advertised and why each entry was kept or
-// dropped — useful when switching sandboxes or when the seller
-// reconfigures its `accepts[]`.
+// Policies receive only requirements that pass the scheme and spend-control filters.
+// Keep mint pinning separate: allowedAssets also permits foundation default assets.
 core.registerPolicy((_x402Version, reqs) => {
   const kept = reqs.filter((r) => r.asset === paymentMint);
   console.log(

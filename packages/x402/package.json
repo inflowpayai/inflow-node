@@ -61,7 +61,7 @@
   },
   "license": "MIT",
   "peerDependencies": {
-    "@x402/core": "^2.22.0"
+    "@x402/core": "^2.27.0"
   },
   "peerDependenciesMeta": {
     "@x402/core": {
@@ -70,7 +70,7 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^5.0.0",
-    "@x402/core": "^2.22.0",
+    "@x402/core": "^2.27.0",
     "msw": "^2.15.0"
   },
   "publishConfig": {

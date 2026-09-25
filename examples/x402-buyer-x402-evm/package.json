@@ -10,8 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@x402/core": "^2.22.0",
-    "@x402/evm": "^2.22.0",
+    "@x402/core": "^2.27.0",
+    "@x402/evm": "^2.27.0",
     "dotenv": "^16.6.1",
     "viem": "^2.56.3"
   },

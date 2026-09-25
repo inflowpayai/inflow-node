@@ -227,8 +227,8 @@ importers:
         specifier: workspace:^
         version: link:../../packages/x402-buyer
       '@x402/core':
-        specifier: ^2.22.0
-        version: 2.22.0
+        specifier: ^2.27.0
+        version: 2.27.0
       axios:
         specifier: ^1.20.0
         version: 1.20.0
@@ -255,8 +255,8 @@ importers:
         specifier: workspace:^
         version: link:../../packages/x402-buyer
       '@x402/core':
-        specifier: ^2.22.0
-        version: 2.22.0
+        specifier: ^2.27.0
+        version: 2.27.0
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1
@@ -274,11 +274,11 @@ importers:
   examples/x402-buyer-x402-evm:
     dependencies:
       '@x402/core':
-        specifier: ^2.22.0
-        version: 2.22.0
+        specifier: ^2.27.0
+        version: 2.27.0
       '@x402/evm':
-        specifier: ^2.22.0
-        version: 2.22.0(typescript@5.9.3)
+        specifier: ^2.27.0
+        version: 2.27.0(typescript@5.9.3)
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1
@@ -302,11 +302,11 @@ importers:
         specifier: ^5.5.1
         version: 5.5.1(typescript@5.9.3)
       '@x402/core':
-        specifier: ^2.22.0
-        version: 2.22.0
+        specifier: ^2.27.0
+        version: 2.27.0
       '@x402/svm':
-        specifier: ^2.22.0
-        version: 2.22.0(@solana/kit@5.5.1(typescript@5.9.3))(@solana/sysvars@5.5.1(typescript@5.9.3))
+        specifier: ^2.27.0
+        version: 2.27.0(@solana/kit@5.5.1(typescript@5.9.3))(@solana/sysvars@5.5.1(typescript@5.9.3))
       bs58:
         specifier: ^6.0.0
         version: 6.0.0
@@ -333,14 +333,14 @@ importers:
         specifier: workspace:^
         version: link:../../packages/x402-seller
       '@x402/core':
-        specifier: ^2.22.0
-        version: 2.22.0
+        specifier: ^2.27.0
+        version: 2.27.0
       '@x402/evm':
-        specifier: ^2.22.0
-        version: 2.22.0(typescript@5.9.3)
+        specifier: ^2.27.0
+        version: 2.27.0(typescript@5.9.3)
       '@x402/express':
-        specifier: ^2.22.0
-        version: 2.22.0(express@5.2.1)(typescript@5.9.3)
+        specifier: ^2.27.0
+        version: 2.27.0(express@5.2.1)(typescript@5.9.3)
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1
@@ -373,14 +373,14 @@ importers:
         specifier: workspace:^
         version: link:../../packages/x402-seller
       '@x402/core':
-        specifier: ^2.22.0
-        version: 2.22.0
+        specifier: ^2.27.0
+        version: 2.27.0
       '@x402/evm':
-        specifier: ^2.22.0
-        version: 2.22.0(typescript@5.9.3)
+        specifier: ^2.27.0
+        version: 2.27.0(typescript@5.9.3)
       '@x402/express':
-        specifier: ^2.22.0
-        version: 2.22.0(express@5.2.1)(typescript@5.9.3)
+        specifier: ^2.27.0
+        version: 2.27.0(express@5.2.1)(typescript@5.9.3)
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1
@@ -410,11 +410,11 @@ importers:
         specifier: workspace:^
         version: link:../../packages/x402-seller
       '@x402/core':
-        specifier: ^2.22.0
-        version: 2.22.0
+        specifier: ^2.27.0
+        version: 2.27.0
       '@x402/fastify':
-        specifier: ^2.22.0
-        version: 2.22.0(fastify@5.12.3)(typescript@5.9.3)
+        specifier: ^2.26.0
+        version: 2.26.0(fastify@5.12.3)(typescript@5.9.3)
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1
@@ -444,11 +444,11 @@ importers:
         specifier: workspace:^
         version: link:../../packages/x402-seller
       '@x402/core':
-        specifier: ^2.22.0
-        version: 2.22.0
+        specifier: ^2.27.0
+        version: 2.27.0
       '@x402/hono':
-        specifier: ^2.22.0
-        version: 2.22.0(hono@4.13.7)(typescript@5.9.3)
+        specifier: ^2.27.0
+        version: 2.27.0(hono@4.13.7)(typescript@5.9.3)
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1
@@ -475,11 +475,11 @@ importers:
         specifier: workspace:^
         version: link:../../packages/x402-seller
       '@x402/core':
-        specifier: ^2.22.0
-        version: 2.22.0
+        specifier: ^2.27.0
+        version: 2.27.0
       '@x402/next':
-        specifier: ^2.22.0
-        version: 2.22.0(next@16.3.4(@types/node@24.13.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(typescript@5.9.3)
+        specifier: ^2.27.0
+        version: 2.27.0(next@16.3.4(@types/node@24.13.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(typescript@5.9.3)
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1
@@ -564,8 +564,8 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0(vitest@5.0.0)
       '@x402/core':
-        specifier: ^2.22.0
-        version: 2.22.0
+        specifier: ^2.27.0
+        version: 2.27.0
       msw:
         specifier: ^2.15.0
         version: 2.15.0(@types/node@24.13.3)(typescript@5.9.3)
@@ -583,11 +583,11 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0(vitest@5.0.0)
       '@x402/core':
-        specifier: ^2.22.0
-        version: 2.22.0
+        specifier: ^2.27.0
+        version: 2.27.0
       '@x402/evm':
-        specifier: ^2.22.0
-        version: 2.22.0(typescript@5.9.3)
+        specifier: ^2.27.0
+        version: 2.27.0(typescript@5.9.3)
       fast-check:
         specifier: ^3.23.2
         version: 3.23.2
@@ -611,26 +611,26 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0(vitest@5.0.0)
       '@x402/core':
-        specifier: ^2.22.0
-        version: 2.22.0
+        specifier: ^2.27.0
+        version: 2.27.0
       '@x402/evm':
-        specifier: ^2.22.0
-        version: 2.22.0(typescript@5.9.3)
+        specifier: ^2.27.0
+        version: 2.27.0(typescript@5.9.3)
       '@x402/express':
-        specifier: ^2.22.0
-        version: 2.22.0(express@5.2.1)(typescript@5.9.3)
+        specifier: ^2.27.0
+        version: 2.27.0(express@5.2.1)(typescript@5.9.3)
       '@x402/extensions':
-        specifier: ^2.22.0
-        version: 2.22.0(typescript@5.9.3)
+        specifier: ^2.27.0
+        version: 2.27.0(typescript@5.9.3)
       '@x402/fastify':
-        specifier: ^2.22.0
-        version: 2.22.0(fastify@5.12.3)(typescript@5.9.3)
+        specifier: ^2.26.0
+        version: 2.26.0(fastify@5.12.3)(typescript@5.9.3)
       '@x402/hono':
-        specifier: ^2.22.0
-        version: 2.22.0(hono@4.13.7)(typescript@5.9.3)
+        specifier: ^2.27.0
+        version: 2.27.0(hono@4.13.7)(typescript@5.9.3)
       '@x402/next':
-        specifier: ^2.22.0
-        version: 2.22.0(next@16.3.4(@types/node@24.13.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(typescript@5.9.3)
+        specifier: ^2.27.0
+        version: 2.27.0(next@16.3.4(@types/node@24.13.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(typescript@5.9.3)
       express:
         specifier: ^5.2.1
         version: 5.2.1
@@ -2215,53 +2215,59 @@ packages:
   '@vitest/spy@5.0.0':
     resolution: {integrity: sha512-uy+luWBAPw9XfthoHi5AkfHUnuPYEESjl0p/r+meoBnU8bxg5GDQ3Ey8MjcJ6sqahkL4PFyrvfMJJBw7LbU06g==}
 
-  '@x402/core@2.22.0':
-    resolution: {integrity: sha512-hYySs/PvukqRipC2mKqrsn/jx2U/p5EGnN3clQ2CIcApwtoFuG77CqpC3Wy7Fdp/juW8t8quiPVnqGuIkfix1Q==}
+  '@x402/core@2.26.0':
+    resolution: {integrity: sha512-8dlXip9u0JjyELzzFz48vntuMajvUjA8IYpitfaW423m53bR49amZDIn3n4gXRYoNEKzGB9Rtn8at35WHz61cA==}
 
-  '@x402/evm@2.22.0':
-    resolution: {integrity: sha512-WzZVGVx6B2cvCAEHDCuNWfQkcwIZsOVdGcJKILmG/ySzLpBZ1/ARU2kU/8K3ekxhygAKrkarltVVznSEoO5vdQ==}
+  '@x402/core@2.27.0':
+    resolution: {integrity: sha512-UbxCKnoTsg5nQX9fYER3g9tt5l80jHm1IZOmDczQRqE0cwskls5r+VAAj0iUQfHVshnpv0qo/rLFI7UntqL96g==}
 
-  '@x402/express@2.22.0':
-    resolution: {integrity: sha512-KWgFOuPYGGGL57qpeXyQ1bAvHSewOH0zBbZQ2gPbE+rkftvyf5AoVi+6vbohXnaBtyTUDgeg0VMMNN+at+rsQw==}
+  '@x402/evm@2.27.0':
+    resolution: {integrity: sha512-WKVFq5VaSrDJfo6lHNG7/4hT0iZdpsmd53W/a+gZqmE1CiVT8wyRpwIPue4f/YKqNfgHHhZ00AcfPho0xLr2eQ==}
+
+  '@x402/express@2.27.0':
+    resolution: {integrity: sha512-73eGihL7BLHrFOH48pJdVPhHTvzRaFKcimzcRYR/0+VVfPLTfYyLwxCu414aoDokKGTU5u8AIYwf2LpcpaYX7w==}
     peerDependencies:
-      '@x402/paywall': ^2.22.0
+      '@x402/paywall': ^2.27.0
       express: ^4.0.0 || ^5.0.0
     peerDependenciesMeta:
       '@x402/paywall':
         optional: true
 
-  '@x402/extensions@2.22.0':
-    resolution: {integrity: sha512-E5Ma1Fs1GwO/ET7KtGUI7dPuVFoINR+mwTWVoGdNi3DsJBJKDWSA7Ta7bDgSANzV3XCAMK9gvz/VSItZliApMA==}
+  '@x402/extensions@2.26.0':
+    resolution: {integrity: sha512-ItD85ryWsUa86TV8AjtY31SYqZhnnhoVKuVihtmv6r1cuLTgIxE21ugZmGswbLkS+rTvP0gy3M/6xp00i5S5lQ==}
 
-  '@x402/fastify@2.22.0':
-    resolution: {integrity: sha512-r20i68tbZcKQOzai7jsaqbv6DPN8GXFEcC4WYUvb+QlVpQCKfASq/+ff1ZjC3yVPpSzGEwT1D3k8Yt338E6oTg==}
+  '@x402/extensions@2.27.0':
+    resolution: {integrity: sha512-eGBZZCTNtJsbzYoOe72Mfo/HN7Ir4i8+gmBUQ3ScrTiO91Q0bscO6LjGg2d3oJiFQ6g+YVXn+5fLxCEwoqgFsA==}
+
+  '@x402/fastify@2.26.0':
+    resolution: {integrity: sha512-9UROqO5kqpZB+lZP+o4vQ9ps7H+zYZFDTB+ggMarGsdobhk3FDP06rzw0wFrPLo9AHTNBtVMiJZeFW7f1Pd6fQ==}
     peerDependencies:
-      '@x402/paywall': ^2.22.0
+      '@x402/paywall': ^2.26.0
       fastify: ^5.0.0
     peerDependenciesMeta:
       '@x402/paywall':
         optional: true
 
-  '@x402/hono@2.22.0':
-    resolution: {integrity: sha512-ztfv8Ke2L25uR/ww32RWgE3okfkTuRFeafVOHiXC0r3rMc+rtEfOexc1aqagjivy6CaiUli1WNoCCVRPkU87xg==}
+  '@x402/hono@2.27.0':
+    resolution: {integrity: sha512-ySXqPl32IcctPBbDIuX3+sjJfwNpCE3lsEt4F0PE30VyIYrnmQ/VrSCkMp456AzR9WagV+gqna3cwxEr70/s0g==}
     peerDependencies:
-      '@x402/paywall': ^2.22.0
+      '@x402/paywall': ^2.27.0
       hono: ^4.0.0
     peerDependenciesMeta:
       '@x402/paywall':
         optional: true
 
-  '@x402/next@2.22.0':
-    resolution: {integrity: sha512-CTEkPiLJZZ1PkN4FQ3gA7zvqbXgUIHkRFbrT0dqsD8ToeJNA8YsTFyXWTnUTttWJUUszuNwK/GzGsjlYlx0DOg==}
+  '@x402/next@2.27.0':
+    resolution: {integrity: sha512-IXq6PtVtj9ffu3mSblgC5Li2XRZ2oYntlGk/DTpYleI0DtWvPlIGkWUfMLhfOpgHVfxeoyQKe316n3z0aCJhew==}
     peerDependencies:
-      '@x402/paywall': ^2.22.0
+      '@x402/paywall': ^2.27.0
       next: '>=16.2.6'
     peerDependenciesMeta:
       '@x402/paywall':
         optional: true
 
-  '@x402/svm@2.22.0':
-    resolution: {integrity: sha512-io8JqfZncn9BonlcrVjsuLp8nhIwc97qY7ceI6gLxztxuEb2J37nNqbAOU9Z2u/2eQc/nrJCyGirfZcFL6JGeA==}
+  '@x402/svm@2.27.0':
+    resolution: {integrity: sha512-ObRKE5qAVit/oSdscfno3M52PX4PDV2VuyYJPOE4rIzR6fzHNRaAjRi9EgzU6otvYhVhm7ejiZbYlp1DEwMJag==}
     peerDependencies:
       '@solana/kit': '>=5.1.0'
 
@@ -5082,6 +5088,12 @@ snapshots:
       '@noble/hashes': 1.8.0
       apg-js: 4.4.0
 
+  '@signinwithethereum/siwe@4.2.0(viem@2.56.3(typescript@5.9.3)(zod@3.25.76))':
+    dependencies:
+      '@signinwithethereum/siwe-parser': 4.2.0
+    optionalDependencies:
+      viem: 2.56.3(typescript@5.9.3)(zod@3.25.76)
+
   '@signinwithethereum/siwe@4.2.0(viem@2.56.3(typescript@5.9.3)(zod@4.4.3))':
     dependencies:
       '@signinwithethereum/siwe-parser': 4.2.0
@@ -5752,13 +5764,17 @@ snapshots:
 
   '@vitest/spy@5.0.0': {}
 
-  '@x402/core@2.22.0':
+  '@x402/core@2.26.0':
     dependencies:
       zod: 3.25.76
 
-  '@x402/evm@2.22.0(typescript@5.9.3)':
+  '@x402/core@2.27.0':
     dependencies:
-      '@x402/core': 2.22.0
+      zod: 3.25.76
+
+  '@x402/evm@2.27.0(typescript@5.9.3)':
+    dependencies:
+      '@x402/core': 2.27.0
       viem: 2.56.3(typescript@5.9.3)(zod@3.25.76)
       zod: 3.25.76
     transitivePeerDependencies:
@@ -5766,10 +5782,10 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@x402/express@2.22.0(express@5.2.1)(typescript@5.9.3)':
+  '@x402/express@2.27.0(express@5.2.1)(typescript@5.9.3)':
     dependencies:
-      '@x402/core': 2.22.0
-      '@x402/extensions': 2.22.0(typescript@5.9.3)
+      '@x402/core': 2.27.0
+      '@x402/extensions': 2.27.0(typescript@5.9.3)
       express: 5.2.1
     transitivePeerDependencies:
       - bufferutil
@@ -5777,12 +5793,12 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@x402/extensions@2.22.0(typescript@5.9.3)':
+  '@x402/extensions@2.26.0(typescript@5.9.3)':
     dependencies:
       '@noble/curves': 1.9.7
       '@scure/base': 1.2.6
-      '@signinwithethereum/siwe': 4.2.0(viem@2.56.3(typescript@5.9.3)(zod@4.4.3))
-      '@x402/core': 2.22.0
+      '@signinwithethereum/siwe': 4.2.0(viem@2.56.3(typescript@5.9.3)(zod@3.25.76))
+      '@x402/core': 2.26.0
       ajv: 8.20.0
       jose: 5.10.0
       tweetnacl: 1.0.3
@@ -5794,10 +5810,27 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@x402/fastify@2.22.0(fastify@5.12.3)(typescript@5.9.3)':
+  '@x402/extensions@2.27.0(typescript@5.9.3)':
     dependencies:
-      '@x402/core': 2.22.0
-      '@x402/extensions': 2.22.0(typescript@5.9.3)
+      '@noble/curves': 1.9.7
+      '@scure/base': 1.2.6
+      '@signinwithethereum/siwe': 4.2.0(viem@2.56.3(typescript@5.9.3)(zod@4.4.3))
+      '@x402/core': 2.27.0
+      ajv: 8.20.0
+      jose: 5.10.0
+      tweetnacl: 1.0.3
+      viem: 2.56.3(typescript@5.9.3)(zod@3.25.76)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - bufferutil
+      - ethers
+      - typescript
+      - utf-8-validate
+
+  '@x402/fastify@2.26.0(fastify@5.12.3)(typescript@5.9.3)':
+    dependencies:
+      '@x402/core': 2.26.0
+      '@x402/extensions': 2.26.0(typescript@5.9.3)
       fastify: 5.12.3
     transitivePeerDependencies:
       - bufferutil
@@ -5805,10 +5838,10 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@x402/hono@2.22.0(hono@4.13.7)(typescript@5.9.3)':
+  '@x402/hono@2.27.0(hono@4.13.7)(typescript@5.9.3)':
     dependencies:
-      '@x402/core': 2.22.0
-      '@x402/extensions': 2.22.0(typescript@5.9.3)
+      '@x402/core': 2.27.0
+      '@x402/extensions': 2.27.0(typescript@5.9.3)
       hono: 4.13.7
     transitivePeerDependencies:
       - bufferutil
@@ -5816,10 +5849,10 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@x402/next@2.22.0(next@16.3.4(@types/node@24.13.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(typescript@5.9.3)':
+  '@x402/next@2.27.0(next@16.3.4(@types/node@24.13.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(typescript@5.9.3)':
     dependencies:
-      '@x402/core': 2.22.0
-      '@x402/extensions': 2.22.0(typescript@5.9.3)
+      '@x402/core': 2.27.0
+      '@x402/extensions': 2.27.0(typescript@5.9.3)
       next: 16.3.4(@types/node@24.13.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
     transitivePeerDependencies:
       - bufferutil
@@ -5827,13 +5860,14 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@x402/svm@2.22.0(@solana/kit@5.5.1(typescript@5.9.3))(@solana/sysvars@5.5.1(typescript@5.9.3))':
+  '@x402/svm@2.27.0(@solana/kit@5.5.1(typescript@5.9.3))(@solana/sysvars@5.5.1(typescript@5.9.3))':
     dependencies:
+      '@noble/hashes': 1.8.0
       '@solana-program/compute-budget': 0.11.0(@solana/kit@5.5.1(typescript@5.9.3))
       '@solana-program/token': 0.9.0(@solana/kit@5.5.1(typescript@5.9.3))
       '@solana-program/token-2022': 0.6.1(@solana/kit@5.5.1(typescript@5.9.3))(@solana/sysvars@5.5.1(typescript@5.9.3))
       '@solana/kit': 5.5.1(typescript@5.9.3)
-      '@x402/core': 2.22.0
+      '@x402/core': 2.27.0
     transitivePeerDependencies:
       - '@solana/sysvars'
 
