@@ -47,6 +47,9 @@ export class InflowClient extends x402Client {
    * override.
    */
   private readonly preferOrder: readonly PaymentScheme[];
+  private readonly inflowBeforePaymentCreationHooks: BeforePaymentCreationHook[] = [];
+  private readonly inflowAfterPaymentCreationHooks: AfterPaymentCreationHook[] = [];
+  private readonly inflowPaymentCreationFailureHooks: OnPaymentCreationFailureHook[] = [];
 
   /**
    * Construct via {@link createInflowClient}. The factory primes the buyer capability cache before resolving, so the
@@ -70,15 +73,41 @@ export class InflowClient extends x402Client {
   override async createPaymentPayload(paymentRequired: PaymentRequired): Promise<PaymentPayload> {
     // All foundation/InFlow type translation goes through ./_foundation-bridge.ts; see that file for the rationale on
     // why these casts are safe under the V2 wire shape.
-    const inflowMatch = await this.pickInflowMatchBalanceAware(fromFoundationRequirements(paymentRequired.accepts));
+    const inflowMatch = await this.pickInflowMatchBalanceAware(paymentRequired.accepts);
     if (inflowMatch !== null) {
+      const hookContext = { paymentRequired, selectedRequirements: inflowMatch };
+      for (const hook of [...this.inflowBeforePaymentCreationHooks]) {
+        const result = await hook(hookContext);
+        if (result?.abort) {
+          throw new Error(`Payment creation aborted: ${result.reason}`);
+        }
+      }
       const context: SigningContext = {
         resource: paymentRequired.resource,
         x402Version: paymentRequired.x402Version,
         ...(paymentRequired.extensions !== undefined ? { extensions: paymentRequired.extensions } : {}),
       };
-      const result = await this.inflowSigner.sign(inflowMatch, context);
-      return toFoundationPayload(result.paymentPayload);
+      try {
+        const result = await this.inflowSigner.sign(inflowMatch, context);
+        const paymentPayload = toFoundationPayload(result.paymentPayload);
+        const createdContext = { ...hookContext, paymentPayload };
+        for (const hook of [...this.inflowAfterPaymentCreationHooks]) {
+          await hook(createdContext);
+        }
+        return paymentPayload;
+      } catch (error) {
+        const failureContext = {
+          ...hookContext,
+          error: error instanceof Error ? error : new Error(String(error), { cause: error }),
+        };
+        for (const hook of [...this.inflowPaymentCreationFailureHooks]) {
+          const result = await hook(failureContext);
+          if (result?.recovered) {
+            return result.payload;
+          }
+        }
+        throw error;
+      }
     }
     const payload = await super.createPaymentPayload(paymentRequired);
     // Foundation PaymentPayload is structurally assignable to InflowPaymentPayload (foundation `payload: Record<string,
@@ -162,10 +191,6 @@ export class InflowClient extends x402Client {
     return this.inflowSigner.cancelApproval(approvalId);
   }
 
-  // The eight overrides below preserve foundation `x402Client` behavior
-  // verbatim and only narrow the return type to `this` so chaining
-  // stays in the {@link InflowClient} subclass.
-
   override register(network: Network, schemeNetworkClient: SchemeNetworkClient): this {
     super.register(network, schemeNetworkClient);
     return this;
@@ -187,16 +212,19 @@ export class InflowClient extends x402Client {
   }
 
   override onBeforePaymentCreation(hook: BeforePaymentCreationHook): this {
+    this.inflowBeforePaymentCreationHooks.push(hook);
     super.onBeforePaymentCreation(hook);
     return this;
   }
 
   override onAfterPaymentCreation(hook: AfterPaymentCreationHook): this {
+    this.inflowAfterPaymentCreationHooks.push(hook);
     super.onAfterPaymentCreation(hook);
     return this;
   }
 
   override onPaymentCreationFailure(hook: OnPaymentCreationFailureHook): this {
+    this.inflowPaymentCreationFailureHooks.push(hook);
     super.onPaymentCreationFailure(hook);
     return this;
   }
@@ -214,9 +242,7 @@ export class InflowClient extends x402Client {
    * If balances can't be read, or none are sufficient, it returns the first preferred match, leaving the server to
    * issue the authoritative `INSUFFICIENT_FUNDS`.
    */
-  private async pickInflowMatchBalanceAware(
-    accepts: readonly PaymentRequirements[],
-  ): Promise<PaymentRequirements | null> {
+  private async pickInflowMatchBalanceAware<T extends PaymentRequirements>(accepts: readonly T[]): Promise<T | null> {
     for (const scheme of this.preferOrder) {
       const matches = accepts.filter((r) => r.scheme === scheme && this.inflowSigner.supports(r));
       if (matches.length === 0) continue;
