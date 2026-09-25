@@ -99,7 +99,7 @@ export async function inflowSchemeRegistrations(
       const { UptoEvmScheme } = await import('@x402/evm/upto/server');
       uptoServer = new UptoEvmScheme();
     } catch (cause) {
-      throw new Error('Cannot load the upto scheme. Install the optional peer @x402/evm@^2.22.0.', { cause });
+      throw new Error('Cannot load the upto scheme. Install the optional peer @x402/evm@^2.27.0.', { cause });
     }
   }
 

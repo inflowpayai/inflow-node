@@ -2,20 +2,26 @@ import { once } from 'node:events';
 
 import { paymentMiddlewareFromConfig as expressPaymentMiddleware } from '@x402/express';
 import { paymentMiddlewareFromConfig as fastifyPaymentMiddleware } from '@x402/fastify';
-import { paymentMiddlewareFromConfig as honoPaymentMiddleware } from '@x402/hono';
+import { HonoAdapter, paymentMiddlewareFromConfig as honoPaymentMiddleware } from '@x402/hono';
 import {
   decodePaymentRequiredHeader,
   decodePaymentResponseHeader,
   encodePaymentSignatureHeader,
   type RoutesConfig,
 } from '@x402/core/http';
-import { x402ResourceServer, type FacilitatorClient, type RouteConfig } from '@x402/core/server';
-import { paymentProxyFromConfig, withX402 } from '@x402/next';
+import {
+  isFatalStartupInitError,
+  x402HTTPResourceServer,
+  x402ResourceServer,
+  type FacilitatorClient,
+  type RouteConfig,
+} from '@x402/core/server';
+import { NextAdapter, paymentProxyFromConfig, withX402 } from '@x402/next';
 import express from 'express';
 import Fastify from 'fastify';
 import { Hono } from 'hono';
 import { NextRequest, NextResponse } from 'next/server.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { inflowAccepts } from '../../src/inflow-accepts.js';
 import { inflowSchemeRegistrations, type InflowSchemeRegistration } from '../../src/scheme-registrations.js';
@@ -357,5 +363,68 @@ describe('Next proxy seller integration', () => {
     } finally {
       await harness.close();
     }
+  });
+});
+
+describe.each(ADAPTERS.filter(({ name }) => name !== 'Fastify'))('$name encoded route protection', ({ create }) => {
+  it.each(['/api%2Fwidgets', '/api%2fwidgets'])('requires payment for %s', async (path) => {
+    const harness = await create('success');
+    try {
+      const response = await harness.request({ path });
+      expect(response.status).toBe(402);
+      expect(response.headers.get('payment-required')).not.toBeNull();
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+describe('foundation adapter request preservation', () => {
+  it('leaves a Next request body readable after payment inspection', async () => {
+    const request = new NextRequest(`${BASE_URL}/api/widgets?tag=&tag=two`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query: 'widgets' }),
+    });
+    const adapter = new NextAdapter(request);
+    expect(await adapter.getBody()).toEqual({ query: 'widgets' });
+    expect(adapter.getQueryParams()).toEqual({ tag: ['', 'two'] });
+    expect(adapter.getQueryParam('tag')).toEqual(['', 'two']);
+    expect(await request.json()).toEqual({ query: 'widgets' });
+  });
+
+  it('preserves repeated query parameters in Hono requests', async () => {
+    const app = new Hono();
+    app.get('/api/widgets', (context) => {
+      const adapter = new HonoAdapter(context);
+      return context.json({ all: adapter.getQueryParams(), tag: adapter.getQueryParam('tag') });
+    });
+    const response = await app.request(`${BASE_URL}/api/widgets?tag=&tag=two`);
+    expect(await response.json()).toEqual({ all: { tag: ['', 'two'] }, tag: ['', 'two'] });
+  });
+});
+
+describe('foundation startup validation', () => {
+  it('classifies a missing scheme registration as a fatal configuration error', async () => {
+    const { routes } = await createComposition();
+    const server = new x402HTTPResourceServer(new x402ResourceServer(facilitator('success')), routes);
+    const error: unknown = await server.initialize().catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(Error);
+    expect(isFatalStartupInitError(error)).toBe(true);
+  });
+
+  it('allows initialization to retry a transient facilitator failure', async () => {
+    const { routes, registrations } = await createComposition();
+    const client = facilitator('success');
+    const supported = await client.getSupported();
+    const getSupported = vi.fn().mockRejectedValueOnce(new Error('temporary timeout')).mockResolvedValue(supported);
+    const resourceServer = new x402ResourceServer({ ...client, getSupported });
+    for (const registration of registrations) resourceServer.register(registration.network, registration.server);
+    const server = new x402HTTPResourceServer(resourceServer, routes);
+    const error: unknown = await server.initialize().catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(Error);
+    expect(isFatalStartupInitError(error)).toBe(false);
+    await expect(server.initialize()).resolves.toBeUndefined();
+    expect(getSupported).toHaveBeenCalledTimes(2);
   });
 });

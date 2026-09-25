@@ -18,11 +18,12 @@ import type {
 import { EXTRA_KEYS, INFLOW_AMOUNT_SCALE, SCHEMES } from '@inflowpayai/x402';
 import { EXTENSION_REGISTRY, getExtension, setExtension, type SignContext } from '@inflowpayai/x402/extensions';
 
-import { X402AdapterRoutingError } from './errors.js';
-import { fromFoundationRequirements, toFoundationPayload } from './_foundation-bridge.js';
+import { X402AdapterRoutingError, X402ApprovalCancelledError } from './errors.js';
+import { toFoundationRequirement, toFoundationPayload } from './_foundation-bridge.js';
 import { createInflowSigner } from './signer.js';
 import type {
   BuyerLedgerBalance,
+  EncodedPayment,
   InflowSigner,
   PreparedPayment,
   SignerOptions,
@@ -50,6 +51,8 @@ export class InflowClient extends x402Client {
   private readonly inflowBeforePaymentCreationHooks: BeforePaymentCreationHook[] = [];
   private readonly inflowAfterPaymentCreationHooks: AfterPaymentCreationHook[] = [];
   private readonly inflowPaymentCreationFailureHooks: OnPaymentCreationFailureHook[] = [];
+  private readonly inflowPolicies: PaymentPolicy[] = [];
+  private readonly inflowExtensions = new Map<string, ClientExtension>();
 
   /**
    * Construct via {@link createInflowClient}. The factory primes the buyer capability cache before resolving, so the
@@ -73,10 +76,10 @@ export class InflowClient extends x402Client {
   override async createPaymentPayload(paymentRequired: PaymentRequired): Promise<PaymentPayload> {
     // All foundation/InFlow type translation goes through ./_foundation-bridge.ts; see that file for the rationale on
     // why these casts are safe under the V2 wire shape.
-    const inflowMatch = await this.pickInflowMatchBalanceAware(paymentRequired.accepts);
+    const inflowMatch = await this.selectInflowRequirement(paymentRequired);
     if (inflowMatch !== null) {
-      const hookContext = { paymentRequired, selectedRequirements: inflowMatch };
-      for (const hook of [...this.inflowBeforePaymentCreationHooks]) {
+      const hookContext = { paymentRequired, selectedRequirements: toFoundationRequirement(inflowMatch) };
+      for (const hook of this.beforeHooks(paymentRequired)) {
         const result = await hook(hookContext);
         if (result?.abort) {
           throw new Error(`Payment creation aborted: ${result.reason}`);
@@ -91,7 +94,7 @@ export class InflowClient extends x402Client {
         const result = await this.inflowSigner.sign(inflowMatch, context);
         const paymentPayload = toFoundationPayload(result.paymentPayload);
         const createdContext = { ...hookContext, paymentPayload };
-        for (const hook of [...this.inflowAfterPaymentCreationHooks]) {
+        for (const hook of this.afterHooks(paymentRequired)) {
           await hook(createdContext);
         }
         return paymentPayload;
@@ -100,7 +103,7 @@ export class InflowClient extends x402Client {
           ...hookContext,
           error: error instanceof Error ? error : new Error(String(error), { cause: error }),
         };
-        for (const hook of [...this.inflowPaymentCreationFailureHooks]) {
+        for (const hook of this.failureHooks(paymentRequired)) {
           const result = await hook(failureContext);
           if (result?.recovered) {
             return result.payload;
@@ -141,7 +144,56 @@ export class InflowClient extends x402Client {
     if (!this.inflowSigner.supports(requirement)) {
       throw new X402AdapterRoutingError(requirement.scheme, requirement.network);
     }
-    return this.inflowSigner.prepare(requirement, context, options);
+    const selectedRequirements = toFoundationRequirement(structuredClone(requirement));
+    const paymentRequired: PaymentRequired = { ...structuredClone(context), accepts: [selectedRequirements] };
+    const hookContext = { paymentRequired, selectedRequirements };
+    for (const hook of this.beforeHooks(structuredClone(paymentRequired))) {
+      const result = await hook(structuredClone(hookContext));
+      if (result?.abort) throw new Error(`Payment creation aborted: ${result.reason}`);
+    }
+    const prepared = await this.inflowSigner.prepare(selectedRequirements, paymentRequired, options);
+    // This handle belongs to the approval and transaction already created by the server.
+    // A recovery hook could return a different payment without its corresponding IDs,
+    // so this flow does not accept replacement payments.
+    let completion: Promise<EncodedPayment> | undefined;
+    let cancelled = false;
+    const isCancelled = (): boolean => cancelled;
+    return {
+      transactionId: prepared.transactionId,
+      approvalId: prepared.approvalId,
+      status: () => prepared.status(),
+      cancel: async () => {
+        cancelled = true;
+        await prepared.cancel();
+      },
+      awaitPayload: (callOptions) => {
+        if (cancelled) return Promise.reject(new X402ApprovalCancelledError(prepared.approvalId));
+        // Callers may await the same payment more than once. Run after hooks only once,
+        // and reuse their result or error so repeated waits do not repeat their side effects.
+        if (completion !== undefined) return completion;
+        let received = false;
+        completion = (async () => {
+          try {
+            const result = await prepared.awaitPayload(callOptions);
+            received = true;
+            for (const hook of this.afterHooks(structuredClone(paymentRequired))) {
+              if (isCancelled()) throw new X402ApprovalCancelledError(prepared.approvalId);
+              await hook({
+                ...structuredClone(hookContext),
+                paymentPayload: toFoundationPayload(structuredClone(result.paymentPayload)),
+              });
+            }
+            if (isCancelled()) throw new X402ApprovalCancelledError(prepared.approvalId);
+            return result;
+          } catch (error) {
+            if (!received) completion = undefined;
+            if (isCancelled()) throw new X402ApprovalCancelledError(prepared.approvalId);
+            throw error;
+          }
+        })();
+        return completion;
+      },
+    };
   }
 
   /**
@@ -169,7 +221,21 @@ export class InflowClient extends x402Client {
    * synchronous against the cache primed by {@link createInflowClient}.
    */
   async selectInflowRequirement(paymentRequired: PaymentRequired): Promise<PaymentRequirements | null> {
-    return this.pickInflowMatchBalanceAware(fromFoundationRequirements(paymentRequired.accepts));
+    let candidates = paymentRequired.accepts.filter(
+      (r) => this.preferOrder.includes(r.scheme) && this.inflowSigner.supports(r),
+    );
+    if (candidates.length === 0) return null;
+    if (this.inflowPolicies.length > 0) candidates = structuredClone(candidates);
+    for (const policy of [...this.inflowPolicies]) {
+      candidates = policy(paymentRequired.x402Version, candidates);
+      if (candidates.length === 0)
+        throw new Error(
+          `All payment requirements were filtered out by policies for x402 version: ${paymentRequired.x402Version}`,
+        );
+    }
+    const selected = await this.pickInflowMatchBalanceAware(candidates);
+    if (selected === null) throw new Error('Payment policies returned no supported InFlow requirement');
+    return selected;
   }
 
   /**
@@ -202,11 +268,13 @@ export class InflowClient extends x402Client {
   }
 
   override registerPolicy(policy: PaymentPolicy): this {
+    this.inflowPolicies.push(policy);
     super.registerPolicy(policy);
     return this;
   }
 
   override registerExtension(extension: ClientExtension): this {
+    this.inflowExtensions.set(extension.key, extension);
     super.registerExtension(extension);
     return this;
   }
@@ -232,6 +300,42 @@ export class InflowClient extends x402Client {
   override onPaymentResponse(hook: OnPaymentResponseHook): this {
     super.onPaymentResponse(hook);
     return this;
+  }
+
+  private beforeHooks(required: PaymentRequired): BeforePaymentCreationHook[] {
+    const hooks = [...this.inflowBeforePaymentCreationHooks];
+    for (const [key, extension] of this.inflowExtensions) {
+      const hook = extension.hooks?.onBeforePaymentCreation;
+      if (hook !== undefined && required.extensions !== undefined && key in required.extensions) {
+        const declaration = required.extensions[key];
+        hooks.push((context) => hook(declaration, context));
+      }
+    }
+    return hooks;
+  }
+
+  private afterHooks(required: PaymentRequired): AfterPaymentCreationHook[] {
+    const hooks = [...this.inflowAfterPaymentCreationHooks];
+    for (const [key, extension] of this.inflowExtensions) {
+      const hook = extension.hooks?.onAfterPaymentCreation;
+      if (hook !== undefined && required.extensions !== undefined && key in required.extensions) {
+        const declaration = required.extensions[key];
+        hooks.push((context) => hook(declaration, context));
+      }
+    }
+    return hooks;
+  }
+
+  private failureHooks(required: PaymentRequired): OnPaymentCreationFailureHook[] {
+    const hooks = [...this.inflowPaymentCreationFailureHooks];
+    for (const [key, extension] of this.inflowExtensions) {
+      const hook = extension.hooks?.onPaymentCreationFailure;
+      if (hook !== undefined && required.extensions !== undefined && key in required.extensions) {
+        const declaration = required.extensions[key];
+        hooks.push((context) => hook(declaration, context));
+      }
+    }
+    return hooks;
   }
 
   /**

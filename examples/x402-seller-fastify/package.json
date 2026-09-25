@@ -12,8 +12,8 @@
   "dependencies": {
     "@inflowpayai/x402": "workspace:^",
     "@inflowpayai/x402-seller": "workspace:^",
-    "@x402/core": "^2.22.0",
-    "@x402/fastify": "^2.22.0",
+    "@x402/core": "^2.27.0",
+    "@x402/fastify": "^2.26.0",
     "dotenv": "^16.6.1",
     "fastify": "^5.12.3"
   },

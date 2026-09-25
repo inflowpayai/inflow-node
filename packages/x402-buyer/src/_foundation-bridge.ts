@@ -55,3 +55,8 @@ export function fromFoundationRequirements(
 export function toFoundationPayload(p: InflowPaymentPayload): FoundationPaymentPayload {
   return p as unknown as FoundationPaymentPayload;
 }
+
+/** @internal */
+export function toFoundationRequirement(r: PaymentRequirements): FoundationPaymentRequirements {
+  return (r.extra === undefined ? { ...r, extra: {} } : r) as FoundationPaymentRequirements;
+}

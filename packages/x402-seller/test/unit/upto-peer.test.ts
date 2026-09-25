@@ -15,7 +15,7 @@ describe('optional upto peer', () => {
 
   it('reports how to install the peer when upto was selected', async () => {
     await expect(inflowSchemeRegistrations(fakeSellerClient(UPTO_CONFIG), { schemes: ['upto'] })).rejects.toThrow(
-      'Install the optional peer @x402/evm@^2.22.0',
+      'Install the optional peer @x402/evm@^2.27.0',
     );
   });
 });

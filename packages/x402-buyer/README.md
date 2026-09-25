@@ -68,7 +68,7 @@ variant that swaps `fetch` for an axios call and decodes the response header wit
 ## Composing with foundation schemes
 
 Permit2 payments always use an external wallet registered with the foundation scheme. They are excluded from InFlow's
-managed signing path, including `prepareInflowPayment`. For EIP-2612 sponsorship, use foundation `@x402/evm` 2.22.0 or
+managed signing path, including `prepareInflowPayment`. For EIP-2612 sponsorship, use foundation `@x402/evm` 2.27.0 or
 later and supply the network's `schemeOptions.rpcUrl` for nonce and allowance reads. The seller must declare sponsorship
 for a compatible token; the foundation signs an exact-amount permit when allowance is insufficient.
 
@@ -92,10 +92,15 @@ the buyer capability cache), the InFlow path wins. Otherwise the foundation's se
 scheme the caller registered. The foundation methods (`register`, `registerPolicy`, `onBeforePaymentCreation`, …) are
 return-type narrowed to `this` so chaining preserves the `InflowClient` type.
 
+Foundation external-wallet payments default to recognized assets and a $1 per-payment cap. Configure the foundation
+client's `setSpendControls` explicitly when accepting other assets or limits; nondefault assets need an explicit atomic
+cap to remain bounded. See the [Solana example](../../examples/x402-buyer-x402-svm) for custom-mint configuration. These
+foundation controls apply to the external-wallet fallback, not InFlow-managed signing or `prepareInflowPayment`.
+
 ## EIP-7702 sponsorship for external wallets
 
 For tokens without EIP-2612, register the optional extension alongside the foundation EVM scheme. Install `@x402/evm`
-2.22.0 or later and `viem` 2.56.3 or later. Ordinary buyer imports do not load these optional dependencies.
+2.27.0 or later and `viem` 2.56.3 or later. Ordinary buyer imports do not load these optional dependencies.
 
 ```ts
 import { x402Client } from '@x402/core/client';
@@ -150,7 +155,12 @@ balance lookups can already have occurred. Aborts and before-hook exceptions do 
 
 After hooks receive the created payload. Signing errors and after-hook exceptions reach failure hooks; the first
 `{ recovered: true, payload }` result supplies the returned payload without rerunning after hooks. Without recovery, the
-original error propagates. These hooks do not wrap the separate `prepareInflowPayment` flow.
+original error propagates. Manual hooks run before hooks supplied by registered extensions declared in the seller's
+response. External-wallet scheme hooks and payload enrichment remain part of foundation signing.
+
+Registered payment policies filter or transform the supported managed offers before selection. Rejecting all managed
+offers stops payment rather than falling back to another wallet. When no managed offer exists, foundation selection
+applies its own policies and spending controls. Managed selection does not apply foundation spending controls.
 
 ## Two-phase signing (pending-approval UI)
 
@@ -175,6 +185,17 @@ try {
 
 The two-phase flow is InFlow-specific — there's no foundation equivalent. `prepareInflowPayment` throws
 `X402AdapterRoutingError` if the requirement is not in the InFlow buyer capability cache.
+
+Use `selectInflowRequirement` to apply registered selection policies before preparation. Preparation accepts the chosen
+requirement and does not rerun policies against that single offer. Before hooks run before the approval is created;
+their context contains only the chosen offer. After hooks run once when `awaitPayload` obtains the signed payment,
+including when callers wait concurrently. Two-phase hooks receive copies for inspection; they cannot rewrite the
+server-produced payment or request. Failure recovery and payload enrichment do not apply to this flow, because its
+handle identifies one specific server transaction and approval.
+
+A polling failure permits another wait on the same handle. An after-hook failure remains the completion result and does
+not rerun hooks. Neither failure automatically cancels a two-phase approval; call `cancel()` when abandoning it.
+Cancellation prevents subsequent waits from returning a payment, including cancellation during an after hook.
 
 ## Signing timeouts
 

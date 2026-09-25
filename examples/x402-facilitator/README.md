@@ -47,6 +47,9 @@ GET http://localhost:3000/api/widgets
   paid via InFlow facilitator: <base64 X-PAYMENT-RESPONSE>
 ```
 
+The foundation buyer uses recognized assets and a default $1 per-payment cap. Payments above that limit are rejected
+before signing; configure `core.setSpendControls` explicitly if this example needs a different limit.
+
 ## Counterparts
 
 - The **InFlow-as-the-whole-stack** seller-side mirror is [`examples/x402-seller-express`](../x402-seller-express)
