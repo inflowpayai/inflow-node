@@ -3,7 +3,7 @@ import { sanitizeMppProblemDetail } from '@inflowpayai/mpp-internal';
 import { ENDPOINTS, HEADERS, readHeader, subscriptionAuthorizationPath, transactionPath } from './constants.js';
 import type { Environment } from './environment.js';
 import { resolveBaseUrl } from './environment.js';
-import { InflowApiError } from './errors.js';
+import { firstErrorEntry, InflowApiError } from './errors.js';
 import type {
   MppBroadcastRequest,
   MppBroadcastResponse,
@@ -393,9 +393,13 @@ function isTimeoutReason(value: unknown): boolean {
  * Extract an application error code from a response body.
  *
  * @param body - The parsed response body.
- * @returns The body's `code` string, or `'UNEXPECTED_ERROR'`.
+ * @returns The first error entry's code, top-level code, or `'UNEXPECTED_ERROR'`.
  */
 function extractCode(body: unknown): string {
+  const first = firstErrorEntry(body);
+  if (first !== undefined && typeof first['code'] === 'string' && first['code'].length > 0) {
+    return first['code'];
+  }
   if (body !== null && typeof body === 'object' && 'code' in body) {
     const raw = body.code;
     if (typeof raw === 'string' && raw.length > 0) return raw;
