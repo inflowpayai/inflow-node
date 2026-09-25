@@ -141,6 +141,17 @@ deadline; the preparation expiry does not revoke it. Only the token approval and
 delegations must be compatible with the pinned implementation. This is a custom InFlow protocol, not the standard
 `erc20ApprovalGasSponsoring` raw-transaction extension. Managed InFlow buyers remain excluded from Permit2 signing.
 
+## Payment-creation hooks
+
+Hooks registered with `onBeforePaymentCreation`, `onAfterPaymentCreation`, and `onPaymentCreationFailure` apply to
+`createPaymentPayload` for both InFlow-managed and foundation-managed payments. Hooks run in registration order. A
+before hook returning `{ abort: true, reason: 'Policy blocked' }` stops transaction creation and signing; capability and
+balance lookups can already have occurred. Aborts and before-hook exceptions do not trigger failure recovery.
+
+After hooks receive the created payload. Signing errors and after-hook exceptions reach failure hooks; the first
+`{ recovered: true, payload }` result supplies the returned payload without rerunning after hooks. Without recovery, the
+original error propagates. These hooks do not wrap the separate `prepareInflowPayment` flow.
+
 ## Two-phase signing (pending-approval UI)
 
 For callers that want to surface a pending-approval state to the user before the protected request is replayed,

@@ -1,7 +1,12 @@
 import { Buffer } from 'node:buffer';
 
 import type { InflowPaymentPayload, PaymentRequirements } from '@inflowpayai/x402';
-import { x402Client, type ClientExtension, type PaymentPolicy } from '@x402/core/client';
+import {
+  x402Client,
+  type ClientExtension,
+  type PaymentPolicy,
+  type OnPaymentCreationFailureHook,
+} from '@x402/core/client';
 import type { PaymentPayload, PaymentRequired, SchemeNetworkClient } from '@x402/core/types';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
@@ -75,6 +80,268 @@ function paymentRequired(
     ...(extensions !== undefined ? { extensions } : {}),
   };
 }
+
+describe.each(['managed', 'foundation'] as const)('payment-creation hooks — %s', (route) => {
+  async function setup(failAt?: 'create' | 'poll') {
+    installSupported();
+    const required = paymentRequired([route === 'managed' ? INFLOW_REQ : EVM_REQ]);
+    const events: string[] = [];
+    const cancels = vi.fn();
+    const signed = makeInflowPayload();
+    server.use(
+      http.post(`${PROD_BASE}/v1/transactions/x402`, () => {
+        events.push('create');
+        if (failAt === 'create') {
+          return HttpResponse.json({ code: 'TEST_REJECTION', message: 'creation rejected' }, { status: 400 });
+        }
+        return HttpResponse.json({ approvalId: 'apr_hooks', approvalStatus: 'APPROVED', transactionId: 'tx_hooks' });
+      }),
+      http.get(`${PROD_BASE}/v1/transactions/tx_hooks/x402`, () => {
+        events.push('poll');
+        return HttpResponse.json(
+          failAt === 'poll'
+            ? { status: 'DECLINED' }
+            : { status: 'SETTLED', encodedPayload: encodedFor(signed), paymentPayload: signed },
+        );
+      }),
+      http.post(`${PROD_BASE}/v1/approvals/apr_hooks/cancel`, () => {
+        cancels();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    const scheme = {
+      scheme: 'exact',
+      findDefaultAsset: (asset: string, network: string) =>
+        asset === EVM_REQ.asset && network === EVM_REQ.network ? { asset, decimals: 6, symbol: 'USDC' } : undefined,
+      createPaymentPayload: () => {
+        events.push('sign');
+        if (failAt !== undefined) throw new Error('external signing rejected');
+        return Promise.resolve({ x402Version: 2, payload: { signature: 'external' } });
+      },
+    };
+    client.register('eip155:1', scheme);
+    return { client, required, events, cancels };
+  }
+
+  it.each(['abort', 'throw'] as const)('stops before creation on a before-hook %s, without recovery', async (mode) => {
+    const { client, required, events } = await setup();
+    const failure = vi.fn();
+    const later = vi.fn();
+    const blocked = new Error('policy threw');
+    client.onBeforePaymentCreation((context) => {
+      expect(context.paymentRequired).toBe(required);
+      expect(context.selectedRequirements).toBe(required.accepts[0]);
+      events.push('before');
+      if (mode === 'throw') throw blocked;
+      return Promise.resolve({ abort: true, reason: 'policy blocked' });
+    });
+    client.onBeforePaymentCreation(later).onAfterPaymentCreation(later).onPaymentCreationFailure(failure);
+    const result = client.createPaymentPayload(required);
+    if (mode === 'throw') await expect(result).rejects.toBe(blocked);
+    else await expect(result).rejects.toThrow('Payment creation aborted: policy blocked');
+    expect(events).toEqual(['before']);
+    expect(later).not.toHaveBeenCalled();
+    expect(failure).not.toHaveBeenCalled();
+  });
+
+  it('awaits hooks in order and passes the selected requirement and final payload', async () => {
+    const { client, required, events } = await setup();
+    const after = vi.fn();
+    const failure = vi.fn();
+    client.onBeforePaymentCreation(async () => {
+      await Promise.resolve();
+      events.push('before-1');
+    });
+    client.onBeforePaymentCreation(() => {
+      events.push('before-2');
+      return Promise.resolve();
+    });
+    client.onAfterPaymentCreation(async (context) => {
+      await Promise.resolve();
+      after(context);
+      events.push('after-1');
+    });
+    client.onAfterPaymentCreation(() => {
+      events.push('after-2');
+      return Promise.resolve();
+    });
+    client.onPaymentCreationFailure(failure);
+    const payload = await client.createPaymentPayload(required);
+    expect(events).toEqual([
+      'before-1',
+      'before-2',
+      ...(route === 'managed' ? ['create', 'poll'] : ['sign']),
+      'after-1',
+      'after-2',
+    ]);
+    expect(after).toHaveBeenCalledExactlyOnceWith({
+      paymentRequired: required,
+      selectedRequirements: required.accepts[0],
+      paymentPayload: payload,
+    });
+    expect(failure).not.toHaveBeenCalled();
+  });
+
+  it.each(['create', 'poll'] as const)(
+    'reports %s failures and preserves cancellation and error identity',
+    async (failAt) => {
+      const { client, required, cancels } = await setup(failAt);
+      const failure = vi.fn();
+      const after = vi.fn();
+      client.onPaymentCreationFailure(failure).onAfterPaymentCreation(after);
+      const error: unknown = await client.createPaymentPayload(required).catch((reason: unknown) => reason);
+      expect(error).toBeInstanceOf(Error);
+      expect(failure).toHaveBeenCalledExactlyOnceWith({
+        paymentRequired: required,
+        selectedRequirements: required.accepts[0],
+        error,
+      });
+      expect(after).not.toHaveBeenCalled();
+      if (route === 'managed' && failAt === 'poll') {
+        expect(error).toBeInstanceOf(X402ApprovalFailedError);
+        await vi.waitFor(() => expect(cancels).toHaveBeenCalledOnce());
+      } else {
+        if (route === 'managed') expect(error).toMatchObject({ code: 'TEST_REJECTION', httpStatus: 400 });
+        expect(cancels).not.toHaveBeenCalled();
+      }
+    },
+  );
+
+  it('uses the first recovery payload and does not call after hooks on recovery', async () => {
+    const { client, required } = await setup('create');
+    const recovered: PaymentPayload = {
+      x402Version: 2,
+      accepted: { ...EVM_REQ, network: 'eip155:1', extra: {} },
+      payload: { signature: 'recovery' },
+    };
+    const order: string[] = [];
+    const later = vi.fn();
+    client.onPaymentCreationFailure(() => {
+      order.push('observe');
+      return Promise.resolve();
+    });
+    client.onPaymentCreationFailure(() => {
+      order.push('decline');
+      return Promise.resolve();
+    });
+    client.onPaymentCreationFailure(() => {
+      order.push('recover');
+      return Promise.resolve({ recovered: true, payload: recovered });
+    });
+    client.onPaymentCreationFailure(later).onAfterPaymentCreation(later);
+    await expect(client.createPaymentPayload(required)).resolves.toBe(recovered);
+    expect(order).toEqual(['observe', 'decline', 'recover']);
+    expect(later).not.toHaveBeenCalled();
+  });
+
+  it('routes after-hook exceptions through failure hooks without cancelling completed signing', async () => {
+    const { client, required, cancels } = await setup();
+    const error = new Error('after failed');
+    const failure = vi.fn();
+    const later = vi.fn();
+    client.onAfterPaymentCreation(() => Promise.reject(error));
+    client.onAfterPaymentCreation(later).onPaymentCreationFailure(failure);
+    await expect(client.createPaymentPayload(required)).rejects.toBe(error);
+    expect(failure).toHaveBeenCalledExactlyOnceWith({
+      paymentRequired: required,
+      selectedRequirements: required.accepts[0],
+      error,
+    });
+    expect(later).not.toHaveBeenCalled();
+    expect(cancels).not.toHaveBeenCalled();
+  });
+
+  it('propagates a failure-hook exception without invoking later recovery', async () => {
+    const { client, required } = await setup('create');
+    const error = new Error('failure hook threw');
+    const later = vi.fn();
+    client.onPaymentCreationFailure(() => Promise.reject(error));
+    client.onPaymentCreationFailure(later);
+    await expect(client.createPaymentPayload(required)).rejects.toBe(error);
+    expect(later).not.toHaveBeenCalled();
+  });
+
+  if (route === 'managed') {
+    it('checks the balance-selected requirement before any transaction is created', async () => {
+      const { client, events } = await setup();
+      const first = { ...INFLOW_REQ, extra: { assetName: 'USDC' } };
+      const second = { ...INFLOW_REQ, extra: { assetName: 'USDT' } };
+      const required = paymentRequired([first, second]);
+      server.use(
+        http.get(`${PROD_BASE}/v1/balances`, () => {
+          events.push('balances');
+          return HttpResponse.json({ balances: [{ currency: 'USDT', available: '1' }] });
+        }),
+      );
+      client.onBeforePaymentCreation((context) => {
+        expect(context.selectedRequirements).toBe(second);
+        return Promise.resolve({ abort: true, reason: 'selected asset blocked' });
+      });
+      await expect(client.createPaymentPayload(required)).rejects.toThrow(
+        'Payment creation aborted: selected asset blocked',
+      );
+      expect(events).toEqual(['balances']);
+    });
+
+    it('supplies an Error to failure hooks for a non-Error rejection while rethrowing the original value', async () => {
+      const { client, required } = await setup();
+      const failure = vi.fn<OnPaymentCreationFailureHook>();
+      client.onAfterPaymentCreation(vi.fn().mockRejectedValue('rejected value'));
+      client.onPaymentCreationFailure(failure);
+      await expect(client.createPaymentPayload(required)).rejects.toBe('rejected value');
+      expect(failure).toHaveBeenCalledExactlyOnceWith({
+        paymentRequired: required,
+        selectedRequirements: required.accepts[0],
+        error: new Error('rejected value', { cause: 'rejected value' }),
+      });
+      expect(failure.mock.calls[0]?.[0].error).toBeInstanceOf(Error);
+    });
+  }
+
+  it('defers before hooks registered during a before phase until the next payment', async () => {
+    const { client, required } = await setup();
+    const late = vi.fn();
+    client.onBeforePaymentCreation(() => {
+      client.onBeforePaymentCreation(late);
+      return Promise.resolve();
+    });
+    await client.createPaymentPayload(required);
+    expect(late).not.toHaveBeenCalled();
+    await client.createPaymentPayload(required);
+    expect(late).toHaveBeenCalledOnce();
+  });
+
+  it('keeps concurrent payment hook contexts separate', async () => {
+    const { client, required, events } = await setup();
+    const blocked = { ...required, resource: { url: 'https://example.com/blocked' } };
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const after = vi.fn();
+    client.onBeforePaymentCreation(async (context) => {
+      if (context.paymentRequired === blocked) {
+        await gate;
+        return { abort: true, reason: 'blocked request' };
+      }
+    });
+    client.onAfterPaymentCreation(after);
+    const pending = client.createPaymentPayload(blocked);
+    try {
+      const payload = await client.createPaymentPayload(required);
+      expect(after).toHaveBeenCalledExactlyOnceWith({
+        paymentRequired: required,
+        selectedRequirements: required.accepts[0],
+        paymentPayload: payload,
+      });
+    } finally {
+      release?.();
+      await expect(pending).rejects.toThrow('Payment creation aborted: blocked request');
+    }
+    expect(events).toEqual(route === 'managed' ? ['create', 'poll'] : ['sign']);
+  });
+});
 
 describe('createInflowClient — construction', () => {
   it('primes the buyer capability cache before resolving', async () => {
