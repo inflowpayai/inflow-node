@@ -40,7 +40,7 @@ function sanitizeHeaders(
  */
 export interface InflowApiErrorInit {
   /**
-   * Application-level error code extracted from the response body's `code` field, falling back to `'UNEXPECTED_ERROR'`.
+   * Application-level error code from `errors[0].code` or top-level `code`, falling back to `'UNEXPECTED_ERROR'`.
    * `'TIMEOUT'` and `'NETWORK_ERROR'` are synthesised by the client for transport failures.
    */
   code: string;
@@ -105,10 +105,10 @@ export class InflowApiError extends Error {
   /**
    * Compose an {@link InflowApiError} from a non-2xx response.
    *
-   * `.message` is the server's human-readable message — the RFC 9457 problem `detail`, then a body `message`, then a
-   * generic `request failed` fallback. Transport/diagnostic details — `endpoint`, `httpStatus`, `requestId`, `code`,
-   * `problem`, and the raw `body` — are carried as fields on the instance, not folded into the message, so consumers
-   * (CLIs, logs) can present a clean message and opt into the diagnostics they need.
+   * `.message` is the server's human-readable message — the RFC 9457 problem `detail`, then `errors[0].message`, then a
+   * body `message`, then a generic `request failed` fallback. Transport/diagnostic details — `endpoint`, `httpStatus`,
+   * `requestId`, `code`, `problem`, and the raw `body` — are carried as fields on the instance, not folded into the
+   * message, so consumers (CLIs, logs) can present a clean message and opt into the diagnostics they need.
    *
    * @param init - Structured fields carried on the resulting instance.
    * @returns A new {@link InflowApiError}.
@@ -119,13 +119,20 @@ export class InflowApiError extends Error {
   }
 }
 
-/**
- * Extract a human-readable message from a response body, if present.
- *
- * @param body - The parsed response body.
- * @returns The body's `message` string when non-empty, otherwise `undefined`.
- */
+/** @internal */
+export function firstErrorEntry(body: unknown): Record<string, unknown> | undefined {
+  if (body === null || typeof body !== 'object' || !('errors' in body)) return undefined;
+  const errors: unknown = body.errors;
+  if (!Array.isArray(errors) || errors.length === 0) return undefined;
+  const first: unknown = errors[0];
+  return first !== null && typeof first === 'object' ? (first as Record<string, unknown>) : undefined;
+}
+
 function extractBodyMessage(body: unknown): string | undefined {
+  const first = firstErrorEntry(body);
+  if (first !== undefined && typeof first['message'] === 'string' && first['message'].length > 0) {
+    return first['message'];
+  }
   if (body !== null && typeof body === 'object' && 'message' in body) {
     const raw = body.message;
     if (typeof raw === 'string' && raw.length > 0) return raw;

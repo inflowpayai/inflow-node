@@ -117,6 +117,75 @@ describe('MppClient endpoints', () => {
 });
 
 describe('error mapping', () => {
+  it.each([
+    undefined,
+    null,
+    'invalid',
+    [],
+    [null],
+    ['invalid'],
+    [false],
+    [[]],
+    [{}],
+    [{ code: 1, message: false }],
+    [{ code: '', message: '' }],
+  ])('retains top-level fallbacks for malformed or empty errors: %j', async (errors) => {
+    const body = { errors, code: 'TOP_LEVEL', message: 'Top-level explanation' };
+    server.use(http.get(`${BASE}/v1/mpp/config`, () => HttpResponse.json(body, { status: 400 })));
+    await expect(client().getConfig()).rejects.toMatchObject({ code: 'TOP_LEVEL', message: 'Top-level explanation' });
+  });
+
+  it('prefers the first error entry and preserves the complete response', async () => {
+    const body = {
+      errors: [
+        { code: 'FIRST', message: 'First explanation' },
+        { code: 'SECOND', message: 'Second explanation' },
+      ],
+      code: 'TOP_LEVEL',
+      message: 'Top-level explanation',
+    };
+    server.use(http.get(`${BASE}/v1/mpp/config`, () => HttpResponse.json(body, { status: 400 })));
+    await expect(client().getConfig()).rejects.toMatchObject({ code: 'FIRST', message: 'First explanation', body });
+  });
+
+  it('preserves problem-detail precedence over the error envelope', async () => {
+    const body = {
+      type: 'https://paymentauth.org/problems/payment-expired',
+      title: 'Payment Expired',
+      status: 400,
+      detail: 'Challenge expired',
+      errors: [{ code: 'PAYMENT_EXPIRED', message: 'Envelope explanation' }],
+    };
+    server.use(http.get(`${BASE}/v1/mpp/config`, () => HttpResponse.json(body, { status: 400 })));
+    await expect(client().getConfig()).rejects.toMatchObject({
+      code: 'PAYMENT_EXPIRED',
+      message: 'Challenge expired',
+      body,
+    });
+  });
+
+  it('preserves the Seller-account rejection from the InFlow error envelope', async () => {
+    const body = {
+      errors: [
+        {
+          code: 'SELLER_ACCOUNT_REQUIRED',
+          message: 'The supplied credentials belong to a Developer account. This endpoint requires a Seller account.',
+        },
+      ],
+      id: '22222222-2222-2222-2222-222222222222',
+    };
+    server.use(http.get(`${BASE}/v1/mpp/config`, () => HttpResponse.json(body, { status: 403 })));
+
+    await expect(client().getConfig()).rejects.toMatchObject({
+      name: 'InflowApiError',
+      code: 'SELLER_ACCOUNT_REQUIRED',
+      message: body.errors[0]?.message,
+      httpStatus: 403,
+      endpoint: '/v1/mpp/config',
+      body,
+    });
+  });
+
   it('maps a non-2xx response to InflowApiError, lifting an RFC 9457 problem body', async () => {
     server.use(
       http.post(`${BASE}/v1/transactions/mpp`, () =>
