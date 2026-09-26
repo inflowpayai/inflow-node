@@ -28,23 +28,30 @@ poller or prove payment completion. Buyer payment polling, credential readiness,
 Buyer and Seller suites. The runtime report does not certify live authentication, cryptographic verification, blockchain
 settlement, or redirect handling.
 
-## MPP Core and Buyer
+## MPP Core, Buyer, and Seller
 
 ```sh
 pnpm mpp:conformance:shared --contract-root ../inflow-specs --output /tmp/inflow-mpp-report.json
 ```
 
-This selects every `mpp-core` and `mpp-buyer` case from the pinned contract. The adapter calls the public codecs and
-Buyer `inflow`, `inflow.subscription`, and `tempo` methods. The SDK performs transaction creation, polling, subscription
-authorization, timeout handling, and approval cancellation. The adapter does not reproduce those workflows.
+This selects every `mpp-core`, `mpp-buyer`, and `mpp-seller` case from the pinned contract. The adapter calls the public
+codecs and Buyer `inflow`, `inflow.subscription`, and `tempo` methods. The SDK performs transaction creation, polling,
+subscription authorization, timeout handling, and approval cancellation. The adapter does not reproduce those workflows.
 
 Cancellation cases observe a pending response through the public fetch option, then call the method's `cleanup()`. The
 original response is passed through unchanged. The shared runner waits for the SDK's asynchronous cancellation request
 before marking the case passed. Known SDK error classes map to the contract's test-only classifications; unknown errors
 fail the adapter. Problems, transaction identifiers, credential payloads, and sources are preserved.
 
-The report records both SDK package versions and their installed `mppx` version. It does not certify Seller behavior,
-live authentication, signing, or settlement. Only synthetic credentials and the local scripted platform are used.
+Seller cases call public request preparation, validation, and verification methods. Verification uses the foundation's
+validate-then-broadcast composition, not adapter-written sequencing. Route-binding cases issue a real framework
+challenge, serialize a synthetic credential, and submit it to a handler configured with different payment terms. The
+handler must reject it before platform validation or broadcast. Idempotency cases inspect SDK-generated keys and require
+retries to reuse the original key; the adapter does not inject a key.
 
-`pnpm mpp:conformance` remains the separate upstream MPP protocol-vector command. It does not run these InFlow Buyer
+The report records all three SDK package versions and their installed `mppx` version. It does not certify live
+authentication, signing, settlement, or platform replay enforcement. Only synthetic credentials and the local scripted
+platform are used.
+
+`pnpm mpp:conformance` remains the separate upstream MPP protocol-vector command. It does not run these InFlow payment
 workflows. Neither conformance runner is a dependency of the published SDKs.
