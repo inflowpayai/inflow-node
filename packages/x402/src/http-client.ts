@@ -316,6 +316,12 @@ export class InflowHttpClient {
       const text = await response.text();
       const parsed = parseJsonOrText(text, response.headers.get('content-type'));
       return { status: response.status, headers: response.headers, body: parsed };
+    } catch (cause) {
+      // Native fetch can replace the abort reason, including while reading the body.
+      if (controller.signal.reason === TIMEOUT_REASON) {
+        throw new Error('request timed out', { cause: TIMEOUT_REASON });
+      }
+      throw cause;
     } finally {
       clearTimeout(timeoutId);
       if (callerSignal !== undefined) callerSignal.removeEventListener('abort', onAbort);

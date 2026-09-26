@@ -58,6 +58,9 @@ To watch a single package:
 pnpm --filter @inflowpayai/x402-seller test:watch
 ```
 
+The [runtime conformance guide](../../conformance/README.md) explains how to run both HTTP clients against the pinned
+InFlow contract and produce a machine-readable report.
+
 ## Branch model
 
 A single long-lived `main` branch. Feature work happens on short-lived branches off `main`:
