@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { respond } from '../conformance/runtime-adapter.mjs';
 import { runtimeCases } from '../conformance/runtime-cases.mjs';
-import { implementation } from './runtime-conformance.mjs';
+import { implementation } from './conformance.mjs';
 
 test('report records installed upstream versions rather than dependency ranges', async () => {
   const result = await implementation();

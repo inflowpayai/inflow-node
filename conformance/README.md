@@ -1,4 +1,4 @@
-# InFlow runtime conformance
+# InFlow shared conformance
 
 The runtime adapter calls the public `InflowHttpClient` and `resolveBaseUrl` exports from both `@inflowpayai/mpp` and
 `@inflowpayai/x402`. It uses the shared runner and scripted HTTP platform in
@@ -27,3 +27,24 @@ Approval cases execute prescribed reads and cancellation requests through the HT
 poller or prove payment completion. Buyer payment polling, credential readiness, and settlement belong to the MPP/x402
 Buyer and Seller suites. The runtime report does not certify live authentication, cryptographic verification, blockchain
 settlement, or redirect handling.
+
+## MPP Core and Buyer
+
+```sh
+pnpm mpp:conformance:shared --contract-root ../inflow-specs --output /tmp/inflow-mpp-report.json
+```
+
+This selects every `mpp-core` and `mpp-buyer` case from the pinned contract. The adapter calls the public codecs and
+Buyer `inflow`, `inflow.subscription`, and `tempo` methods. The SDK performs transaction creation, polling, subscription
+authorization, timeout handling, and approval cancellation. The adapter does not reproduce those workflows.
+
+Cancellation cases observe a pending response through the public fetch option, then call the method's `cleanup()`. The
+original response is passed through unchanged. The shared runner waits for the SDK's asynchronous cancellation request
+before marking the case passed. Known SDK error classes map to the contract's test-only classifications; unknown errors
+fail the adapter. Problems, transaction identifiers, credential payloads, and sources are preserved.
+
+The report records both SDK package versions and their installed `mppx` version. It does not certify Seller behavior,
+live authentication, signing, or settlement. Only synthetic credentials and the local scripted platform are used.
+
+`pnpm mpp:conformance` remains the separate upstream MPP protocol-vector command. It does not run these InFlow Buyer
+workflows. Neither conformance runner is a dependency of the published SDKs.
