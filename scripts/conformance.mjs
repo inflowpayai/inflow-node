@@ -7,7 +7,7 @@ import { runtimeCases } from '../conformance/runtime-cases.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
-export async function implementation(suite = 'runtime') {
+export async function implementation(suite = 'runtime', adapterNode = process.execPath) {
   const packages = {};
   const dependencies = {};
   const products =
@@ -40,7 +40,16 @@ export async function implementation(suite = 'runtime') {
     }
     dependencies[installed.name] = installed.version;
   }
-  return { name: 'inflow-node', runtime: process.version, packages, dependencies };
+  const runtime = execFileSync(adapterNode, ['-p', 'process.version'], { encoding: 'utf8', timeout: 10000 }).trim();
+  return { name: 'inflow-node', runtime, packages, dependencies };
+}
+
+export function verifyContract(contractRoot, expectedRevision) {
+  if (!/^[0-9a-f]{40}$/.test(expectedRevision)) throw new Error('Contract revision must be a full commit SHA');
+  const git = (args) => execFileSync('git', args, { cwd: contractRoot, encoding: 'utf8', timeout: 10000 }).trim();
+  if (git(['rev-parse', 'HEAD']) !== expectedRevision || git(['status', '--porcelain'])) {
+    throw new Error(`Use a clean contract checkout at ${expectedRevision}`);
+  }
 }
 
 async function main() {
@@ -49,6 +58,8 @@ async function main() {
       'contract-root': { type: 'string' },
       output: { type: 'string' },
       suite: { type: 'string', default: 'runtime' },
+      'contract-revision': { type: 'string' },
+      'adapter-node': { type: 'string' },
     },
   });
   if (!values['contract-root'] || !values.output) {
@@ -59,10 +70,8 @@ async function main() {
   if (!['runtime', 'mpp', 'x402'].includes(values.suite)) throw new Error('Unknown conformance suite');
   const contractRoot = resolve(values['contract-root']);
   const lock = JSON.parse(await readFile(new URL('../conformance/inflow-specs.lock.json', import.meta.url), 'utf8'));
-  const git = (args) => execFileSync('git', args, { cwd: contractRoot, encoding: 'utf8', timeout: 10000 }).trim();
-  if (git(['rev-parse', 'HEAD']) !== lock.revision || git(['status', '--porcelain'])) {
-    throw new Error(`Use a clean ${lock.repository} checkout at ${lock.revision}`);
-  }
+  verifyContract(contractRoot, values['contract-revision'] ?? lock.revision);
+  const adapterNode = values['adapter-node'] ?? process.execPath;
   const { run } = await import(pathToFileURL(resolve(contractRoot, 'runner/run.mjs')));
   const fixtures = await import(pathToFileURL(resolve(contractRoot, `fixtures/${values.suite}.mjs`)));
   const index = values.suite === 'runtime' ? runtimeCases(fixtures.runtimeScenarios) : fixtures[`${values.suite}Cases`];
@@ -71,7 +80,7 @@ async function main() {
     mpp: ['mpp-core', 'mpp-buyer', 'mpp-seller'],
     x402: ['x402-core', 'x402-buyer', 'x402-seller'],
   }[values.suite];
-  const metadata = await implementation(values.suite);
+  const metadata = await implementation(values.suite, adapterNode);
   const output = await open(resolve(values.output), 'wx', 0o600);
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -83,7 +92,7 @@ async function main() {
       capabilities: { suites, supported_features: [], unsupported_features: [] },
       implementation: metadata,
       command: [
-        process.execPath,
+        adapterNode,
         resolve(
           root,
           values.suite === 'runtime'

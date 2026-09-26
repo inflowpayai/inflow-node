@@ -1,0 +1,125 @@
+name: shared conformance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+        x402-foundation: [locked, latest]
+    defaults:
+      run:
+        working-directory: sdk
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: sdk
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Locate adapter Node
+        id: adapter
+        run: echo "node=$(command -v node)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: sdk/package.json
+
+      - name: Read contract pin
+        id: pin
+        run: |
+          node --input-type=module -e '
+            import { readFileSync, appendFileSync } from "node:fs";
+            const { revision } = JSON.parse(readFileSync("conformance/inflow-specs.lock.json", "utf8"));
+            if (!/^[0-9a-f]{40}$/.test(revision)) throw new Error("Invalid contract pin");
+            appendFileSync(process.env.GITHUB_OUTPUT, `revision=${revision}\n`);
+          '
+
+      - uses: actions/checkout@v5
+        with:
+          repository: inflowpayai/inflow-specs
+          ref: ${{ steps.pin.outputs.revision }}
+          path: contract-pinned
+          persist-credentials: false
+
+      - uses: actions/checkout@v5
+        with:
+          repository: inflowpayai/inflow-specs
+          ref: main
+          path: contract-current
+          persist-credentials: false
+
+      - name: Install
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --dir ../contract-pinned install --frozen-lockfile
+          pnpm --dir ../contract-current install --frozen-lockfile
+
+      - name: Override @x402/* foundation packages to latest
+        if: matrix.x402-foundation == 'latest'
+        run: |
+          pnpm -r update \
+            '@x402/core@latest' '@x402/evm@latest' '@x402/express@latest' \
+            '@x402/extensions@latest' '@x402/fastify@latest' '@x402/hono@latest' \
+            '@x402/next@latest' '@x402/paywall@latest' '@x402/svm@latest'
+
+      - name: Build SDK packages
+        id: build
+        run: |
+          pnpm --filter @inflowpayai/mpp-buyer... --filter @inflowpayai/mpp-seller... \
+            --filter @inflowpayai/x402-buyer... --filter @inflowpayai/x402-seller... build
+
+      - name: Pinned contract
+        env:
+          ADAPTER_NODE: ${{ steps.adapter.outputs.node }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/conformance"
+          result=0
+          for suite in runtime mpp x402; do
+            node scripts/conformance.mjs --suite "$suite" --adapter-node "$ADAPTER_NODE" \
+              --contract-root ../contract-pinned \
+              --output "$RUNNER_TEMP/conformance/pinned-$suite.json" || result=1
+          done
+          exit "$result"
+
+      - name: Current contract drift
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          ADAPTER_NODE: ${{ steps.adapter.outputs.node }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/conformance"
+          revision=$(git -C ../contract-current rev-parse HEAD)
+          result=0
+          for suite in runtime mpp x402; do
+            node scripts/conformance.mjs --suite "$suite" --adapter-node "$ADAPTER_NODE" \
+              --contract-root ../contract-current --contract-revision "$revision" \
+              --output "$RUNNER_TEMP/conformance/current-$suite.json" || result=1
+          done
+          exit "$result"
+
+      - name: Upload conformance reports
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: conformance-node${{ matrix.node }}-${{ matrix.x402-foundation }}
+          path: ${{ runner.temp }}/conformance/*.json
+          if-no-files-found: error
+          retention-days: 14
