@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { InflowApiError } from '../packages/x402/dist/index.js';
 import { PAYMENT_IDENTIFIER, validatePaymentId } from '../packages/x402/dist/extensions/index.js';
 import * as buyer from '../packages/x402-buyer/dist/index.js';
+import * as seller from '../packages/x402-seller/dist/index.js';
 
 export function classify(error) {
   if (error instanceof InflowApiError)
@@ -19,7 +20,8 @@ export function classify(error) {
     return { code: 'payment-timeout', message: 'Payment timed out.' };
   if (error instanceof buyer.X402ApprovalCancelledError)
     return { code: 'payment-cancelled', message: 'Payment cancelled.' };
-  if (error instanceof buyer.X402PaymentIdFormatError) return { code: 'invalid-input', message: 'Invalid input.' };
+  if (error instanceof buyer.X402PaymentIdFormatError || error instanceof seller.X402PriceParseError)
+    return { code: 'invalid-input', message: 'Invalid input.' };
   if (error instanceof buyer.X402AdapterRoutingError)
     return { code: 'unsupported-capability', message: 'Unsupported payment capability.' };
   throw error;
@@ -30,11 +32,41 @@ async function execute(operation, input) {
   if (operation === 'x402.core.identifier-declaration') return PAYMENT_IDENTIFIER.buildDeclaration({});
   if (operation === 'x402.core.identifier-entry')
     return PAYMENT_IDENTIFIER.buildPayloadEntry(input.declaration, { providedPaymentId: input.payment_id });
-  if (!['x402.buyer.sign', 'x402.buyer.cancel', 'x402.buyer.concurrent-await'].includes(operation))
+  if (operation === 'x402.seller.offers' || operation === 'x402.seller.route') {
+    const client = {
+      config: async () => input.config,
+      refreshSupported: async () => input.supported,
+    };
+    return operation === 'x402.seller.offers'
+      ? seller.inflowAccepts(client, input.options)
+      : seller.inflowRoute(client, input.options);
+  }
+  if (
+    ![
+      'x402.buyer.sign',
+      'x402.buyer.cancel',
+      'x402.buyer.concurrent-await',
+      'x402.seller.verify',
+      'x402.seller.settle',
+      'x402.seller.verify-settle',
+    ].includes(operation)
+  )
     throw new Error('Unknown x402 operation');
   const base = new URL(input.base_url);
   if (base.protocol !== 'http:' || base.hostname !== '127.0.0.1' || base.username || base.password)
     throw new Error('x402 requests require the loopback platform');
+  if (operation.startsWith('x402.seller.')) {
+    const client =
+      input.api_key === undefined
+        ? seller.createUnauthenticatedInflowFacilitator({ baseUrl: base.origin })
+        : seller.createInflowFacilitator({ baseUrl: base.origin, apiKey: input.api_key });
+    if (operation === 'x402.seller.verify') return client.verify(input.payment_payload, input.payment_requirements);
+    if (operation === 'x402.seller.settle') return client.settle(input.payment_payload, input.payment_requirements);
+    const verification = await client.verify(input.payment_payload, input.payment_requirements);
+    return verification.isValid
+      ? { verification, settlement: await client.settle(input.payment_payload, input.payment_requirements) }
+      : { verification };
+  }
   const client = await buyer.createInflowClient({ apiKey: input.api_key, baseUrl: base.origin });
   const prepared = await client.prepareInflowPayment(input.requirement, input.context, {
     paymentId: input.payment_id,

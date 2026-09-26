@@ -21,6 +21,8 @@ export async function implementation(suite = 'runtime') {
         ? [
             ['x402', '@x402/core'],
             ['x402-buyer', '@x402/core'],
+            ['x402-seller', '@x402/core'],
+            ['x402-seller', '@x402/extensions'],
           ]
         : [
             ['mpp', 'mppx'],
@@ -67,7 +69,7 @@ async function main() {
   const suites = {
     runtime: ['runtime'],
     mpp: ['mpp-core', 'mpp-buyer', 'mpp-seller'],
-    x402: ['x402-core', 'x402-buyer'],
+    x402: ['x402-core', 'x402-buyer', 'x402-seller'],
   }[values.suite];
   const metadata = await implementation(values.suite);
   const output = await open(resolve(values.output), 'wx', 0o600);
