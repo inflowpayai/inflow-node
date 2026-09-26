@@ -85,3 +85,32 @@ recognized failure.
 The report records all three SDK package versions and their installed `@x402/core` and `@x402/extensions` versions.
 These synthetic platform responses do not certify live signing, settlement, external-wallet execution, foundation
 middleware, or sponsorship execution.
+
+## Hosted reports and contract drift
+
+The **shared conformance** workflow runs on pull requests, pushes to `main`, and manual dispatch. Each Node 22/24 and
+locked/latest foundation combination runs all three suites against both the pinned contract and the current
+`inflow-specs` main commit. A failure in one suite does not prevent the other suites from producing reports; any failure
+still fails the job. The current-contract step runs even if the pinned cases fail.
+
+Open the workflow run's **Artifacts** section and download `conformance-node22-locked`, `conformance-node22-latest`,
+`conformance-node24-locked`, or `conformance-node24-latest`. Each artifact contains `pinned-*.json` and `current-*.json`
+reports for runtime, MPP, and x402, retained for 14 days. Failed runs also upload available reports. Check `completed`
+and `passed`; an empty or incomplete report is not passing evidence. Installation/build failures may prevent reports.
+
+The contract runner uses Node 24; `--adapter-node` selects the executable that runs the SDK adapter. Reported
+`implementation.runtime` is that adapter's actual Node version. The latest-dependency jobs intentionally modify
+dependency manifests and the lockfile; their SDK dirty state records that fact.
+
+For a local drift check, explicitly select the full commit of a clean contract checkout:
+
+```sh
+node scripts/conformance.mjs --suite x402 \
+  --contract-root ../inflow-specs --contract-revision FULL_COMMIT_SHA \
+  --adapter-node /absolute/path/to/node --output /tmp/inflow-current-x402.json
+```
+
+Without `--contract-revision`, the lock file remains authoritative. An explicit revision does not permit a dirty
+contract checkout. Reports record the actual contract commit and input hashes; the drift check does not update the pin
+or change the contract to match the implementation. These workflows use synthetic credentials and local mock services,
+not live accounts or payments.
