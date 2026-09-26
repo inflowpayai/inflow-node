@@ -1,5 +1,45 @@
 # @inflowpayai/x402
 
+## 0.10.0
+
+### Minor Changes
+
+- [#62](https://github.com/inflowpayai/inflow-node/pull/62)
+  [`91961c5`](https://github.com/inflowpayai/inflow-node/commit/91961c5a3aa09dda15f7268e7e8f1c058111e8b0) Thanks
+  [@mnebliienko](https://github.com/mnebliienko)! - Add opt-in external-wallet EIP-7702 sponsorship through the buyer's
+  optional `eip7702` subpath and capability-gated seller route declarations. Validate hosted preparation against the
+  exact approval and Permit2 payment before requesting delegation and operation signatures. Preserve standard EIP-2612
+  and managed-buyer routing.
+
+- [#61](https://github.com/inflowpayai/inflow-node/pull/61)
+  [`dd0f98b`](https://github.com/inflowpayai/inflow-node/commit/dd0f98b4052db4fec03d819890f824c32dd49a5e) Thanks
+  [@mnebliienko](https://github.com/mnebliienko)! - Add explicit seller-side `upto` selection using advertised Permit2
+  capabilities and the foundation EVM scheme server. Keep exact and balance defaults, load the optional EVM peer only
+  for metered registrations, and document measured settlement through the foundation adapter's `setSettlementOverrides`
+  API.
+
+- [#62](https://github.com/inflowpayai/inflow-node/pull/62)
+  [`91961c5`](https://github.com/inflowpayai/inflow-node/commit/91961c5a3aa09dda15f7268e7e8f1c058111e8b0) Thanks
+  [@mnebliienko](https://github.com/mnebliienko)! - Add token capability metadata and an `inflowRoute` companion helper
+  for explicitly selected Permit2 offers and gated EIP-2612 sponsorship declarations. Keep Permit2 payments on
+  external-wallet signing paths, excluding InFlow-managed treasury signing.
+
+### Patch Changes
+
+- [#69](https://github.com/inflowpayai/inflow-node/pull/69)
+  [`cbf1707`](https://github.com/inflowpayai/inflow-node/commit/cbf17075a6a02ae4aa4d1b655c64bbd69e28eeca) Thanks
+  [@nkavian](https://github.com/nkavian)! - Preserve TIMEOUT errors when native fetch replaces an internal abort reason,
+  including timeouts while reading response bodies.
+
+- [#68](https://github.com/inflowpayai/inflow-node/pull/68)
+  [`bfa2c3f`](https://github.com/inflowpayai/inflow-node/commit/bfa2c3f88b6f0c104f39887dce15779b88d42885) Thanks
+  [@nkavian](https://github.com/nkavian)! - Require x402 foundation 2.27.0 for protected-route fixes and updated
+  external-wallet spending controls. Update framework compatibility coverage and custom-mint example configuration.
+  Fastify remains on its published 2.26.0 adapter and does not receive the 2.27.0 route fix.
+
+  Apply registered policies and declared extension lifecycle hooks to managed payments. Run before and after hooks for
+  two-phase payments while preserving their server payload, cancellation, and shared completion behavior.
+
 ## 0.9.1
 
 ### Patch Changes

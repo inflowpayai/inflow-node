@@ -1,5 +1,19 @@
 # @inflowpayai/mpp-buyer
 
+## 0.7.3
+
+### Patch Changes
+
+- [#75](https://github.com/inflowpayai/inflow-node/pull/75)
+  [`0c425b9`](https://github.com/inflowpayai/inflow-node/commit/0c425b937cd3f47f07141ec78053168f922deab3) Thanks
+  [@nkavian](https://github.com/nkavian)! - Return the payment cancellation error when cleanup interrupts an HTTP
+  request, include existing-subscription authorization in cleanup, and enforce the pending timeout during polling
+  requests.
+- Updated dependencies
+  [[`354b538`](https://github.com/inflowpayai/inflow-node/commit/354b5387fa967f2837fcf19389e16dc5b521a8bd),
+  [`cbf1707`](https://github.com/inflowpayai/inflow-node/commit/cbf17075a6a02ae4aa4d1b655c64bbd69e28eeca)]:
+  - @inflowpayai/mpp@0.10.1
+
 ## 0.7.2
 
 ### Patch Changes
