@@ -6,6 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import * as buyer from '../packages/mpp-buyer/dist/index.js';
+import * as seller from '../packages/mpp-seller/dist/index.js';
 import { MppCodecError } from '../packages/mpp/dist/index.js';
 import { classify, respond } from '../conformance/mpp-shared-adapter.mjs';
 import { implementation } from './conformance.mjs';
@@ -72,6 +73,8 @@ test('failure classification uses SDK error types, preserving problems and ident
 test('adapter rejects external destinations and unsupported operations rather than simulating success', async () => {
   for (const input of [
     request('mpp.seller.verify', {}),
+    request('mpp.seller.verify', { base_url: 'https://example.com' }),
+    request('mpp.seller.prepare', { base_url: 'http://127.0.0.1:1', method: 'other', intent: 'charge' }),
     request('mpp.buyer.fulfil', { base_url: 'https://example.com' }),
     request('mpp.buyer.fulfil', { base_url: 'http://user@127.0.0.1:1' }),
     request('mpp.buyer.fulfil', {
@@ -82,6 +85,152 @@ test('adapter rejects external destinations and unsupported operations rather th
   ])
     assert.equal((await respond(input)).error.code, 'ADAPTER_ERROR');
 });
+
+test('Seller classification preserves real problems and projects only recognized malformed-response errors', () => {
+  const problem = {
+    type: 'https://paymentauth.org/problems/verification-failed',
+    title: 'Rejected',
+    status: 402,
+    detail: 'Synthetic failure.',
+    extensions: { reason: 'test-only' },
+  };
+  const error = new seller.MppCredentialProblemError(problem);
+  assert.deepEqual(classify(error, 'mpp.seller.verify'), {
+    code: 'payment-failed',
+    message: 'Payment failed.',
+    details: { problem },
+  });
+  assert.deepEqual(classify(error, 'mpp.seller.verify', { include_problem: false }), {
+    code: 'payment-failed',
+    message: 'Payment failed.',
+  });
+  for (const capability of [
+    new seller.MppUnsupportedCurrencyError('USD'),
+    new seller.MppUnsupportedRailError('USD', 'charge', 'instrument'),
+    new seller.MppAmbiguousRailError('USD', 'charge'),
+    new seller.MppInstrumentRequiredError('USD', 'charge'),
+  ])
+    assert.deepEqual(classify(capability, 'mpp.seller.prepare'), {
+      code: 'unsupported-capability',
+      message: 'Unsupported payment capability.',
+    });
+  const unknown = new Error('Payment failed.');
+  assert.throws(
+    () => classify(unknown, 'mpp.seller.verify', { include_problem: false }),
+    (value) => value === unknown,
+  );
+});
+
+for (const [operation, accepted] of [
+  ['verify', true],
+  ['verify', false],
+  ['route-binding', true],
+  ['route-binding', false],
+]) {
+  test(`Seller ${operation}: ${accepted ? 'accepts matching payment' : 'rejects without broadcast'}`, async () => {
+    const seen = [];
+    const receipt = {
+      method: 'inflow',
+      reference: 'test-reference',
+      status: 'success',
+      timestamp: '2026-01-01T00:00:00Z',
+    };
+    const problem = {
+      type: 'https://paymentauth.org/problems/verification-failed',
+      title: 'Rejected',
+      status: 402,
+      detail: 'Synthetic failure.',
+    };
+    const server = createServer(async (req, res) => {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      seen.push({
+        path: req.url,
+        method: req.method,
+        key: req.headers['x-api-key'],
+        idempotency: req.headers['idempotency-key'],
+      });
+      res.writeHead(200, { 'content-type': 'application/json' });
+      if (req.url === '/v1/mpp/config')
+        res.end(
+          JSON.stringify({
+            sellerId: '11111111-1111-4111-8111-111111111111',
+            featureFlags: { idempotencyKeyEnabled: true },
+            supportedMethods: [{ id: 'inflow', methodDetails: { currencyRails: { USDC: { rail: 'balance' } } } }],
+          }),
+        );
+      else if (req.url === '/v1/mpp/validate') {
+        const { credential } = JSON.parse(Buffer.concat(chunks).toString());
+        res.end(
+          JSON.stringify(
+            accepted
+              ? {
+                  success: true,
+                  credential,
+                  challenge: credential.challenge,
+                  intent: 'charge',
+                  method: 'inflow',
+                  request: JSON.parse(Buffer.from(credential.challenge.request, 'base64url').toString()),
+                  source: credential.source,
+                  details: {},
+                }
+              : { success: false, problem },
+          ),
+        );
+      } else res.end(JSON.stringify({ receipt }));
+    });
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    try {
+      const input = {
+        base_url: `http://127.0.0.1:${server.address().port}`,
+        api_key: 'test-only-key',
+        ...(operation === 'route-binding'
+          ? {
+              method: 'inflow',
+              intent: 'charge',
+              request: { amount: '1', currency: 'USDC', recipient: '11111111-1111-4111-8111-111111111111' },
+              replacement_request: {
+                amount: accepted ? '1' : '2',
+                currency: 'USDC',
+                recipient: '11111111-1111-4111-8111-111111111111',
+              },
+              credential_payload: { type: 'balance' },
+              source: 'test-source',
+            }
+          : {
+              credential: {
+                challenge: { id: 'test-id', realm: 'example.com', method: 'inflow', intent: 'charge', request: 'e30' },
+                payload: { type: 'balance' },
+                source: 'test-source',
+              },
+            }),
+      };
+      const before = structuredClone(input);
+      const result = await respond(request(`mpp.seller.${operation}`, input));
+      if (operation === 'route-binding') assert.equal(result.error, undefined, JSON.stringify(result.error));
+      if (operation === 'route-binding') assert.deepEqual(result.result, { status: accepted ? 200 : 402 });
+      if (accepted) {
+        if (operation === 'verify') assert.deepEqual(result.result, receipt);
+        assert.ok(seen.find((item) => item.path === '/v1/mpp/broadcast').idempotency);
+      } else if (operation === 'verify')
+        assert.deepEqual(result.error, { code: 'payment-failed', message: 'Payment failed.', details: { problem } });
+      assert.deepEqual(
+        seen.map(({ path, method }) => ({ path, method })),
+        [
+          { path: '/v1/mpp/config', method: 'GET' },
+          ...(operation === 'verify' || accepted ? [{ path: '/v1/mpp/validate', method: 'POST' }] : []),
+          ...(accepted ? [{ path: '/v1/mpp/broadcast', method: 'POST' }] : []),
+        ],
+      );
+      assert.ok(seen.every(({ key }) => key === input.api_key));
+      assert.deepEqual(input, before);
+    } finally {
+      server.closeAllConnections();
+      await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    }
+  });
+}
 
 test('public Buyer method performs pending-to-failed polling and cleanup over real HTTP', async () => {
   const seen = [];
@@ -145,10 +294,14 @@ test('public Buyer method performs pending-to-failed polling and cleanup over re
   }
 });
 
-test('MPP report includes both SDK packages and their installed foundation version', async () => {
+test('MPP report includes all three SDK packages and their installed foundation version', async () => {
   const result = await implementation('mpp');
-  assert.deepEqual(Object.keys(result.packages).sort(), ['@inflowpayai/mpp', '@inflowpayai/mpp-buyer']);
-  for (const product of ['mpp', 'mpp-buyer']) {
+  assert.deepEqual(Object.keys(result.packages).sort(), [
+    '@inflowpayai/mpp',
+    '@inflowpayai/mpp-buyer',
+    '@inflowpayai/mpp-seller',
+  ]);
+  for (const product of ['mpp', 'mpp-buyer', 'mpp-seller']) {
     const manifest = JSON.parse(
       await readFile(new URL(`../packages/${product}/package.json`, import.meta.url), 'utf8'),
     );

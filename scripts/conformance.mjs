@@ -15,6 +15,7 @@ export async function implementation(suite = 'runtime') {
       ? [
           ['mpp', 'mppx'],
           ['mpp-buyer', 'mppx'],
+          ['mpp-seller', 'mppx'],
         ]
       : [
           ['mpp', 'mppx'],
@@ -58,7 +59,7 @@ async function main() {
   const { run } = await import(pathToFileURL(resolve(contractRoot, 'runner/run.mjs')));
   const fixtures = await import(pathToFileURL(resolve(contractRoot, `fixtures/${values.suite}.mjs`)));
   const index = values.suite === 'mpp' ? fixtures.mppCases : runtimeCases(fixtures.runtimeScenarios);
-  const suites = values.suite === 'mpp' ? ['mpp-core', 'mpp-buyer'] : ['runtime'];
+  const suites = values.suite === 'mpp' ? ['mpp-core', 'mpp-buyer', 'mpp-seller'] : ['runtime'];
   const metadata = await implementation(values.suite);
   const output = await open(resolve(values.output), 'wx', 0o600);
   const controller = new AbortController();
