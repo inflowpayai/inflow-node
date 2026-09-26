@@ -55,3 +55,23 @@ platform are used.
 
 `pnpm mpp:conformance` remains the separate upstream MPP protocol-vector command. It does not run these InFlow payment
 workflows. Neither conformance runner is a dependency of the published SDKs.
+
+## x402 Core and Buyer
+
+```sh
+pnpm x402:conformance:shared --contract-root ../inflow-specs --output /tmp/inflow-x402-report.json
+```
+
+This selects every `x402-core` and `x402-buyer` case from the pinned contract. Identifier cases call the public
+extension helpers. Buyer cases call `createInflowClient`, `prepareInflowPayment`, and the returned handle's
+`awaitPayload` or `cancel`. The SDK owns capability checks, creation, polling, timeout handling, and cancellation. Two
+concurrent waits must return the same complete result while making only one polling request.
+
+The two-phase handle stays under caller control: failure cases do not add automatic cancellation. Explicit cancellation
+cases await the cancellation request and then observe the handle's rejection, including when the platform rejects
+cancellation. Known SDK error types retain transaction statuses and complete API error bodies; unknown exceptions fail
+the adapter. Caller-owned input is checked for mutation on success and recognized failure.
+
+The report records Core and Buyer package versions and their installed `@x402/core` version. Seller cases are not
+selected. These synthetic platform responses do not certify live signing, settlement, external-wallet execution,
+foundation middleware, or sponsorship execution.
