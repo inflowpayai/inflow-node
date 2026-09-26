@@ -67,10 +67,12 @@ export function createFulfiller(parameters: InflowBuyerParameters): Fulfiller {
         { retries: 0, signal },
       );
       approvalId = created.approvalId;
+      throwIfPaymentCancelled(signal, approvalId);
       return await resolve(created, signal, pollIntervalMs, timeoutMs);
     } catch (err) {
       // Fire-and-forget cancel of the backing approval; never let it mask the original error.
       if (approvalId !== undefined) void cancelApproval(approvalId).catch(() => undefined);
+      throwIfPaymentCancelled(signal, approvalId);
       throw err;
     } finally {
       active.delete(controller);
@@ -78,19 +80,29 @@ export function createFulfiller(parameters: InflowBuyerParameters): Fulfiller {
   }
 
   async function authorizeSubscription(subscriptionId: string, challenge: FulfilChallenge): Promise<MppCredential> {
-    const response = await client.authorizeSubscription(
-      subscriptionId,
-      { challenge: toWireChallenge(challenge) },
-      { retries: 0 },
-    );
-    if (response.problem !== undefined) throw new MppPaymentFailedError(response.problem);
-    if (response.credential === undefined) {
-      throw new MppMalformedCredentialError('subscription authorization response carried no credential');
-    }
+    const controller = new AbortController();
+    active.add(controller);
     try {
-      return decodeCredential(response.credential);
+      const response = await client.authorizeSubscription(
+        subscriptionId,
+        { challenge: toWireChallenge(challenge) },
+        { retries: 0, signal: controller.signal },
+      );
+      throwIfPaymentCancelled(controller.signal, undefined);
+      if (response.problem !== undefined) throw new MppPaymentFailedError(response.problem);
+      if (response.credential === undefined) {
+        throw new MppMalformedCredentialError('subscription authorization response carried no credential');
+      }
+      try {
+        return decodeCredential(response.credential);
+      } catch (err) {
+        throw new MppMalformedCredentialError('failed to decode the subscription authorization credential', err);
+      }
     } catch (err) {
-      throw new MppMalformedCredentialError('failed to decode the subscription authorization credential', err);
+      throwIfPaymentCancelled(controller.signal, undefined);
+      throw err;
+    } finally {
+      active.delete(controller);
     }
   }
 
@@ -131,7 +143,23 @@ export function createFulfiller(parameters: InflowBuyerParameters): Fulfiller {
       throwIfPaymentCancelled(signal, approvalId);
       if (Date.now() >= deadline) throw new MppPaymentTimeoutError(timeoutMs, current.transactionId);
 
-      current = await client.getTransaction(current.transactionId, { retries: 0, signal });
+      const budget = new AbortController();
+      const timer = setTimeout(() => budget.abort(), deadline - Date.now());
+      try {
+        const next = await client.getTransaction(current.transactionId, {
+          retries: 0,
+          signal: AbortSignal.any([signal, budget.signal]),
+        });
+        throwIfPaymentCancelled(signal, approvalId);
+        if (Date.now() >= deadline) throw new MppPaymentTimeoutError(timeoutMs, current.transactionId);
+        current = next;
+      } catch (err) {
+        throwIfPaymentCancelled(signal, approvalId);
+        if (budget.signal.aborted) throw new MppPaymentTimeoutError(timeoutMs, current.transactionId);
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
     }
   }
 
