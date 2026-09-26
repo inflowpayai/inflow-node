@@ -37,6 +37,10 @@ authoritative replay or authorization guard.
 - `tempo(parameters)` — the seller `tempo` method for Tempo TIP-20 charges. Pass it to
   `Mppx.create({ methods: [tempo({ apiKey, currency, recipient })], secretKey })`. Fee-payer sponsorship defaults to
   off; set `methodDetails.feePayer: true` (on the method or per charge) to mint a sponsored challenge.
+- `await stripe(parameters)` — the seller `stripe/charge` method for one-time USD payments with Stripe Shared Payment
+  Tokens. It loads the authenticated seller's verified Stripe business-profile capability from InFlow before returning a
+  method. Validation and settlement still use InFlow's `/validate` and `/broadcast` endpoints; no Stripe secret enters
+  the application or SDK.
 - `inflowCharges(mppx, prices)` — present several currencies on one route. Returns the Web-fetch handler from
   `compose(...)`: one `WWW-Authenticate` challenge per price (the MPP analog of `@inflowpayai/x402-seller`'s
   `inflowAccepts`). See [Multiple currencies](#multiple-currencies) below.
@@ -53,10 +57,13 @@ authoritative replay or authorization guard.
 - `Mppx` and `Expires` (re-exported from `mppx/server`) and `Receipt` (from `mppx`) — a single import gives the
   foundation server handler and the InFlow methods.
 - `Discovery` (from `mppx/discovery`) — generates and parses OpenAPI `x-payment-info.offers[]` metadata.
-- Types: `InflowSellerParameters`, `TempoSellerParameters`, `LoadedConfig`, `InflowChargePrice`, plus the core
-  re-exports `Environment`, `MppCurrencyRail`, `MppProblemDetail`, `MppReceipt`.
+- Types: `InflowSellerParameters`, `StripeSellerParameters`, `TempoSellerParameters`, `LoadedConfig`,
+  `InflowChargePrice`, plus the core re-exports `Environment`, `MppCurrencyRail`, `MppProblemDetail`, `MppReceipt`.
 - Errors: `MppUnsupportedCurrencyError` (charge currency has no rail in the PSP config), `MppCredentialProblemError`
-  (credential validation or broadcast failed; carries the PSP's RFC 9457 problem).
+  (credential validation or broadcast failed; carries the PSP's RFC 9457 problem), `MppStripeUnavailableError` (seller
+  has no safe Stripe capability), and `MppStripeAmountError` (amount is below $0.50, above $999,999.99, or cannot be
+  expressed as exact cents). `MppStripeRequestError` identifies unsupported metadata or an `externalId` longer than 255
+  characters. Malformed request fields can raise the foundation schema's validation error before these SDK checks.
 
 ## Configuration
 
@@ -117,6 +124,44 @@ This package ships no middleware of its own; use `mppx`'s framework adapters (`m
 `mppx/nextjs`, `mppx/elysia`) or the manual mode above. See
 [`examples/mpp-seller-express`](../../examples/mpp-seller-express) and
 [`examples/mpp-seller-hono`](../../examples/mpp-seller-hono) for the complete runnable shape.
+
+## Stripe one-time charges
+
+Stripe challenges use the official `mppx@^0.8.17` `stripe/charge` schema. InFlow remains the PSP: the seller SDK reads
+the authenticated seller's `networkId` and allowed payment methods from `GET /v1/mpp/config`, while the encrypted Stripe
+key and PaymentIntent lifecycle stay on the InFlow server. Because those required challenge fields are
+server-authoritative, `stripe(...)` is asynchronous and fails at initialization if the seller does not have a verified
+Stripe business profile.
+
+```ts
+import { Mppx, stripe } from '@inflowpayai/mpp-seller';
+
+const stripeMethod = await stripe({
+  apiKey: process.env.INFLOW_API_KEY!,
+  environment: 'sandbox',
+});
+
+const mppx = Mppx.create({
+  methods: [stripeMethod],
+  secretKey: process.env.MPP_SECRET_KEY,
+});
+
+export async function handler(request: Request) {
+  const result = await mppx.charge({ amount: '1.00', externalId: 'order-123' })(request);
+  if (result.status === 402) return result.challenge;
+  return result.withReceipt(Response.json({ access: 'granted' }));
+}
+```
+
+The method accepts USD amounts from `0.50` through `999999.99`, with no more than two fractional digits. It rejects
+values such as `0.49` or `0.501` before issuing a challenge instead of rounding them. The SDK always replaces any
+caller-supplied profile id, currency, decimals, or payment-method list with the authenticated server configuration. Only
+one-time Stripe charges are supported; this method does not advertise subscriptions or InFlow buyer initiation.
+
+For composed offers, `canOffer` receives the same authoritative request as the issued challenge, with the amount in
+integer cents. Metadata allows up to 45 string entries, with keys up to 40 characters and values up to 500 characters;
+keys cannot be blank, contain square brackets, or use `externalId`, `inflowMppTransactionId`, `mppChallengeId`,
+`mppIntent`, `mppMethod`, or `stripeNetworkProfile`.
 
 ## Multiple currencies
 
