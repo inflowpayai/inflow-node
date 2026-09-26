@@ -11,6 +11,7 @@ import {
   tempo,
   tempoContextSchema,
 } from '../../src/methods.client.js';
+import { MppMalformedCredentialError, MppPaymentFailedError } from '../../src/errors.js';
 
 const BASE = 'https://mpp.test';
 const UUID = '00000000-0000-0000-0000-0000000000aa';
@@ -122,6 +123,32 @@ describe('inflow method', () => {
 });
 
 describe('inflow subscription method', () => {
+  it.each([
+    [{ problem: { type: 'subscription-inactive', title: 'Inactive', status: 403 } }, MppPaymentFailedError],
+    [{}, MppMalformedCredentialError],
+    [{ credential: 'invalid%%credential' }, MppMalformedCredentialError],
+  ] as const)('rejects an unusable authorization response %j', async (body, error) => {
+    server.use(http.post(`${BASE}/v1/subscriptions/${UUID}/authorize`, () => HttpResponse.json(body)));
+    await expect(
+      inflow.subscription({ apiKey: 'key', baseUrl: BASE }).createCredential({
+        challenge: subscriptionChallenge(),
+        context: { subscriptionId: UUID },
+      }),
+    ).rejects.toBeInstanceOf(error);
+  });
+
+  it('delegates explicit approval cancellation without cancelling the subscription', async () => {
+    let cancels = 0;
+    server.use(
+      http.post(`${BASE}/v1/approvals/${UUID}/cancel`, () => {
+        cancels += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    await inflow.subscription({ apiKey: 'key', baseUrl: BASE }).cancelApproval(UUID);
+    expect(cancels).toBe(1);
+  });
+
   it('requests a fresh credential for an existing subscription', async () => {
     let sentBody: unknown;
     server.use(

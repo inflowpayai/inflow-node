@@ -3,7 +3,7 @@ import type { InflowClientOptions, MppChallenge, MppCredential } from '@inflowpa
 import { Credential } from 'mppx';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   MppMalformedCredentialError,
@@ -53,6 +53,67 @@ function method(overrides: Partial<InflowClientOptions & { pollIntervalMs?: numb
 }
 
 describe('fulfilment lifecycle', () => {
+  it('preserves every optional challenge field and leaves caller data unchanged', async () => {
+    const input = { ...challenge(), description: 'Buy a report', digest: 'sha-256=:digest:', opaque: 'binding' };
+    const options = { instrumentId: RECIPIENT };
+    const before = structuredClone({ input, options });
+    let received: unknown;
+    server.use(
+      http.post(`${BASE}/v1/transactions/mpp`, async ({ request }) => {
+        received = await request.json();
+        return HttpResponse.json({
+          state: 'ready',
+          credential: serverCredential({ transactionId: 't' }, 'did:inflow:p'),
+        });
+      }),
+    );
+    await createFulfiller({ apiKey: 'key', baseUrl: BASE }).fulfil(input, options);
+    expect(received).toEqual({ challenge: { ...input, request: encode(input.request) }, options });
+    expect({ input, options }).toEqual(before);
+  });
+
+  it('uses per-call polling settings when the server omits polling advice', async () => {
+    let gets = 0;
+    server.use(
+      http.post(`${BASE}/v1/transactions/mpp`, () => HttpResponse.json({ state: 'pending', transactionId: 't' })),
+      http.get(`${BASE}/v1/transactions/t/mpp`, () => {
+        gets += 1;
+        return HttpResponse.json({
+          state: 'ready',
+          credential: serverCredential({ transactionId: 't' }, 'did:inflow:p'),
+        });
+      }),
+    );
+    const fulfiller = createFulfiller({ apiKey: 'key', baseUrl: BASE, pollIntervalMs: 60_000 });
+    await fulfiller.fulfil(challenge(), {}, { pollIntervalMs: 0, timeoutMs: 1000 });
+    expect(gets).toBe(1);
+    fulfiller.cleanup();
+  });
+
+  it('does not poll when the pending budget is zero', async () => {
+    server.use(
+      http.post(`${BASE}/v1/transactions/mpp`, () => HttpResponse.json({ state: 'pending', transactionId: 't' })),
+    );
+    await expect(
+      createFulfiller({ apiKey: 'key', baseUrl: BASE }).fulfil(challenge(), {}, { timeoutMs: 0 }),
+    ).rejects.toMatchObject({ name: 'MppPaymentTimeoutError', transactionId: 't', timeoutMs: 0 });
+  });
+
+  it('propagates a credential-provider failure from explicit cancellation', async () => {
+    const error = new Error('credential provider failed');
+    const fulfiller = createFulfiller({ getAccessToken: () => Promise.reject(error), baseUrl: BASE });
+    await expect(fulfiller.cancelApproval('approval')).rejects.toBe(error);
+  });
+
+  it('keeps the original payment failure when background cancellation authentication fails', async () => {
+    const getAccessToken = vi.fn().mockResolvedValueOnce('token').mockRejectedValue(new Error('provider failed'));
+    server.use(http.post(`${BASE}/v1/transactions/mpp`, () => HttpResponse.json({ state: 'failed', approvalId: 'a' })));
+    await expect(createFulfiller({ getAccessToken, baseUrl: BASE }).fulfil(challenge(), {})).rejects.toBeInstanceOf(
+      MppPaymentFailedError,
+    );
+    await vi.waitFor(() => expect(getAccessToken).toHaveBeenCalledTimes(2));
+  });
+
   it('returns the server credential on a ready-on-create response, forwarding source + payload verbatim', async () => {
     server.use(
       http.post(`${BASE}/v1/transactions/mpp`, () =>

@@ -107,13 +107,17 @@ server-advertised `retryAfterSeconds` (default 5 s) and bounding the total wait 
 
 A `pending` transaction is backed by a server-side **approval**. The method instance carries:
 
-- **`cleanup()`** — aborts any in-flight poll. The awaiting `createCredential` rejects with `MppPaymentCancelledError`,
-  and the backing approval is cancelled fire-and-forget.
+- **`cleanup()`** — aborts in-flight transaction creation, polling, and existing-subscription authorization requests.
+  The awaiting `createCredential` rejects with `MppPaymentCancelledError`, and a known backing approval is cancelled
+  fire-and-forget. Cleanup does not cancel the subscription itself. The method remains usable for subsequent calls.
 - **`cancelApproval(approvalId)`** — a standalone fire-and-forget cancel (for out-of-process resumption, e.g. a CLI). It
   never rejects on a server-side outcome (already-terminal approval, not found, …).
 
 If a cancel is unavailable or races, **server-side expiry is the backstop** — orphaned pending transactions are reaped
 when their challenge/approval window elapses.
+
+The pending timeout includes polling requests as well as delays between polls. It starts after transaction creation
+returns; it is separate from the HTTP client's per-request timeout.
 
 ## See also
 
