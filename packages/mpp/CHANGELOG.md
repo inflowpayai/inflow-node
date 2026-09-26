@@ -1,5 +1,19 @@
 # @inflowpayai/mpp
 
+## 0.10.1
+
+### Patch Changes
+
+- [#66](https://github.com/inflowpayai/inflow-node/pull/66)
+  [`354b538`](https://github.com/inflowpayai/inflow-node/commit/354b5387fa967f2837fcf19389e16dc5b521a8bd) Thanks
+  [@nkavian](https://github.com/nkavian)! - Preserve InFlow API error codes and messages from structured error
+  responses, including Seller-account rejections.
+
+- [#69](https://github.com/inflowpayai/inflow-node/pull/69)
+  [`cbf1707`](https://github.com/inflowpayai/inflow-node/commit/cbf17075a6a02ae4aa4d1b655c64bbd69e28eeca) Thanks
+  [@nkavian](https://github.com/nkavian)! - Preserve TIMEOUT errors when native fetch replaces an internal abort reason,
+  including timeouts while reading response bodies.
+
 ## 0.10.0
 
 ### Minor Changes
