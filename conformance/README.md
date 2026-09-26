@@ -56,14 +56,14 @@ platform are used.
 `pnpm mpp:conformance` remains the separate upstream MPP protocol-vector command. It does not run these InFlow payment
 workflows. Neither conformance runner is a dependency of the published SDKs.
 
-## x402 Core and Buyer
+## x402 Core, Buyer, and Seller
 
 ```sh
 pnpm x402:conformance:shared --contract-root ../inflow-specs --output /tmp/inflow-x402-report.json
 ```
 
-This selects every `x402-core` and `x402-buyer` case from the pinned contract. Identifier cases call the public
-extension helpers. Buyer cases call `createInflowClient`, `prepareInflowPayment`, and the returned handle's
+This selects every `x402-core`, `x402-buyer`, and `x402-seller` case from the pinned contract. Identifier cases call the
+public extension helpers. Buyer cases call `createInflowClient`, `prepareInflowPayment`, and the returned handle's
 `awaitPayload` or `cancel`. The SDK owns capability checks, creation, polling, timeout handling, and cancellation. Two
 concurrent waits must return the same complete result while making only one polling request.
 
@@ -72,6 +72,16 @@ cases await the cancellation request and then observe the handle's rejection, in
 cancellation. Known SDK error types retain transaction statuses and complete API error bodies; unknown exceptions fail
 the adapter. Caller-owned input is checked for mutation on success and recognized failure.
 
-The report records Core and Buyer package versions and their installed `@x402/core` version. Seller cases are not
-selected. These synthetic platform responses do not certify live signing, settlement, external-wallet execution,
-foundation middleware, or sponsorship execution.
+Seller cases call the public authenticated or anonymous facilitator client. The SDK supplies missing payment identifiers
+and handles pending-settlement retries. The adapter does not insert identifiers or retry requests. `verify-settle` calls
+settlement only after successful verification; this checks composition of the two public operations, not a framework's
+protection of a request handler.
+
+Offer and route cases pass fixture configuration through the public Seller client interface to `inflowAccepts` and
+`inflowRoute`. The SDK constructs prices, filters offers, and decides which sponsorship declarations to include. These
+cases do not exercise configuration fetching or caching. Caller-owned input remains checked on both success and
+recognized failure.
+
+The report records all three SDK package versions and their installed `@x402/core` and `@x402/extensions` versions.
+These synthetic platform responses do not certify live signing, settlement, external-wallet execution, foundation
+middleware, or sponsorship execution.
