@@ -138,9 +138,11 @@ export function createFulfiller(parameters: InflowBuyerParameters): Fulfiller {
       if (Date.now() >= deadline) throw new MppPaymentTimeoutError(timeoutMs, current.transactionId);
 
       const advisedMs = current.retryAfterSeconds !== undefined ? current.retryAfterSeconds * 1000 : pollIntervalMs;
-      const remainingMs = deadline - Date.now();
-      await sleep(Math.max(0, Math.min(advisedMs, remainingMs)), signal);
-      throwIfPaymentCancelled(signal, approvalId);
+      const waitUntil = Math.min(deadline, Date.now() + Math.max(0, advisedMs));
+      do {
+        await sleep(Math.max(0, waitUntil - Date.now()), signal);
+        throwIfPaymentCancelled(signal, approvalId);
+      } while (Date.now() < waitUntil);
       if (Date.now() >= deadline) throw new MppPaymentTimeoutError(timeoutMs, current.transactionId);
 
       const budget = new AbortController();

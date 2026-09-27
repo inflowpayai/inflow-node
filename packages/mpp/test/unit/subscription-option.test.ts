@@ -31,6 +31,21 @@ function challenge(overrides: Partial<MppChallenge> = {}): MppChallenge {
 }
 
 describe('subscriptionOptionFingerprint', () => {
+  it.each([null, [], 'request', 1, true, {}, { amount: 1 }, { amount: null }, { amount: [] }])(
+    'returns undefined for unusable decoded request %j',
+    (request) => {
+      expect(subscriptionOptionFingerprint(challenge({ request: encode(request) }))).toBeUndefined();
+    },
+  );
+
+  it('preserves valid options alongside an unusable request', () => {
+    const valid = challenge();
+    expect(subscriptionOptionFingerprints([challenge({ request: encode({ amount: 1 }) }), valid])).toEqual([
+      undefined,
+      subscriptionOptionFingerprint(valid),
+    ]);
+  });
+
   it('is stable across challenge binding and absolute expiry changes', () => {
     const first = subscriptionOptionFingerprint(challenge());
     const second = subscriptionOptionFingerprint(

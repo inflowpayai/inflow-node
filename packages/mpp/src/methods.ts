@@ -161,12 +161,18 @@ export const tempoChargeRequestSchema = z.object({
  * Schema for the `tempo` credential payload. Pull mode carries a signed Tempo transaction in `signature`; push mode
  * carries `hash`; zero-amount proof credentials also carry `signature`.
  */
-export const tempoCredentialPayloadSchema = z.object({
-  type: z.enum(['transaction', 'hash', 'proof']),
-  hash: z.optional(hexString),
-  signature: z.optional(hexString),
-  [CREDENTIAL_TRANSACTION_ID]: z.optional(nonEmptyString),
-});
+export const tempoCredentialPayloadSchema = z
+  .object({
+    type: z.enum(['transaction', 'hash', 'proof']),
+    hash: z.optional(hexString),
+    signature: z.optional(hexString),
+    [CREDENTIAL_TRANSACTION_ID]: z.optional(nonEmptyString),
+  })
+  .check(
+    z.refine(({ type, hash, signature }) => (type === 'hash' ? hash !== undefined : signature !== undefined), {
+      message: 'hash is required for hash credentials; signature is required for transaction and proof credentials.',
+    }),
+  );
 
 /** Inferred type of a validated {@link inflowChargeRequestSchema} value. */
 export type InflowChargeRequestInput = z.infer<typeof inflowChargeRequestSchema>;

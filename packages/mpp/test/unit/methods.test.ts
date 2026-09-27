@@ -135,6 +135,19 @@ describe('inflow Method namespace', () => {
 });
 
 describe('tempo charge request schema', () => {
+  it.each(['transaction', 'hash', 'proof'] as const)('requires the proof field for %s', (type) => {
+    const required = type === 'hash' ? 'hash' : 'signature';
+    const other = type === 'hash' ? 'signature' : 'hash';
+    for (const value of [undefined, null, '', 'not-hex', 123]) {
+      expect(tempoCredentialPayloadSchema.safeParse({ type, [required]: value, [other]: '0xabcd' }).success).toBe(
+        false,
+      );
+    }
+    const valid = Object.freeze({ type, [required]: '0xabcd', transactionId: 'tx-tempo' });
+    expect(tempoCredentialPayloadSchema.parse(valid)).toEqual(valid);
+    expect(tempoCharge.schema.credential.payload.safeParse({ type }).success).toBe(false);
+  });
+
   it('accepts a request with bytes32 primary and split memos', () => {
     const parsed = tempoChargeRequestSchema.parse({
       amount: '100',

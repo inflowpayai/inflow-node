@@ -41,10 +41,13 @@ export function uniqueFingerprintPrefixes(fingerprints: readonly string[]): Read
 /** Derive a stable identifier from subscription terms, excluding volatile challenge and absolute-expiry fields. */
 export function subscriptionOptionFingerprint(challenge: MppChallenge): SubscriptionOptionFingerprint | undefined {
   if (challenge.intent !== 'subscription') return undefined;
-  let request: InflowChallengeRequest;
+  let request: InflowChallengeRequest | null;
   try {
-    request = decode<InflowChallengeRequest>(challenge.request, 'challenge request');
+    request = decode<InflowChallengeRequest | null>(challenge.request, 'challenge request');
   } catch {
+    return undefined;
+  }
+  if (request === null || typeof request !== 'object' || Array.isArray(request) || typeof request.amount !== 'string') {
     return undefined;
   }
   const projection = {
