@@ -25,6 +25,54 @@ afterEach(async () => {
 });
 
 describe('native HTTP timeout and cancellation', () => {
+  it.each([301, 302, 303, 307, 308])(
+    'does not forward credentials or a POST body through a %i redirect',
+    async (status) => {
+      let destinationRequests = 0;
+      const destination = await listen((_request, response) => {
+        destinationRequests++;
+        response.end('{}');
+      });
+      const baseUrl = await listen((request, response) => {
+        expect(request.headers['x-api-key']).toBe('synthetic-key');
+        response.writeHead(status, { location: destination });
+        response.end();
+      });
+      const client = new InflowHttpClient({ apiKey: 'synthetic-key', baseUrl });
+      await expect(client.post('/create', { secret: 'synthetic-body' })).rejects.toMatchObject({
+        httpStatus: status,
+        headers: { location: destination },
+      });
+      expect(destinationRequests).toBe(0);
+    },
+  );
+
+  it.each(['headers', 'body'])('preserves custom cancellation while waiting for %s without retrying', async (phase) => {
+    const controller = new AbortController();
+    let requests = 0;
+    const baseUrl = await listen((_request, response) => {
+      requests++;
+      if (phase === 'body') {
+        response.writeHead(200);
+        response.write('{');
+      }
+      if (phase === 'headers') controller.abort(new Error('caller cancelled'));
+    });
+    const client = new InflowHttpClient({
+      baseUrl,
+      fetch: async (url, init) => {
+        const response = await globalThis.fetch(url, init);
+        if (phase === 'body') controller.abort(new Error('caller cancelled'));
+        return response;
+      },
+    });
+    await expect(client.get('/cancel', { signal: controller.signal })).rejects.toMatchObject({
+      code: 'NETWORK_ERROR',
+      message: '/cancel: network error — caller cancelled',
+    });
+    expect(requests).toBe(1);
+  });
+
   it.each(['headers', 'body'])('classifies a timeout waiting for %s', async (phase) => {
     let requests = 0;
     const baseUrl = await listen((_request, response) => {

@@ -30,8 +30,8 @@ any authenticated InFlow account can use them, including a Seller account acting
 - **`Method` / `z`** — re-exported from `mppx` for method authoring.
 - **`MppClient`** — typed client over the InFlow MPP REST endpoints: `getConfig`, non-mutating `validate`, authoritative
   `broadcast` (seller); `createTransaction`, `getTransaction` (buyer). There is no challenge-minting call — challenges
-  are issued locally, not fetched from InFlow. `Idempotency-Key` is supported on the mutating routes. Wraps
-  `InflowHttpClient` (API-key / Bearer / anonymous auth, transient-status retry, timeout, `InflowApiError` mapping).
+  are issued locally, not fetched from InFlow. `Idempotency-Key` is supported on `broadcast`. Wraps `InflowHttpClient`
+  (API-key / Bearer / anonymous auth, transient-status retry, timeout, `InflowApiError` mapping).
 - **Codec** — `encode` / `decode` (base64url-without-padding over RFC 8785 JCS), `encodeCredential`, `decodeCredential`,
   `decodeReceipt`, `canonicalize`, `padBase64Url`, and the `WWW-Authenticate: Payment` `renderChallengeHeader` /
   `parseChallengeHeader` / `parseChallengeHeaders`.
@@ -45,6 +45,13 @@ any authenticated InFlow account can use them, including a Seller account acting
 - **Errors** — `InflowApiError`, `MppCodecError`, `MppProtocolVersionError`.
 
 ## Example
+
+API redirects are returned as `InflowApiError` responses; credentials and request bodies are not forwarded to redirect
+destinations. Caller cancellation stops the request and retry waits, reported as `NETWORK_ERROR`.
+
+`createTransaction` and `authorizeSubscription` default to zero retries because another attempt can create another
+approval or authorization. Callers can explicitly set `retries`, but must account for an earlier request that may have
+succeeded before its response was lost. Read operations retain transient-error retries.
 
 ```ts
 import { MppClient, parseChallengeHeaders } from '@inflowpayai/mpp';

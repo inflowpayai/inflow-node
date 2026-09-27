@@ -197,6 +197,36 @@ describe('WWW-Authenticate: Payment render/parse', () => {
 });
 
 describe('credential / receipt codecs', () => {
+  it.each([null, [], 42])('rejects a non-object credential: %j', (value) => {
+    expect(() => decodeCredential(encode(value))).toThrow(MppCodecError);
+  });
+
+  it.each([null, [], 'challenge'])('rejects a non-object credential challenge: %j', (value) => {
+    expect(() => decodeCredential(encode({ challenge: value, payload: {} }))).toThrow(MppCodecError);
+  });
+
+  it('rejects a non-string credential source', () => {
+    expect(() => decodeCredential(encode({ challenge, payload: {}, source: 1 }))).toThrow(MppCodecError);
+  });
+
+  it.each([
+    null,
+    [],
+    { method: '', reference: 'r', timestamp: '2026-01-01T00:00:00Z', status: 'success' },
+    { method: 'inflow', reference: 'r', timestamp: '2026-01-01T00:00:00Z', status: 'pending' },
+    { method: 'inflow', reference: 'r', timestamp: '2026-01-01T00:00:00Z', status: 'success', challengeId: '' },
+    { method: 'inflow', reference: 'r', timestamp: '2026-01-01T00:00:00Z', status: 'success', settlement: [] },
+    {
+      method: 'inflow',
+      reference: 'r',
+      timestamp: '2026-01-01T00:00:00Z',
+      status: 'success',
+      settlement: { amount: '1' },
+    },
+  ])('rejects malformed receipt fields: %j', (value) => {
+    expect(() => decodeReceipt(encode(value))).toThrow(MppCodecError);
+  });
+
   it('round-trips a credential, preserving the echoed opaque', () => {
     const credential: MppCredential = {
       challenge: { ...challenge, opaque: 'eyJpc3MiOiJpbmZsb3cifQ' },
