@@ -30,8 +30,12 @@ export function classify(error) {
 async function execute(operation, input) {
   if (operation === 'x402.core.identifier-valid') return validatePaymentId(input.value);
   if (operation === 'x402.core.identifier-declaration') return PAYMENT_IDENTIFIER.buildDeclaration({});
-  if (operation === 'x402.core.identifier-entry')
-    return PAYMENT_IDENTIFIER.buildPayloadEntry(input.declaration, { providedPaymentId: input.payment_id });
+  if (operation === 'x402.core.identifier-entry') {
+    const declaration = PAYMENT_IDENTIFIER.readDeclaration(input.declaration);
+    return declaration === null
+      ? null
+      : PAYMENT_IDENTIFIER.buildPayloadEntry(declaration, { providedPaymentId: input.payment_id });
+  }
   if (operation === 'x402.seller.offers' || operation === 'x402.seller.route') {
     const client = {
       config: async () => input.config,

@@ -834,28 +834,40 @@ describe('InflowClient.createPaymentPayload — foundation delegate branch', () 
     await expect(client.createPaymentPayload(paymentRequired([EVM_REQ]))).rejects.toThrow();
   });
 
-  it('folds payment-identifier into the foundation-signed payload when the seller declares it', async () => {
-    installSupported();
-    const client = await createInflowClient({ apiKey: 'sk_test' });
-    const foundationPayload: PaymentPayload = {
-      x402Version: 2,
-      accepted: EVM_REQ as unknown as PaymentPayload['accepted'],
-      payload: { authorization: { from: '0xa', to: '0xb' }, signature: '0xsig' },
-    };
-    const superSpy = vi.spyOn(x402Client.prototype, 'createPaymentPayload').mockResolvedValue(foundationPayload);
-    try {
-      // The default payment-identifier handler returns null when no
-      // providedPaymentId is in the SignContext — fold is a no-op for
-      // optional declarations without a provided id. The result must
-      // still pass through unchanged.
-      const result = await client.createPaymentPayload(
-        paymentRequired([EVM_REQ], { 'payment-identifier': PAYMENT_IDENTIFIER.buildDeclaration({}) }),
-      );
-      expect(result).toEqual(foundationPayload);
-    } finally {
-      superSpy.mockRestore();
-    }
-  });
+  it.each(['valid', 'null-properties'])(
+    'preserves the foundation-signed payload with an optional %s declaration',
+    async (shape) => {
+      installSupported();
+      const client = await createInflowClient({ apiKey: 'sk_test' });
+      const foundationPayload: PaymentPayload = {
+        x402Version: 2,
+        accepted: EVM_REQ as unknown as PaymentPayload['accepted'],
+        payload: { authorization: { from: '0xa', to: '0xb' }, signature: '0xsig' },
+      };
+      const superSpy = vi.spyOn(x402Client.prototype, 'createPaymentPayload').mockResolvedValue(foundationPayload);
+      try {
+        // The default payment-identifier handler returns null when no
+        // providedPaymentId is in the SignContext — fold is a no-op for
+        // optional declarations without a provided id. The result must
+        // still pass through unchanged.
+        const declaration = PAYMENT_IDENTIFIER.buildDeclaration({});
+        const result = await client.createPaymentPayload(
+          paymentRequired([EVM_REQ], {
+            'payment-identifier':
+              shape === 'valid'
+                ? declaration
+                : {
+                    ...declaration,
+                    schema: { ...declaration.schema, properties: null },
+                  },
+          }),
+        );
+        expect(result).toEqual(foundationPayload);
+      } finally {
+        superSpy.mockRestore();
+      }
+    },
+  );
 
   it('throws when a required extension cannot be satisfied by any registered handler', async () => {
     installSupported();

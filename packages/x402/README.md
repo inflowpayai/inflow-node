@@ -19,9 +19,12 @@ missing.
 
 ### Main entry — `@inflowpayai/x402`
 
-- `InflowHttpClient` — the shared HTTP client used by every other package in this monorepo. Carries `X-API-KEY`
-  injection, JSON parsing, per-request timeout, retry on transient statuses (`429`, `502`, `503`, `504`) with
-  exponential backoff capped at three attempts, and error mapping into `InflowApiError`.
+- `InflowHttpClient` — the HTTP client used by the x402 buyer and seller packages. Carries `X-API-KEY` injection, JSON
+  parsing, per-request timeout, retry on transient statuses (`429`, `502`, `503`, `504`) with exponential backoff capped
+  at three retries, and error mapping into `InflowApiError`. Redirects are returned as HTTP errors without forwarding
+  the request. Caller cancellation interrupts retry delays and prevents subsequent attempts; it does not reverse a
+  payment already submitted to the server. Custom `fetch` implementations must honor the supplied redirect policy and
+  signal.
 - `resolveBaseUrl(options)` — returns the API base URL for an `Environment` (`'production' | 'sandbox'`) or a `baseUrl`
   override.
 - `InflowApiError`, `X402VersionMismatchError` — typed errors raised by the client.

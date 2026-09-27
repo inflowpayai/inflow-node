@@ -109,16 +109,19 @@ describe('polling error boundaries', () => {
     expect(calls).toBe(3);
   });
 
-  it.each([400, 401, 403, 404, 409, 422])('preserves HTTP %i without retrying or cancelling', async (status) => {
-    let calls = 0;
-    const body = { errors: [{ code: 'DENIED', message: 'Access denied.' }] };
-    const payment = await prepare(() => {
-      calls++;
-      return Promise.resolve(Response.json(body, { status }));
-    });
-    await expect(payment.awaitPayload()).rejects.toMatchObject({ httpStatus: status, body });
-    expect(calls).toBe(1);
-  });
+  it.each([301, 307, 308, 400, 401, 403, 404, 409, 422])(
+    'preserves HTTP %i without retrying or cancelling',
+    async (status) => {
+      let calls = 0;
+      const body = { errors: [{ code: 'DENIED', message: 'Access denied.' }] };
+      const payment = await prepare(() => {
+        calls++;
+        return Promise.resolve(Response.json(body, { status }));
+      });
+      await expect(payment.awaitPayload()).rejects.toMatchObject({ httpStatus: status, body });
+      expect(calls).toBe(1);
+    },
+  );
 
   it.each([429, 500, 502, 503, 504])('retries HTTP %i on the same transaction', async (status) => {
     let calls = 0;

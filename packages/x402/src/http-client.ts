@@ -1,3 +1,5 @@
+import { setTimeout as delay } from 'node:timers/promises';
+
 import { readHeader } from './constants.js';
 import type { Environment } from './environment.js';
 import { resolveBaseUrl } from './environment.js';
@@ -224,18 +226,15 @@ export class InflowHttpClient {
     const maxRetries = Math.min(options.retries ?? MAX_RETRIES, MAX_RETRIES);
     const timeoutMs = options.timeoutMs ?? this.defaultTimeoutMs;
 
-    // Single-exit loop: the function either returns a parsed body on
-    // 2xx or throws an InflowApiError. The retry budget is consumed
-    // inline; when it's exhausted the catch / branch falls through to
-    // the final throw, so there's no unreachable "fallback" throw
-    // after the loop.
     for (let attempt = 0; ; attempt += 1) {
+      if (options.signal?.aborted) throw buildNetworkError(path, options.signal.reason);
       // Build the per-attempt auth headers OUTSIDE the network try/catch:
       // a rejected `getAccessToken` propagates verbatim, never enters the
       // retry path, and is never wrapped in InflowApiError. Re-invoked per
       // attempt so a 5xx retry picks up a freshly-refreshed bearer token.
       const authHeaders = await this.buildAuthHeaders();
       try {
+        options.signal?.throwIfAborted();
         const response = await this.sendOnce(
           method,
           url,
@@ -245,22 +244,23 @@ export class InflowHttpClient {
           timeoutMs,
           authHeaders,
         );
+        options.signal?.throwIfAborted();
         if (response.status >= 200 && response.status < 300) {
           return response.body as T;
         }
-        const error = buildApiError(path, response);
-        if (RETRY_STATUSES.has(response.status) && attempt < maxRetries) {
-          await delay(backoffMs(attempt));
-          continue;
-        }
-        throw error;
+        throw buildApiError(path, response);
       } catch (err) {
-        if (err instanceof InflowApiError) throw err;
-        if (isRetryableNetworkError(err) && attempt < maxRetries) {
-          await delay(backoffMs(attempt));
-          continue;
+        if (options.signal?.aborted) throw buildNetworkError(path, options.signal.reason);
+        if (err instanceof InflowApiError) {
+          if (!RETRY_STATUSES.has(err.httpStatus) || attempt >= maxRetries) throw err;
+        } else if (!isRetryableNetworkError(err) || attempt >= maxRetries) {
+          throw buildNetworkError(path, err);
         }
-        throw buildNetworkError(path, err);
+      }
+      try {
+        await delay(backoffMs(attempt), undefined, { signal: options.signal });
+      } catch (err) {
+        throw buildNetworkError(path, options.signal?.aborted ? options.signal.reason : err);
       }
     }
   }
@@ -309,6 +309,7 @@ export class InflowHttpClient {
       }
       const response = await this.fetchImpl(url, {
         method,
+        redirect: 'manual',
         headers,
         ...(serialized !== undefined ? { body: serialized } : {}),
         signal: controller.signal,
@@ -418,8 +419,4 @@ function backoffMs(attempt: number): number {
   const base = RETRY_BASE_DELAY_MS * 2 ** attempt;
   const jitter = Math.floor(Math.random() * (base / 4));
   return base + jitter;
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
