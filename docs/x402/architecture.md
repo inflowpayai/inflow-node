@@ -157,10 +157,11 @@ Given an `InflowSellerClient` and a `PriceSpec`, `inflowAccepts` produces a foun
 1. **On-chain entries**: for each `wallet` in the seller's config, match every `asset` with
    `asset.blockchain === wallet.blockchain` and a compatible currency. Emit one `PaymentOption` per `(wallet, asset)`
    pair using `asset.assetTransferMethod` verbatim — the SDK does **not** fan out an implicit EIP-3009/Permit2 pair.
-   Sellers that want both schemes publish both assets in their `/v1/x402/config`. For Permit2 entries,
+   Sellers can explicitly select configured Permit2 alternatives through `inflowRoute`. For Permit2 entries,
    `extra.permit2Proxy` is set from `asset.permit2Proxy`.
-2. **Non-blockchain entries**: for each `paymentMethod` (`balance`, future `instrument`), emit one `PaymentOption` using
-   the method's own `payTo` and decimals.
+2. **Non-blockchain entries**: for each `paymentMethod` (`balance`, future `instrument`), emit one `PaymentOption` per
+   selected currency using the method's own `payTo` and decimals. `USD` selects every distinct currency in
+   `config.assets`; an explicit currency selects that currency alone.
 3. **Metered entries**: only when `options.schemes` explicitly includes `upto`, match each Permit2-capable EVM asset
    (`asset.permit2Proxy` present) to its network's `config.supported` entry for `upto`. That entry supplies
    `extra.assetTransferMethod: 'permit2'`, `extra.permit2Proxy` for the metered proxy, and `extra.facilitatorAddress`

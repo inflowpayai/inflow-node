@@ -29,7 +29,11 @@ interface FacilitatorRequest {
 
 const buyer = privateKeyToAccount('0x0000000000000000000000000000000000000000000000000000000000000001');
 
-async function harness(amount: string | undefined, allowanceRequired = false, handlerStatus = 200) {
+async function harness(
+  amount: string | undefined,
+  verification: { status: number; body: unknown } = { status: 200, body: { isValid: true, payer: buyer.address } },
+  handlerStatus = 200,
+) {
   const calls: Array<{ operation: string; body: FacilitatorRequest }> = [];
   const events: string[] = [];
   const app = express();
@@ -41,13 +45,7 @@ async function harness(amount: string | undefined, allowanceRequired = false, ha
   app.post<Record<string, never>, unknown, FacilitatorRequest>('/v1/x402/verify', (request, response) => {
     events.push('verify');
     calls.push({ operation: 'verify', body: request.body });
-    response
-      .status(allowanceRequired ? 412 : 200)
-      .json(
-        allowanceRequired
-          ? { isValid: false, invalidReason: 'permit2_allowance_required', payer: buyer.address }
-          : { isValid: true, payer: buyer.address },
-      );
+    response.status(verification.status).json(verification.body);
   });
   app.post<Record<string, never>, unknown, FacilitatorRequest>('/v1/x402/settle', (request, response) => {
     events.push('settle');
@@ -137,7 +135,7 @@ describe('external foundation buyer through the InFlow seller transport', () => 
   );
 
   it.each([400, 500])('does not settle a handler %s response when the amount override is omitted', async (status) => {
-    const server = await harness(undefined, false, status);
+    const server = await harness(undefined, undefined, status);
     try {
       const challenge = await fetch(server.url);
       expect(challenge.status).toBe(402);
@@ -160,7 +158,10 @@ describe('external foundation buyer through the InFlow seller transport', () => 
   });
 
   it('returns the real adapter allowance response without running the handler or settling', async () => {
-    const server = await harness('40000', true);
+    const server = await harness('40000', {
+      status: 412,
+      body: { isValid: false, invalidReason: 'permit2_allowance_required', payer: buyer.address },
+    });
     try {
       const challenge = await fetch(server.url);
       const requiredHeader = challenge.headers.get('payment-required');
@@ -171,7 +172,33 @@ describe('external foundation buyer through the InFlow seller transport', () => 
         headers: { 'payment-signature': encodePaymentSignatureHeader(payment) },
       });
       expect(response.status).toBe(412);
+      const required = response.headers.get('payment-required');
+      if (required === null) throw new Error('Missing allowance recovery challenge');
+      expect(decodePaymentRequiredHeader(required).error).toBe('permit2_allowance_required');
       expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(server.events).toEqual(['verify']);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it.each([true, 'false'])('does not run the handler for HTTP 412 with isValid=%s', async (isValid) => {
+    const server = await harness('40000', {
+      status: 412,
+      body: { isValid, invalidReason: 'permit2_allowance_required' },
+    });
+    try {
+      const challenge = await fetch(server.url);
+      const encoded = challenge.headers.get('payment-required');
+      if (encoded === null) throw new Error('Missing payment challenge');
+      const client = new x402Client().register('eip155:8453', new UptoEvmScheme(buyer));
+      const payment = await client.createPaymentPayload(decodePaymentRequiredHeader(encoded));
+      const response = await fetch(server.url, {
+        headers: { 'payment-signature': encodePaymentSignatureHeader(payment) },
+      });
+      await response.arrayBuffer();
+      expect(response.status).toBeGreaterThanOrEqual(400);
+      expect(response.headers.get('payment-response')).toBeNull();
       expect(server.events).toEqual(['verify']);
     } finally {
       await server.close();

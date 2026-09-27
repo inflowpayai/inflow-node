@@ -163,7 +163,7 @@ function buildFacilitator(
         if (
           err instanceof InflowApiError &&
           err.httpStatus === PERMIT2_ALLOWANCE_REQUIRED_HTTP_STATUS &&
-          isVerifyResponseShape(err.body)
+          isAllowanceRequiredResponse(err.body)
         ) {
           return err.body;
         }
@@ -194,8 +194,15 @@ function buildFacilitator(
  * runtime ever emits a different 412 body shape, the caller sees the original {@link InflowApiError} instead of a
  * misleading verify-style result.
  */
-function isVerifyResponseShape(body: unknown): body is VerifyResponse {
-  return typeof body === 'object' && body !== null && 'isValid' in body && 'invalidReason' in body;
+function isAllowanceRequiredResponse(body: unknown): body is VerifyResponse {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    'isValid' in body &&
+    body.isValid === false &&
+    'invalidReason' in body &&
+    body.invalidReason === 'permit2_allowance_required'
+  );
 }
 
 function isPendingSettlementError(error: unknown): error is InflowApiError {

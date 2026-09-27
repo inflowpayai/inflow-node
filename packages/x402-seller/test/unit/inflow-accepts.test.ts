@@ -373,6 +373,16 @@ describe('inflowAccepts', () => {
 });
 
 describe('toAtomicAmount', () => {
+  it.each([
+    ['$1', 6, '1000000'],
+    ['1 USDC', 6, '1000000'],
+    ['1.234567', 6, '1234567'],
+    ['0.00000000', 6, '0'],
+    ['1.23000000', 6, '1230000'],
+    ['9007199254740993.01', 6, '9007199254740993010000'],
+  ] as const)('preserves exact atomic units for %s at %s decimals', (amount, decimals, expected) => {
+    expect(toAtomicAmount(amount, decimals)).toBe(expected);
+  });
   it('multiplies a decimal amount by 10**decimals using pure string math', () => {
     expect(toAtomicAmount('1.50', 6)).toBe('1500000');
     expect(toAtomicAmount('0.01', 6)).toBe('10000');

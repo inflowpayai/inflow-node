@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PAYMENT_IDENTIFIER } from '@inflowpayai/x402/extensions';
 
@@ -11,7 +11,10 @@ const PROD_BASE = 'https://api.inflowpay.ai';
 const server = setupServer();
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  server.resetHandlers();
+  vi.restoreAllMocks();
+});
 afterAll(() => server.close());
 
 interface CallCounts {
@@ -108,6 +111,67 @@ describe('createInflowFacilitator', () => {
     expect(counts.supported).toBe(1);
   });
 
+  it('refreshes expired capabilities and recovers after a failed refresh', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000);
+    const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
+    const original = await fac.getSupported();
+    now.mockReturnValue(1000 + 60 * 60 * 1000);
+    server.use(
+      http.get(`${PROD_BASE}/v1/x402/supported`, () => HttpResponse.json({ code: 'UNAUTHORIZED' }, { status: 401 })),
+    );
+    await expect(fac.getSupported()).rejects.toMatchObject({ httpStatus: 401 });
+    server.resetHandlers();
+    installDefaultHandlers(counts);
+    const [first, second] = await Promise.all([fac.getSupported(), fac.getSupported()]);
+    expect(first).toEqual(original);
+    expect(first).not.toBe(original);
+    expect(second).toBe(first);
+    expect(await fac.getSupported()).toBe(first);
+    expect(counts.supported).toBe(2);
+  });
+
+  it.each([undefined, 'invalid', '1', '60'])('bounds pending settlement delay for Retry-After=%s', async (header) => {
+    const delays: number[] = [];
+    const realSetTimeout = globalThis.setTimeout;
+    vi.spyOn(globalThis, 'setTimeout').mockImplementation((callback, delay, ...args) => {
+      if (delay !== undefined && delay <= 5000) {
+        delays.push(delay);
+        return realSetTimeout(callback, 0, ...args);
+      }
+      return realSetTimeout(callback, delay, ...args);
+    });
+    let attempts = 0;
+    server.use(
+      http.post(`${PROD_BASE}/v1/x402/settle`, () => {
+        attempts += 1;
+        return attempts === 1
+          ? HttpResponse.json(
+              { success: false, errorReason: 'idempotency_pending' },
+              {
+                status: 409,
+                ...(header === undefined ? {} : { headers: { 'Retry-After': header } }),
+              },
+            )
+          : HttpResponse.json({ success: true, transaction: 'settled', network: 'inflow:1' });
+      }),
+    );
+    const accepted = {
+      scheme: 'balance',
+      network: 'inflow:1' as const,
+      asset: 'USDC',
+      amount: '1',
+      payTo: SAMPLE_CONFIG.sellerId,
+      maxTimeoutSeconds: 300,
+      extra: {},
+    };
+    const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
+    await expect(
+      fac.settle({ x402Version: 2, accepted, payload: { transactionId: 'payment' } }, accepted),
+    ).resolves.toMatchObject({ success: true });
+    expect(attempts).toBe(2);
+    expect(delays.filter((delay) => delay > 0)).toEqual([header === '1' ? 1000 : 5000]);
+  });
+
   it('verify posts x402Version:2 + payload + requirements to /v1/x402/verify', async () => {
     let captured: unknown;
     server.use(
@@ -141,7 +205,7 @@ describe('createInflowFacilitator', () => {
   it('returns the standard invalid response for a Permit2 allowance requirement', async () => {
     server.use(
       http.post(`${PROD_BASE}/v1/x402/verify`, () =>
-        HttpResponse.json({ isValid: false, invalidReason: 'PERMIT2_ALLOWANCE_REQUIRED' }, { status: 412 }),
+        HttpResponse.json({ isValid: false, invalidReason: 'permit2_allowance_required' }, { status: 412 }),
       ),
     );
     const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
@@ -157,15 +221,20 @@ describe('createInflowFacilitator', () => {
 
     await expect(
       fac.verify({ x402Version: 2, accepted, payload: { signature: '0xsigned' } }, accepted),
-    ).resolves.toEqual({ isValid: false, invalidReason: 'PERMIT2_ALLOWANCE_REQUIRED' });
+    ).resolves.toEqual({ isValid: false, invalidReason: 'permit2_allowance_required' });
   });
 
-  it('rejects a malformed HTTP 412 response instead of presenting it as a verification result', async () => {
-    server.use(
-      http.post(`${PROD_BASE}/v1/x402/verify`, () =>
-        HttpResponse.json({ code: 'PRECONDITION_FAILED' }, { status: 412 }),
-      ),
-    );
+  it.each([
+    null,
+    'precondition failed',
+    { code: 'PRECONDITION_FAILED' },
+    { isValid: true, invalidReason: 'permit2_allowance_required' },
+    { isValid: 'false', invalidReason: 'permit2_allowance_required' },
+    { isValid: false },
+    { isValid: false, invalidReason: 412 },
+    { isValid: false, invalidReason: 'unrelated_precondition' },
+  ])('rejects an unrelated or malformed HTTP 412 body: %j', async (body) => {
+    server.use(http.post(`${PROD_BASE}/v1/x402/verify`, () => HttpResponse.json(body, { status: 412 })));
     const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
     const accepted = {
       scheme: 'exact' as const,
@@ -362,7 +431,7 @@ describe('createInflowFacilitator', () => {
     expect(captured?.paymentPayload?.extensions?.['payment-identifier']).toEqual(suppliedEntry);
   });
 
-  it.each(['missing-schema', 'null-properties'])(
+  it.each(['missing-schema', 'null-properties', 'declaration-only', 'invalid-id'])(
     'verify replaces a %s entry without mutating the caller payload',
     async (shape) => {
       let captured: { paymentPayload?: { extensions?: Record<string, unknown> } } | undefined;
@@ -374,10 +443,15 @@ describe('createInflowFacilitator', () => {
       );
       const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
       const malformed = {
-        info: { id: 'too-short', required: false },
-        ...(shape === 'null-properties'
-          ? { schema: { ...PAYMENT_IDENTIFIER.buildDeclaration({}).schema, properties: null } }
-          : {}),
+        info: { required: false, ...(shape === 'declaration-only' ? {} : { id: 'too-short' }) },
+        ...(shape === 'missing-schema'
+          ? {}
+          : {
+              schema: {
+                ...PAYMENT_IDENTIFIER.buildDeclaration({}).schema,
+                ...(shape === 'null-properties' ? { properties: null } : {}),
+              },
+            }),
       };
       const extensions = {
         'payment-identifier': malformed,
@@ -558,7 +632,7 @@ describe('createUnauthenticatedInflowFacilitator', () => {
         return HttpResponse.json(SAMPLE_SUPPORTED);
       }),
     );
-    const fac = createUnauthenticatedInflowFacilitator({ environment: 'production' });
+    const fac = createUnauthenticatedInflowFacilitator({ environment: 'sandbox', baseUrl: PROD_BASE });
     await fac.getSupported();
     expect(captured).toBeNull();
   });
