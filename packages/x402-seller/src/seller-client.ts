@@ -82,9 +82,8 @@ function newEntry<T>(): CacheEntry<T> {
 /**
  * Construct an {@link InflowSellerClient}.
  *
- * The factory primes the config and `getSupported()` caches in parallel before resolving, so the first downstream call
- * ({@link inflowAccepts}, `getSignerAddresses`, etc.) is synchronous against in-memory data. Cost: one round trip at
- * startup; benefit: synchronous downstream use.
+ * Fetches config and supported capabilities in two parallel requests before resolving. Subsequent methods remain
+ * asynchronous but read cached data until its 60-minute expiry.
  *
  * @param options - {@link InflowSellerClientOptions}.
  * @returns A promise resolving to a primed {@link InflowSellerClient}.
@@ -159,8 +158,6 @@ export async function createInflowSellerClient(options: InflowSellerClientOption
     },
   };
 
-  // Prime both caches in parallel so the first user-facing call is sync
-  // against in-memory data.
   await Promise.all([fetchConfig(), fetchSupported()]);
   return client;
 }
