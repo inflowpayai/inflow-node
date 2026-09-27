@@ -1,5 +1,29 @@
 # @inflowpayai/mpp-buyer
 
+## 0.7.3
+
+### Patch Changes
+
+- [#75](https://github.com/inflowpayai/inflow-node/pull/75)
+  [`0c425b9`](https://github.com/inflowpayai/inflow-node/commit/0c425b937cd3f47f07141ec78053168f922deab3) Thanks
+  [@nkavian](https://github.com/nkavian)! - Return the payment cancellation error when cleanup interrupts an HTTP
+  request, include existing-subscription authorization in cleanup, and enforce the pending timeout during polling
+  requests.
+
+- [#78](https://github.com/inflowpayai/inflow-node/pull/78)
+  [`5d0c59f`](https://github.com/inflowpayai/inflow-node/commit/5d0c59febcc3960d2dd46a2cbf506ce777f1c0c8) Thanks
+  [@nkavian](https://github.com/nkavian)! - Preserve quoted challenge parameters, skip subscription fingerprints for
+  unusable decoded requests, and require the matching Tempo credential proof field.
+
+  Honor the scheduled poll time and pending deadline when a wait timer wakes early.
+
+- Updated dependencies
+  [[`354b538`](https://github.com/inflowpayai/inflow-node/commit/354b5387fa967f2837fcf19389e16dc5b521a8bd),
+  [`cbf1707`](https://github.com/inflowpayai/inflow-node/commit/cbf17075a6a02ae4aa4d1b655c64bbd69e28eeca),
+  [`5d0c59f`](https://github.com/inflowpayai/inflow-node/commit/5d0c59febcc3960d2dd46a2cbf506ce777f1c0c8),
+  [`d060d79`](https://github.com/inflowpayai/inflow-node/commit/d060d7996f5443ec659aa1e99b353bcf8388135c)]:
+  - @inflowpayai/mpp@0.10.1
+
 ## 0.7.2
 
 ### Patch Changes
