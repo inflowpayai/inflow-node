@@ -114,7 +114,10 @@ function componentValues(request: TapRequest, url: URL): Map<string, string> {
     ['@query', url.search === '' ? '?' : url.search],
   ]);
   const digest = optionalHeader(request.headers, 'content-digest');
-  const contentType = optionalHeader(request.headers, 'content-type');
+  const contentType =
+    request.body === undefined
+      ? optionalHeader(request.headers, 'content-type')
+      : requiredHeader(request.headers, 'content-type');
   if (digest !== undefined) values.set('content-digest', digest);
   if (contentType !== undefined) values.set('content-type', contentType);
   return values;

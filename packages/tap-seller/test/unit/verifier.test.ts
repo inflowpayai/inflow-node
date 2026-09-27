@@ -1,4 +1,4 @@
-import { createPublicKey } from 'node:crypto';
+import { createPrivateKey, createPublicKey, sign } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -27,11 +27,12 @@ interface Vector {
     readonly keyid: string;
   };
   readonly signatureInput: string;
+  readonly signatureBase: string;
   readonly signature: string;
 }
 
 interface Vectors {
-  readonly testKey: { readonly keyid: string; readonly publicKeyHex: string };
+  readonly testKey: { readonly keyid: string; readonly publicKeyHex: string; readonly privateSeedHex: string };
   readonly positive: readonly Vector[];
 }
 
@@ -71,6 +72,137 @@ const resolver: TapKeyResolver = {
 };
 
 describe('createTapVerifier', () => {
+  it.each(['missing', 'undefined', 'empty-array', 'multiple-values', 'duplicate-case', 'headers'])(
+    'rejects %s content-type even with a signature over an empty field',
+    async (shape) => {
+      const vector = required(vectors.positive.find((candidate) => candidate.request.bodyBase64 !== undefined));
+      const request = toRequest(vector);
+      const privateKey = createPrivateKey({
+        key: Buffer.concat([
+          Buffer.from('302e020100300506032b657004220420', 'hex'),
+          Buffer.from(vectors.testKey.privateSeedHex, 'hex'),
+        ]),
+        format: 'der',
+        type: 'pkcs8',
+      });
+      const base = vector.signatureBase.replace(/"content-type": [^\n]*/, '"content-type": ');
+      const headers: Record<string, string | readonly string[] | undefined> = {
+        'signature-input': vector.signatureInput,
+        signature: `sig2=:${sign(null, Buffer.from(base), privateKey).toString('base64')}:`,
+        'content-digest': vector.request.contentDigest,
+      };
+      if (shape === 'undefined') headers['content-type'] = undefined;
+      if (shape === 'empty-array') headers['content-type'] = [];
+      if (shape === 'multiple-values') headers['content-type'] = ['application/json', 'text/plain'];
+      if (shape === 'duplicate-case') {
+        headers['content-type'] = 'application/json';
+        headers['Content-Type'] = 'text/plain';
+      }
+      const resolve = vi.fn((keyid: string, algorithm: string) => resolver.resolve(keyid, algorithm));
+      const claim = vi.fn().mockReturnValue(true);
+      const middleware = createTapMiddleware(
+        createTapVerifier({
+          keyResolver: { resolve },
+          replayStore: { claim },
+          clock: () => vector.signatureParameters.created * 1000,
+        }),
+      );
+      const next = vi.fn();
+      const suppliedHeaders =
+        shape === 'headers'
+          ? new Headers(
+              Object.entries(headers).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+            )
+          : headers;
+      await expect(middleware({ ...request, headers: suppliedHeaders }, next)).rejects.toMatchObject({
+        code: 'SIGNATURE_INPUT_INVALID',
+      });
+      expect(resolve).not.toHaveBeenCalled();
+      expect(claim).not.toHaveBeenCalled();
+      expect(next).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['headers', 'array', 'uppercase'])('verifies body headers supplied as %s', async (shape) => {
+    const vector = required(vectors.positive.find((candidate) => candidate.request.bodyBase64 !== undefined));
+    const request = toRequest(vector);
+    const entries: [string, string][] = [
+      ['signature-input', vector.signatureInput],
+      ['signature', vector.signature],
+      ['content-digest', required(vector.request.contentDigest)],
+      ['content-type', required(vector.request.contentType)],
+    ];
+    const headers =
+      shape === 'headers'
+        ? new Headers(entries)
+        : Object.fromEntries(
+            entries.map(([name, value]) => [
+              shape === 'uppercase' ? name.toUpperCase() : name,
+              shape === 'array' ? [value] : value,
+            ]),
+          );
+    await expect(
+      createTapVerifier({ keyResolver: resolver, clock: () => vector.signatureParameters.created * 1000 }).verify({
+        ...request,
+        headers,
+      }),
+    ).resolves.toMatchObject({ verified: true, intent: 'pay' });
+  });
+
+  it('accepts a signature valid at entry even when key lookup completes after expiration', async () => {
+    const vector = required(vectors.positive[0]);
+    let now = vector.signatureParameters.created * 1000;
+    const verifier = createTapVerifier({
+      clock: () => now,
+      keyResolver: {
+        async resolve(keyid, algorithm) {
+          now = vector.signatureParameters.expires * 1000;
+          return resolver.resolve(keyid, algorithm);
+        },
+      },
+    });
+    await expect(verifier.verify(toRequest(vector))).resolves.toMatchObject({ verified: true });
+  });
+
+  it('allows only one concurrent verification of the same nonce', async () => {
+    const vector = required(vectors.positive[0]);
+    const verifier = createTapVerifier({
+      keyResolver: resolver,
+      clock: () => vector.signatureParameters.created * 1000,
+    });
+    const results = await Promise.allSettled([verifier.verify(toRequest(vector)), verifier.verify(toRequest(vector))]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.find((result) => result.status === 'rejected')).toMatchObject({
+      reason: { code: 'NONCE_REPLAYED' },
+    });
+  });
+
+  it('does not invoke the handler when a custom replay store fails', async () => {
+    const vector = required(vectors.positive[0]);
+    const error = new Error('Replay store unavailable');
+    const middleware = createTapMiddleware(
+      createTapVerifier({
+        keyResolver: resolver,
+        clock: () => vector.signatureParameters.created * 1000,
+        replayStore: { claim: vi.fn().mockRejectedValue(error) },
+      }),
+    );
+    const next = vi.fn();
+    await expect(middleware(toRequest(vector), next)).rejects.toBe(error);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('rejects a malformed Signature field', async () => {
+    const vector = required(vectors.positive[0]);
+    const request = toRequest(vector);
+    await expect(
+      createTapVerifier({ keyResolver: resolver, clock: () => vector.signatureParameters.created * 1000 }).verify({
+        ...request,
+        headers: { ...request.headers, signature: 'invalid' },
+      }),
+    ).rejects.toMatchObject({ code: 'SIGNATURE_INPUT_INVALID' });
+  });
+
   it.each(vectors.positive)('verifies a shared positive vector', async (vector) => {
     const verifier = createTapVerifier({
       keyResolver: resolver,

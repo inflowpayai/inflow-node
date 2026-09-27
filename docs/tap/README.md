@@ -12,9 +12,10 @@ tests.
 Every signature covers `@method`, `@authority`, `@path`, and `@query`. Requests with bodies also cover `content-digest`
 and `content-type`; the digest is computed over the exact transmitted bytes. Signature input uses the `sig2` label,
 lowercase `alg="ed25519"`, a fresh nonce, and a validity interval no longer than eight minutes. InFlow-issued signatures
-use five minutes and verifiers require `created <= now < expires`. Visa's prose examples use `alg="Ed25519"`, so a
-verifier accepts exactly that spelling and the RFC-registered lowercase spelling, preserves the received value in the
-signature base, and rejects every other algorithm value.
+use five minutes and verifiers require `created <= now < expires` when verification starts. Key retrieval and replay
+storage may finish after expiration. Visa's prose examples use `alg="Ed25519"`, so a verifier accepts exactly that
+spelling and the RFC-registered lowercase spelling, preserves the received value in the signature base, and rejects
+every other algorithm value.
 
 The `agent-browser-auth` tag identifies discovery and enrollment inspection. The `agent-payer-auth` tag identifies MPP
 and x402 payment attempts. These tags describe the agent interaction; payment and application authorization remain
