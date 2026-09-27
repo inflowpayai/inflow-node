@@ -131,14 +131,15 @@ function isPaymentIdentifierSchema(value: unknown): value is PaymentIdentifierSc
     properties?: {
       id?: { type?: unknown; minLength?: unknown; maxLength?: unknown; pattern?: unknown };
       required?: { type?: unknown };
-    };
+    } | null;
     required?: unknown;
   };
   const properties = schema.properties;
   return (
     schema.$schema === 'https://json-schema.org/draft/2020-12/schema' &&
     schema.type === 'object' &&
-    properties !== undefined &&
+    properties !== null &&
+    typeof properties === 'object' &&
     properties.id?.type === 'string' &&
     properties.id.minLength === PAYMENT_ID_MIN_LENGTH &&
     properties.id.maxLength === PAYMENT_ID_MAX_LENGTH &&

@@ -1,4 +1,4 @@
-import { once } from 'node:events';
+import { getEventListeners, once } from 'node:events';
 import { createServer, type RequestListener, type Server } from 'node:http';
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -25,6 +25,59 @@ afterEach(async () => {
 });
 
 describe('native HTTP timeout and cancellation', () => {
+  it.each(['api-key', 'bearer', 'anonymous'])(
+    'does not forward %s credentials or the body to a redirect destination',
+    async (auth) => {
+      let destinationRequests = 0;
+      const destination = await listen((_request, response) => {
+        destinationRequests++;
+        response.end('{}');
+      });
+      let sourceRequests = 0;
+      let receivedKey: string | string[] | undefined;
+      let receivedAuthorization: string | undefined;
+      const baseUrl = await listen((request, response) => {
+        sourceRequests++;
+        receivedKey = request.headers['x-api-key'];
+        receivedAuthorization = request.headers.authorization;
+        response.writeHead(307, { location: `${destination}/forwarded` });
+        response.end('redirect');
+      });
+      const client = new InflowHttpClient({
+        baseUrl,
+        ...(auth === 'api-key' ? { apiKey: 'synthetic-key' } : {}),
+        ...(auth === 'bearer' ? { getAccessToken: () => Promise.resolve('synthetic-token') } : {}),
+      });
+      await expect(client.post('/pay', { signature: 'synthetic-signature' })).rejects.toMatchObject({
+        httpStatus: 307,
+        body: 'redirect',
+        headers: { location: `${destination}/forwarded` },
+      });
+      expect(receivedKey).toBe(auth === 'api-key' ? 'synthetic-key' : undefined);
+      expect(receivedAuthorization).toBe(auth === 'bearer' ? 'Bearer synthetic-token' : undefined);
+      expect(sourceRequests).toBe(1);
+      expect(destinationRequests).toBe(0);
+    },
+  );
+
+  it('does not retry a native fetch cancelled with an ordinary Error', async () => {
+    const controller = new AbortController();
+    let requests = 0;
+    const baseUrl = await listen((_request, response) => {
+      requests++;
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.write('{');
+      controller.abort(new Error('stopped'));
+    });
+    await expect(
+      new InflowHttpClient({ baseUrl }).get('/cancel', {
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ code: 'NETWORK_ERROR', message: '/cancel: network error — stopped' });
+    expect(requests).toBe(1);
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
+  });
+
   it.each(['headers', 'body'])('classifies a timeout waiting for %s', async (phase) => {
     let requests = 0;
     const baseUrl = await listen((_request, response) => {

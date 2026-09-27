@@ -6,7 +6,7 @@ import type {
   InflowPaymentPayload,
   InstrumentPayloadData,
 } from '../../src/types.js';
-import { isBalancePayload, isExactPayload, isInstrumentPayload } from '../../src/types.js';
+import { isBalancePayload, isExactPayload, isInstrumentPayload, isPermit2Payload } from '../../src/types.js';
 
 function makePayload<T>(scheme: string, payload: T): InflowPaymentPayload {
   return {
@@ -20,11 +20,38 @@ function makePayload<T>(scheme: string, payload: T): InflowPaymentPayload {
       maxTimeoutSeconds: 300,
       extra: {},
     },
-    payload: payload as unknown as InflowPaymentPayload['payload'],
+    // Exercise wire values outside the declared payload union at this test boundary.
+    payload: payload as InflowPaymentPayload['payload'],
   };
 }
 
 describe('payload narrowing helpers', () => {
+  it.each([null, undefined, [], 'invalid', 1].map((authorization) => ({ authorization })))(
+    'does not narrow invalid authorization $authorization',
+    ({ authorization }) => {
+      const payload = makePayload('exact', { authorization, permit2Authorization: authorization });
+      expect(isExactPayload(payload)).toBe(false);
+      expect(isPermit2Payload(payload)).toBe(false);
+    },
+  );
+
+  it('distinguishes Permit2 from EIP-3009 and other schemes', () => {
+    const permit2 = {
+      signature: '0xsig',
+      permit2Authorization: {
+        permitted: { token: '0xtoken', amount: '1' },
+        from: '0xbuyer',
+        spender: '0xproxy',
+        nonce: '1',
+        deadline: '9999999999',
+        witness: { to: '0xseller', validAfter: '0', extra: '0x' },
+      },
+    };
+    expect(isPermit2Payload(makePayload('exact', permit2))).toBe(true);
+    expect(isExactPayload(makePayload('exact', permit2))).toBe(false);
+    expect(isPermit2Payload(makePayload('balance', permit2))).toBe(false);
+    expect(isPermit2Payload(makePayload('exact', { authorization: {} }))).toBe(false);
+  });
   const balance: BalancePayloadData = {
     transactionId: '00000000-0000-0000-0000-000000000abc',
   };

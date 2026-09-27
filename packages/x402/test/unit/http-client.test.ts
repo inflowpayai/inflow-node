@@ -145,56 +145,7 @@ describe('InflowHttpClient error mapping', () => {
   });
 });
 
-/**
- * Drain a retry-loop promise that's blocked on the http-client's `delay(setTimeout)` backoffs.
- *
- * `vi.useFakeTimers({ toFake: ['setTimeout'] })` (set up in the surrounding describe block) replaces the global
- * `setTimeout` so the backoff sleeps don't burn real wall-clock. But MSW's request interception still runs on real I/O,
- * so a single `runAllTimers()` call doesn't finish the retry loop — we have to alternate:
- *
- * Await pending fetch (real I/O via setImmediate) → drain queued setTimeout backoff (fake timer fires the next loop
- * iteration) → await next fetch → drain next backoff → …
- *
- * The loop terminates when the outer promise settles. Without this helper, the three former 1.5-second tests run in
- * milliseconds.
- */
-async function settleFakeBackoff<T>(promise: Promise<T>): Promise<T> {
-  let settled = false;
-  // Observe settlement (fulfilled OR rejected) without consuming the rejection.
-  // Using `.then(...)` with explicit handlers — rather than `.finally()` —
-  // ensures the rejection is treated as handled, so Vitest won't report an
-  // "unhandled rejection" when the outer caller eventually catches it.
-  promise.then(
-    () => {
-      settled = true;
-    },
-    () => {
-      settled = true;
-    },
-  );
-  const hasSettled = (): boolean => settled;
-  // Cap the drain loop so a broken test can't hang the suite.
-  for (let i = 0; i < 100; i += 1) {
-    if (hasSettled()) break;
-    // Yield once so any in-flight fetch resolution callback can run.
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    if (vi.getTimerCount() > 0) {
-      await vi.runAllTimersAsync();
-    }
-  }
-  return promise;
-}
-
 describe('InflowHttpClient retry behavior', () => {
-  beforeAll(() => {
-    // Fake only setTimeout so MSW's request interception (which doesn't rely
-    // on setTimeout in the hot path) keeps working.
-    vi.useFakeTimers({ toFake: ['setTimeout'] });
-  });
-  afterAll(() => {
-    vi.useRealTimers();
-  });
-
   it('retries on 503 and succeeds on the second attempt', async () => {
     let calls = 0;
     server.use(
@@ -206,7 +157,7 @@ describe('InflowHttpClient retry behavior', () => {
         return HttpResponse.json({ ok: true });
       }),
     );
-    const out = await settleFakeBackoff(makeClient().get<{ ok: boolean }>('/_flaky'));
+    const out = await makeClient().get<{ ok: boolean }>('/_flaky');
     expect(out).toEqual({ ok: true });
     expect(calls).toBe(2);
   });
@@ -219,7 +170,7 @@ describe('InflowHttpClient retry behavior', () => {
         return new HttpResponse('boom', { status: 503 });
       }),
     );
-    await expect(settleFakeBackoff(makeClient().get('/_always-503'))).rejects.toBeInstanceOf(InflowApiError);
+    await expect(makeClient().get('/_always-503')).rejects.toBeInstanceOf(InflowApiError);
     expect(calls).toBe(4); // 1 initial + 3 retries
   });
 
@@ -231,7 +182,7 @@ describe('InflowHttpClient retry behavior', () => {
         return HttpResponse.json({ code: 'PARAMETER_INVALID' }, { status: 400 });
       }),
     );
-    await expect(settleFakeBackoff(makeClient().get('/_400'))).rejects.toBeInstanceOf(InflowApiError);
+    await expect(makeClient().get('/_400')).rejects.toBeInstanceOf(InflowApiError);
     expect(calls).toBe(1);
   });
 
@@ -245,7 +196,7 @@ describe('InflowHttpClient retry behavior', () => {
           return HttpResponse.json({ ok: true });
         }),
       );
-      await expect(settleFakeBackoff(makeClient().get(`/_${status}`))).resolves.toEqual({ ok: true });
+      await expect(makeClient().get(`/_${status}`)).resolves.toEqual({ ok: true });
       expect(calls).toBe(2);
       server.resetHandlers();
     }
@@ -259,7 +210,7 @@ describe('InflowHttpClient retry behavior', () => {
         return new HttpResponse('x', { status: 503 });
       }),
     );
-    await expect(settleFakeBackoff(makeClient().get('/_zero', { retries: 0 }))).rejects.toBeInstanceOf(InflowApiError);
+    await expect(makeClient().get('/_zero', { retries: 0 })).rejects.toBeInstanceOf(InflowApiError);
     expect(calls).toBe(1);
   });
 
@@ -271,7 +222,7 @@ describe('InflowHttpClient retry behavior', () => {
         return new HttpResponse('x', { status: 503 });
       }),
     );
-    await expect(settleFakeBackoff(makeClient().get('/_cap', { retries: 10 }))).rejects.toBeInstanceOf(InflowApiError);
+    await expect(makeClient().get('/_cap', { retries: 10 })).rejects.toBeInstanceOf(InflowApiError);
     expect(calls).toBe(4); // capped at 3 retries
   });
 });
@@ -432,13 +383,6 @@ describe('InflowHttpClient bearer token — error propagation', () => {
 });
 
 describe('InflowHttpClient bearer token — per-attempt invocation on 5xx retry', () => {
-  beforeAll(() => {
-    vi.useFakeTimers({ toFake: ['setTimeout'] });
-  });
-  afterAll(() => {
-    vi.useRealTimers();
-  });
-
   it('re-invokes getAccessToken on each retry so a refreshed token can be picked up', async () => {
     let attempt = 0;
     const tokens: Headers[] = [];
@@ -456,7 +400,7 @@ describe('InflowHttpClient bearer token — per-attempt invocation on 5xx retry'
       return Promise.resolve(`tok-${issued}`);
     });
     const client = new InflowHttpClient({ getAccessToken });
-    const out = await settleFakeBackoff(client.get<{ ok: boolean }>('/_bearer-flaky'));
+    const out = await client.get<{ ok: boolean }>('/_bearer-flaky');
     expect(out).toEqual({ ok: true });
     expect(getAccessToken).toHaveBeenCalledTimes(2);
     expect(tokens[0]?.get('authorization')).toBe('Bearer tok-1');

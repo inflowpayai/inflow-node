@@ -22,7 +22,7 @@ key — retrying settlement against the same identifier is a no-op once the paym
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "id": { "type": "string", "minLength": 16, "maxLength": 128 },
+          "id": { "type": "string", "minLength": 16, "maxLength": 128, "pattern": "^[a-zA-Z0-9_-]+$" },
           "required": { "type": "boolean" },
         },
         "required": ["required"],
@@ -32,8 +32,7 @@ key — retrying settlement against the same identifier is a no-op once the paym
 }
 ```
 
-Today the seller always declares `required: false`. A future server revision may set `required: true` to require the
-buyer to embed an ID.
+The seller declares `required: false`; buyers are not required to supply an identifier.
 
 **Payload entry** (in `PaymentPayload.extensions`):
 
@@ -49,7 +48,7 @@ buyer to embed an ID.
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "id": { "type": "string", "minLength": 16, "maxLength": 128 },
+          "id": { "type": "string", "minLength": 16, "maxLength": 128, "pattern": "^[a-zA-Z0-9_-]+$" },
           "required": { "type": "boolean" },
         },
         "required": ["required"],
@@ -158,8 +157,8 @@ interface ExtensionHandler<TDeclaration, TPayloadEntry> {
 - `readDeclaration` parses a value the SDK reads from the wire. It must return `null` on any input shape it doesn't
   recognize (never throw).
 - `buildPayloadEntry` is called inside `InflowClient.createPaymentPayload` after the foundation-signed branch returns a
-  payload, and inside the InFlow signer for the two-phase `prepareInflowPayment` flow (via the underlying `sign` call).
-  Returning `null` skips the entry — common when the declaration is optional and the caller didn't opt in.
+  payload. Returning `null` skips the entry when the declaration is optional. For InFlow-managed signing, the platform
+  embeds the identifier in its signed payload; the SDK does not run this handler on that payload.
 
 The `PAYMENT_IDENTIFIER` handler is the reference implementation:
 [packages/x402/src/extensions/payment-identifier.ts](../../packages/x402/src/extensions/payment-identifier.ts).

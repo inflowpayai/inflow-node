@@ -16,7 +16,7 @@ exposes to the corresponding upstream V2 names.
 | `PaymentRequired`      | `PaymentRequired`                        | `accepts: PaymentRequirements[]`.                                                                                                                  |
 | `InflowPaymentPayload` | `PaymentPayload`                         | The SDK refines `payload` into a discriminated union (`BalancePayloadData` / `ExactPayloadData` / `Permit2PayloadData` / `InstrumentPayloadData`). |
 | `VerifyResponse`       | `VerifyResponse`                         | Re-exported verbatim.                                                                                                                              |
-| `SettleResponse`       | `SettleResponse`                         | Network field widened. `transaction` and `payer` are optional (absent on failures); `extensions` exposed for ext data.                             |
+| `SettleResponse`       | `SettleResponse`                         | Network field widened. `transaction` is required and can be empty on failure; `payer` is optional. `extensions` carries extension data.            |
 | `ResourceInfo`         | `ResourceInfo`                           | Re-exported verbatim.                                                                                                                              |
 | `X402SupportedKind`    | `SupportedKind`                          | Network widened; otherwise identical.                                                                                                              |
 
@@ -29,10 +29,9 @@ V2 spec mandates CAIP-2. EVM uses `eip155:<chainId>` (e.g. `eip155:8453`); Solan
 instrument schemes. As a result:
 
 - The SDK's `network: string` field accepts either form.
-- `@x402/core`'s `Network` template literal type (`` `${string}:${string}` ``) is strict about which
-  `<family>:<reference>` values it recognises and does **not** include `'inflow:1'`. The SDK re-defines
-  `PaymentRequirements`, `PaymentRequired`, `InflowPaymentPayload`, `SettleResponse`, and `X402SupportedKind` locally
-  with widened `network: string` to accommodate it.
+- `@x402/core`'s `Network` template literal type (`` `${string}:${string}` ``) also accepts `'inflow:1'`. The SDK's
+  local wire types use the broader `network: string`; neither type establishes that a facilitator supports a particular
+  network. Use the advertised supported kinds for that decision.
 - `'inflow:1'` is the only `inflow:`-family value the SDK emits or accepts; everything else is standard CAIP-2.
 - On the seller side, `InflowSellerClient.getSignerAddresses(network)` does exact-match first; if no exact entry exists
   it falls back to a `<family>:*` wildcard key (e.g. `eip155:*`, `inflow:*`).
@@ -42,14 +41,17 @@ instrument schemes. As a result:
 ```ts
 SCHEMES = {
   EXACT: 'exact',
+  UPTO: 'upto',
   BALANCE: 'balance',
   INSTRUMENT: 'instrument',
 };
 ```
 
-- `'exact'` is used for every on-chain transfer. The `extra` map carries `assetTransferMethod` (`'eip3009'` or
+- `'exact'` is used for fixed-amount on-chain transfers. The `extra` map carries `assetTransferMethod` (`'eip3009'` or
   `'permit2'` for EVM, chain-specific for non-EVM), `name` and `version` (EIP-712 domain), and `permit2Proxy` when
   applicable.
+- `'upto'` is used for explicitly selected metered offers with Permit2 metadata. InFlow-managed buyers do not sign these
+  payments; see the [seller guide](../../packages/x402-seller/README.md) for external-wallet integration.
 - `'balance'` is used for InFlow-internal ledger transfers. `network` is always `'inflow:1'`; `payTo` is the seller's
   UUID; `asset` is empty.
 - `'instrument'` is reserved. `inflowAccepts` passes every scheme the server publishes through unchanged, so an

@@ -247,12 +247,12 @@ describe('createInflowFacilitator', () => {
     expect(identifiers[1]).toBe(identifiers[0]);
   });
 
-  it('does not retry a payment identifier conflict', async () => {
+  it.each([307, 308, 409])('does not retry a redirect or payment identifier conflict (HTTP %i)', async (status) => {
     let attempts = 0;
     server.use(
       http.post(`${PROD_BASE}/v1/x402/settle`, () => {
         attempts += 1;
-        return HttpResponse.json({ success: false, errorReason: 'idempotency_conflict' }, { status: 409 });
+        return HttpResponse.json({ success: false, errorReason: 'idempotency_conflict' }, { status });
       }),
     );
     const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
@@ -268,7 +268,7 @@ describe('createInflowFacilitator', () => {
 
     await expect(
       fac.settle({ x402Version: 2, accepted, payload: { signature: '0xsigned' } }, accepted),
-    ).rejects.toMatchObject({ httpStatus: 409, body: { errorReason: 'idempotency_conflict' } });
+    ).rejects.toMatchObject({ httpStatus: status, body: { errorReason: 'idempotency_conflict' } });
     expect(attempts).toBe(1);
   });
 
@@ -362,47 +362,56 @@ describe('createInflowFacilitator', () => {
     expect(captured?.paymentPayload?.extensions?.['payment-identifier']).toEqual(suppliedEntry);
   });
 
-  it('verify replaces a malformed entry without mutating the caller payload', async () => {
-    let captured: { paymentPayload?: { extensions?: Record<string, unknown> } } | undefined;
-    server.use(
-      http.post(`${PROD_BASE}/v1/x402/verify`, async ({ request }) => {
-        captured = (await request.json()) as typeof captured;
-        return HttpResponse.json({ isValid: true });
-      }),
-    );
-    const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
-    const extensions = {
-      'payment-identifier': { info: { id: 'too-short', required: false } },
-      receipt: { enabled: true },
-    };
-    const payload = {
-      x402Version: 2,
-      accepted: {
-        scheme: 'balance' as const,
-        network: 'inflow:1' as const,
-        asset: 'USDC',
-        amount: '1',
-        payTo: SAMPLE_CONFIG.sellerId,
-        maxTimeoutSeconds: 300,
-        extra: {},
-      },
-      payload: {},
-      extensions,
-    };
+  it.each(['missing-schema', 'null-properties'])(
+    'verify replaces a %s entry without mutating the caller payload',
+    async (shape) => {
+      let captured: { paymentPayload?: { extensions?: Record<string, unknown> } } | undefined;
+      server.use(
+        http.post(`${PROD_BASE}/v1/x402/verify`, async ({ request }) => {
+          captured = (await request.json()) as typeof captured;
+          return HttpResponse.json({ isValid: true });
+        }),
+      );
+      const fac = createInflowFacilitator({ environment: 'production', apiKey: 'sk_test' });
+      const malformed = {
+        info: { id: 'too-short', required: false },
+        ...(shape === 'null-properties'
+          ? { schema: { ...PAYMENT_IDENTIFIER.buildDeclaration({}).schema, properties: null } }
+          : {}),
+      };
+      const extensions = {
+        'payment-identifier': malformed,
+        receipt: { enabled: true },
+      };
+      const payload = {
+        x402Version: 2,
+        accepted: {
+          scheme: 'balance' as const,
+          network: 'inflow:1' as const,
+          asset: 'USDC',
+          amount: '1',
+          payTo: SAMPLE_CONFIG.sellerId,
+          maxTimeoutSeconds: 300,
+          extra: {},
+        },
+        payload: {},
+        extensions,
+      };
 
-    await fac.verify(payload, payload.accepted);
+      await fac.verify(payload, payload.accepted);
 
-    expect(extensions).toEqual({
-      'payment-identifier': { info: { id: 'too-short', required: false } },
-      receipt: { enabled: true },
-    });
-    expect(captured?.paymentPayload?.extensions?.['receipt']).toEqual({ enabled: true });
-    const entry = captured?.paymentPayload?.extensions?.['payment-identifier'] as
-      { info?: { id?: string; required?: boolean }; schema?: unknown } | undefined;
-    expect(entry?.info?.id).toMatch(/^pay_[a-f0-9]{32}$/u);
-    expect(entry?.info?.required).toBe(false);
-    expect(entry?.schema).toEqual(PAYMENT_IDENTIFIER.buildDeclaration({}).schema);
-  });
+      expect(extensions).toEqual({
+        'payment-identifier': malformed,
+        receipt: { enabled: true },
+      });
+      expect(captured?.paymentPayload?.extensions?.['receipt']).toEqual({ enabled: true });
+      const entry = captured?.paymentPayload?.extensions?.['payment-identifier'] as
+        { info?: { id?: string; required?: boolean }; schema?: unknown } | undefined;
+      expect(entry?.info?.id).toMatch(/^pay_[a-f0-9]{32}$/u);
+      expect(entry?.info?.required).toBe(false);
+      expect(entry?.schema).toEqual(PAYMENT_IDENTIFIER.buildDeclaration({}).schema);
+    },
+  );
 
   it.each([
     ['an EVM signature', { signature: '0xsigned-payment', authorization: { nonce: '0x01' } }],

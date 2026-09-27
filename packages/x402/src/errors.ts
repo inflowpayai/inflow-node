@@ -61,7 +61,7 @@ export interface InflowApiErrorInit {
 
 /**
  * Error thrown by every {@link InflowHttpClient} call on a non-2xx response. Carries the server-issued correlation ID
- * when available and the (sanitized) response body and headers for diagnostics.
+ * when available, the response body, and headers with sensitive entries stripped for diagnostics.
  */
 export class InflowApiError extends Error {
   /** {@inheritDoc InflowApiErrorInit.code} */

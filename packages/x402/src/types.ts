@@ -159,7 +159,13 @@ export function isBalancePayload(p: InflowPaymentPayload): p is InflowPaymentPay
  * alongside {@link isPermit2Payload}.
  */
 export function isExactPayload(p: InflowPaymentPayload): p is InflowPaymentPayload & { payload: ExactPayloadData } {
-  return p.accepted.scheme === 'exact' && typeof (p.payload as { authorization?: unknown }).authorization === 'object';
+  const authorization = (p.payload as { authorization?: unknown }).authorization;
+  return (
+    p.accepted.scheme === 'exact' &&
+    authorization !== null &&
+    typeof authorization === 'object' &&
+    !Array.isArray(authorization)
+  );
 }
 
 /**
@@ -167,9 +173,12 @@ export function isExactPayload(p: InflowPaymentPayload): p is InflowPaymentPaylo
  * alongside {@link isExactPayload}.
  */
 export function isPermit2Payload(p: InflowPaymentPayload): p is InflowPaymentPayload & { payload: Permit2PayloadData } {
+  const authorization = (p.payload as { permit2Authorization?: unknown }).permit2Authorization;
   return (
     p.accepted.scheme === 'exact' &&
-    typeof (p.payload as { permit2Authorization?: unknown }).permit2Authorization === 'object'
+    authorization !== null &&
+    typeof authorization === 'object' &&
+    !Array.isArray(authorization)
   );
 }
 

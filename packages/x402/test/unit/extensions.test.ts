@@ -218,6 +218,17 @@ describe('PAYMENT_IDENTIFIER handler', () => {
     expect(PAYMENT_IDENTIFIER.readDeclaration('payment-identifier')).toBeNull();
   });
 
+  it.each([null, undefined, [], 'invalid', 1, { id: null }, { required: null }].map((properties) => ({ properties })))(
+    'rejects malformed schema properties $properties',
+    ({ properties }) => {
+      const declaration = PAYMENT_IDENTIFIER.buildDeclaration({});
+      const input = Object.freeze({ ...declaration, schema: Object.freeze({ ...declaration.schema, properties }) });
+      expect(PAYMENT_IDENTIFIER.readDeclaration(input)).toBeNull();
+      expect(getExtension({ 'payment-identifier': input }, PAYMENT_IDENTIFIER)).toBeUndefined();
+      expect(input.schema.properties).toBe(properties);
+    },
+  );
+
   it('buildPayloadEntry returns null when no payment id is supplied', () => {
     const declaration = PAYMENT_IDENTIFIER.buildDeclaration({});
     expect(PAYMENT_IDENTIFIER.buildPayloadEntry(declaration, {})).toBeNull();
