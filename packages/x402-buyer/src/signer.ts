@@ -299,40 +299,8 @@ function makePreparedPayment(
   };
 }
 
-/**
- * Single `AbortSignal` fired when any of the inputs aborts. Uses native `AbortSignal.any` on Node 20.3+; falls back to
- * a manual fan-in otherwise.
- */
 function composeSignals(...signals: (AbortSignal | undefined)[]): AbortSignal {
-  const live = signals.filter((s): s is AbortSignal => s !== undefined);
-  // Fast path for the single-signal case so the caller observes that signal's `.reason` unchanged. Avoids the
-  // `live[0]!` non-null assertion AGENTS.md §Conventions prohibits — under `noUncheckedIndexedAccess`, indexed
-  // access on the filtered array still types as `AbortSignal | undefined`.
-  const [first, ...rest] = live;
-  if (first !== undefined && rest.length === 0) return first;
-  // Prefer native `AbortSignal.any` (Node 20.3+); fall back to a manual fan-in. The single-level cast lets the
-  // feature detect typecheck without reaching for `as unknown as`.
-  const anyFn = (AbortSignal as { any?: (s: AbortSignal[]) => AbortSignal }).any;
-  if (typeof anyFn === 'function') return anyFn(live);
-  // Manual fan-in. When any input aborts, fire the controller and remove the listeners we added to the siblings —
-  // otherwise the siblings hold references to a closure that's no longer useful, and a long-lived composed signal
-  // would accumulate dead listeners on long-lived parents.
-  const controller = new AbortController();
-  const cleanups: Array<() => void> = [];
-  const fire = (reason: unknown): void => {
-    controller.abort(reason);
-    for (const c of cleanups) c();
-  };
-  for (const s of live) {
-    if (s.aborted) {
-      fire(s.reason);
-      return controller.signal;
-    }
-    const handler = (): void => fire(s.reason);
-    s.addEventListener('abort', handler, { once: true });
-    cleanups.push(() => s.removeEventListener('abort', handler));
-  }
-  return controller.signal;
+  return AbortSignal.any(signals.filter((s): s is AbortSignal => s !== undefined));
 }
 
 /**
@@ -350,56 +318,72 @@ async function runPollLoop(input: {
   signal?: AbortSignal;
   createdApprovalStatus: ApprovalStatus;
 }): Promise<EncodedPayment> {
-  const { pollOnce, buildEncodedPayment, approvalId, pollIntervalMs, timeoutMs, signal } = input;
+  const { pollOnce, buildEncodedPayment, approvalId, pollIntervalMs, timeoutMs } = input;
   const startedAt = Date.now();
   const deadline = startedAt + timeoutMs;
-  const isAborted = (): boolean => signal !== undefined && signal.aborted;
+  const timeoutController = new AbortController();
+  const signal = composeSignals(input.signal, timeoutController.signal);
+  const timeout = setTimeout(() => timeoutController.abort(), timeoutMs);
+  const isAborted = (): boolean => signal.aborted;
 
-  if (isAborted()) {
-    throw new X402ApprovalTimeoutError(approvalId, timeoutMs);
-  }
-
-  // Synchronous-approval path: skip the first sleep.
-  let firstPoll = input.createdApprovalStatus === APPROVAL_APPROVED;
-
-  while (Date.now() < deadline) {
+  try {
     if (isAborted()) {
       throw new X402ApprovalTimeoutError(approvalId, timeoutMs);
     }
-    let response: X402PayloadResponse | undefined;
-    try {
-      // Thread the caller signal so an in-flight GET aborts immediately on
-      // caller cancel instead of running out the HTTP client's 30s default.
-      response = await pollOnce(signal);
-    } catch (err) {
-      // If the abort fired, propagate as timeout/abort error instead of
-      // silently sleeping and re-polling.
-      if (signal !== undefined && signal.aborted) {
+
+    // Synchronous-approval path: skip the first sleep.
+    let firstPoll = input.createdApprovalStatus === APPROVAL_APPROVED;
+
+    while (Date.now() < deadline) {
+      if (isAborted()) {
         throw new X402ApprovalTimeoutError(approvalId, timeoutMs);
       }
-      void err;
-      // 5xx / network error → swallow; sleep and retry.
-      response = undefined;
-    }
-    if (response !== undefined) {
-      const settled = evaluatePoll(response);
-      if (settled === 'pending') {
-        // Still INITIATED, or transitioned to a non-terminal/success state
-        // whose `encodedPayload` write hasn't landed yet. Sleep and retry.
-      } else if (settled === 'failed') {
-        throw new X402ApprovalFailedError(approvalId, response.status);
-      } else {
-        // settled === 'signed' → response.encodedPayload && paymentPayload present.
-        return buildEncodedPayment(response.encodedPayload as string, response.paymentPayload as InflowPaymentPayload);
+      let response: X402PayloadResponse | undefined;
+      try {
+        // Thread the caller signal so an in-flight GET aborts immediately on
+        // caller cancel instead of running out the HTTP client's 30s default.
+        response = await pollOnce(signal);
+      } catch (err) {
+        // If the abort fired, propagate as timeout/abort error instead of
+        // silently sleeping and re-polling.
+        if (signal.aborted) {
+          throw new X402ApprovalTimeoutError(approvalId, timeoutMs);
+        }
+        if (
+          !(err instanceof InflowApiError) ||
+          !(err.httpStatus === 0 || err.httpStatus === 429 || err.httpStatus >= 500)
+        )
+          throw err;
+        response = undefined;
       }
+      if (isAborted() || Date.now() >= deadline) {
+        throw new X402ApprovalTimeoutError(approvalId, timeoutMs);
+      }
+      if (response !== undefined) {
+        const settled = evaluatePoll(response);
+        if (settled === 'pending') {
+          // Still INITIATED, or transitioned to a non-terminal/success state
+          // whose `encodedPayload` write hasn't landed yet. Sleep and retry.
+        } else if (settled === 'failed') {
+          throw new X402ApprovalFailedError(approvalId, response.status);
+        } else {
+          // settled === 'signed' → response.encodedPayload && paymentPayload present.
+          return buildEncodedPayment(
+            response.encodedPayload as string,
+            response.paymentPayload as InflowPaymentPayload,
+          );
+        }
+      }
+      if (firstPoll) {
+        firstPoll = false;
+        continue;
+      }
+      await sleep(pollIntervalMs, signal);
     }
-    if (firstPoll) {
-      firstPoll = false;
-      continue;
-    }
-    await sleep(pollIntervalMs, signal);
+    throw new X402ApprovalTimeoutError(approvalId, timeoutMs);
+  } finally {
+    clearTimeout(timeout);
   }
-  throw new X402ApprovalTimeoutError(approvalId, timeoutMs);
 }
 
 /**
@@ -429,15 +413,18 @@ function evaluatePoll(response: X402PayloadResponse): 'pending' | 'signed' | 'fa
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, ms);
+    const finish = (): void => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    };
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      finish();
+    };
+    const timer = setTimeout(finish, ms);
     if (signal !== undefined) {
-      const onAbort = (): void => {
-        clearTimeout(timer);
-        resolve();
-      };
       if (signal.aborted) {
-        clearTimeout(timer);
-        resolve();
+        onAbort();
       } else {
         signal.addEventListener('abort', onAbort, { once: true });
       }
