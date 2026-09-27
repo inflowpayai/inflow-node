@@ -79,6 +79,24 @@ const challenge: MppChallenge = {
 };
 
 describe('WWW-Authenticate: Payment render/parse', () => {
+  const fields = ['id', 'realm', 'method', 'intent', 'request', 'expires', 'description', 'digest', 'opaque'] as const;
+
+  it.each(fields)('preserves quoted pairs in %s', (field) => {
+    const value = 'Store "A" \\ branch, Payment cafe';
+    const input = Object.freeze({ ...challenge, [field]: value });
+    const rendered = renderChallengeHeader(input);
+    expect(rendered).toContain(`${field}="Store \\"A\\" \\\\ branch, Payment cafe"`);
+    expect(parseChallengeHeader(rendered)).toEqual(input);
+    expect(parseChallengeHeaders(rendered)).toEqual([input]);
+  });
+
+  it.each(fields)('rejects control characters in %s when rendering and parsing', (field) => {
+    expect(() => renderChallengeHeader({ ...challenge, [field]: 'bad\r\nvalue' })).toThrow(MppCodecError);
+    const input = { ...challenge, [field]: 'placeholder' };
+    const header = renderChallengeHeader(input).replace(`${field}="placeholder"`, `${field}="bad\u0001value"`);
+    expect(() => parseChallengeHeader(header)).toThrow(MppCodecError);
+  });
+
   it('renders auth-params in the server field order with RFC 7235 escaping of description', () => {
     expect(renderChallengeHeader(challenge)).toBe(
       'Payment id="qB3w", realm="inflow", method="inflow", intent="charge", ' +

@@ -317,9 +317,8 @@ const PARAM_PATTERN = /(\w+)="((?:\\.|[^\\"])*)"|(\w+)=([^,\s]+)/g;
 const NEXT_CHALLENGE = /^Payment\s/i;
 
 /**
- * RFC 7235 quoted-string escape for the `description` parameter: backslash-escape `\` and `"`. Control characters and
- * raw CR/LF are rejected — they would corrupt the header or open a header-injection vector. Matches the server's
- * `escapeQuotedString`.
+ * RFC 7235 quoted-string escape: backslash-escape `\` and `"`. Control characters and raw CR/LF are rejected — they
+ * would corrupt the header or open a header-injection vector. Matches the server's `escapeQuotedString`.
  *
  * @param value - The raw parameter text.
  * @param field - Field name for diagnostics.
@@ -389,22 +388,14 @@ function validateQuotedHeaderValue(value: string, field: string): string {
  * @param parts - Accumulated `key="value"` fragments.
  * @param key - Param name.
  * @param value - Param value, or `undefined` to skip.
- * @param escape - When true, RFC 7235 quoted-string escape the value.
  */
-function appendParam(
-  parts: string[],
-  key: string,
-  value: string | undefined,
-  escape: boolean,
-  field: string = key,
-): void {
+function appendParam(parts: string[], key: string, value: string | undefined): void {
   if (value === undefined) return;
-  parts.push(`${key}="${escape ? escapeQuotedString(value, field) : value}"`);
+  parts.push(`${key}="${escapeQuotedString(value, key)}"`);
 }
 
 /**
- * Render an {@link MppChallenge} as a `WWW-Authenticate: Payment` header value. Field order and escaping mirror the
- * server's `MppChallenge.toWwwAuthenticateValue()` so a rendered header round-trips byte-for-byte.
+ * Render an {@link MppChallenge} as a `WWW-Authenticate: Payment` header value with quoted-string escaping.
  *
  * @param challenge - The challenge to render.
  * @returns The header value, e.g. `Payment id="…", realm="…", method="inflow", intent="charge", request="…"`.
@@ -414,23 +405,22 @@ export function renderChallengeHeader(challenge: MppChallenge): string {
     throw new MppCodecError('challenge header', "required parameter 'id' must be non-empty");
   }
   const parts: string[] = [];
-  appendParam(parts, 'id', challenge.id, true, 'id');
-  appendParam(parts, 'realm', challenge.realm, false);
-  appendParam(parts, 'method', challenge.method, false);
-  appendParam(parts, 'intent', challenge.intent, false);
-  appendParam(parts, 'request', challenge.request, false);
-  appendParam(parts, 'expires', challenge.expires, false);
-  appendParam(parts, 'description', challenge.description, true);
-  appendParam(parts, 'digest', challenge.digest, false);
-  appendParam(parts, 'opaque', challenge.opaque, false);
+  appendParam(parts, 'id', challenge.id);
+  appendParam(parts, 'realm', challenge.realm);
+  appendParam(parts, 'method', challenge.method);
+  appendParam(parts, 'intent', challenge.intent);
+  appendParam(parts, 'request', challenge.request);
+  appendParam(parts, 'expires', challenge.expires);
+  appendParam(parts, 'description', challenge.description);
+  appendParam(parts, 'digest', challenge.digest);
+  appendParam(parts, 'opaque', challenge.opaque);
   return SCHEME_PREFIX + parts.join(', ');
 }
 
 /**
  * Parse a single `WWW-Authenticate: Payment` header value into an {@link MppChallenge}. The `Payment` scheme prefix is
- * matched case-insensitively (RFC 7235); `description` is quoted-string un-escaped; unknown params are ignored. Mirrors
- * the server's `MppChallenge.fromWwwAuthenticateValue()`, with the addition that the five required auth-params must be
- * present.
+ * matched case-insensitively (RFC 7235); quoted values are un-escaped; unknown params are ignored. The five required
+ * auth-params must be present.
  *
  * @param headerValue - The header value (without the `WWW-Authenticate:` name).
  * @returns The parsed challenge.
@@ -462,28 +452,28 @@ export function parseChallengeHeader(headerValue: string): MppChallenge {
         fields.description = parseChallengeValue(value, quoted, 'description');
         break;
       case 'digest':
-        fields.digest = value;
+        fields.digest = parseChallengeValue(value, quoted, key);
         break;
       case 'expires':
-        fields.expires = value;
+        fields.expires = parseChallengeValue(value, quoted, key);
         break;
       case 'id':
         fields.id = parseChallengeValue(value, quoted, 'id');
         break;
       case 'intent':
-        fields.intent = value;
+        fields.intent = parseChallengeValue(value, quoted, key);
         break;
       case 'method':
-        fields.method = value;
+        fields.method = parseChallengeValue(value, quoted, key);
         break;
       case 'opaque':
-        fields.opaque = value;
+        fields.opaque = parseChallengeValue(value, quoted, key);
         break;
       case 'realm':
-        fields.realm = value;
+        fields.realm = parseChallengeValue(value, quoted, key);
         break;
       case 'request':
-        fields.request = value;
+        fields.request = parseChallengeValue(value, quoted, key);
         break;
       default:
         break;

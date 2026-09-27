@@ -162,7 +162,10 @@ export interface MppCredential {
    * `transactionId` correlation key (see `CREDENTIAL_TRANSACTION_ID`) the server reads back on redeem. Required.
    */
   payload: Record<string, unknown>;
-  /** Payer identity per the MPP spec — a DID, blockchain address, or account identifier. Required. */
+  /**
+   * Payer identity required by InFlow-issued credentials. MPP permits omission generally; individual payment methods
+   * can require it.
+   */
   source: string;
 }
 

@@ -12,7 +12,10 @@ const challenge = {
   request: { amount: '10', currency: 'USDC', recipient: '00000000-0000-0000-0000-000000000001' },
 };
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
 
 function pending() {
   return Response.json({
@@ -33,6 +36,63 @@ function blockedRequest(signal: AbortSignal | null | undefined): Promise<Respons
 }
 
 describe('cancellation while HTTP is in progress', () => {
+  it.each(['timeout', 'ready', 'cancel'] as const)('handles an early wait wake before %s', async (outcome) => {
+    vi.useFakeTimers();
+    const requests: string[] = [];
+    const credential = encodeCredential({
+      challenge: { ...challenge, request: 'eyJ9' },
+      payload: { transactionId: 'transaction' },
+      source: 'did:inflow:buyer',
+    });
+    const method = inflow({
+      apiKey: 'key',
+      timeoutMs: outcome === 'ready' ? 300 : 100,
+      fetch: (input) => {
+        const url = input instanceof Request ? input.url : String(input);
+        requests.push(url);
+        if (url.endsWith('/transactions/mpp')) {
+          return Promise.resolve(
+            Response.json({
+              state: 'pending',
+              transactionId: 'transaction',
+              approvalId: 'approval',
+              retryAfterSeconds: outcome === 'ready' ? 0.1 : 60,
+            }),
+          );
+        }
+        if (url.endsWith('/cancel')) return Promise.resolve(new Response(null, { status: 204 }));
+        return Promise.resolve(Response.json({ state: 'ready', credential }));
+      },
+    });
+    const payment = method.createCredential({ challenge, context: {} }).catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(requests).toHaveLength(1);
+    expect(vi.getTimerCount()).toBe(1);
+    // The wait timer fires while the clock used by the deadline is still 20 ms short.
+    const now = Date.now;
+    vi.spyOn(Date, 'now').mockImplementation(() => now() - 20);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(requests).toHaveLength(1);
+    expect(vi.getTimerCount()).toBe(1);
+    if (outcome === 'cancel') method.cleanup();
+    else {
+      await vi.advanceTimersByTimeAsync(19);
+      expect(requests).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(1);
+    }
+    const result = await payment;
+    if (outcome === 'ready') {
+      expect(result).toMatch(/^Payment /);
+      expect(requests[1]).toContain('/transactions/transaction/mpp');
+    } else {
+      expect(result).toBeInstanceOf(outcome === 'cancel' ? MppPaymentCancelledError : MppPaymentTimeoutError);
+      expect(requests[1]).toContain('/approvals/approval/cancel');
+    }
+    expect(requests).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it.each(['create', 'poll', 'authorize'] as const)(
     'cleanup aborts %s with the public cancellation error',
     async (stage) => {
