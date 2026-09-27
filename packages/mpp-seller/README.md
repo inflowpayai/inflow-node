@@ -75,8 +75,9 @@ The rail is determined by the charge currency, using the server-authoritative ma
 | Fiat (e.g. `USD`)        | `instrument` | one challenge; `methodDetails.instrumentId` optional |
 | Unsupported (e.g. `JPY`) | —            | `MppUnsupportedCurrencyError`                        |
 
-The capability map is fetched once and cached at startup. `createConfigClient` exposes that loader directly, if you want
-to prime or inspect the config yourself.
+Configuration loading starts when the method is constructed. Concurrent callers share the request, and successful
+configuration stays cached for that method's lifetime. If loading fails, a later request can try again; there is no
+background retry loop. `createConfigClient` exposes the loader directly for inspecting configuration.
 
 ## Quickstart
 
@@ -112,6 +113,10 @@ already-issued credential can still be redeemed after an offer becomes ineligibl
 When `canOffer` rejects every offer, the composed handler rejects with
 `No payment offers are available for this request`. A `selectOffers` hook must return at least one offer. Map policy
 failures to the response appropriate for your application at its HTTP boundary.
+
+`inflow.subscription(...)` accepts the same `canOffer` option, with recurring fields such as `periodUnit`,
+`periodCount`, and `subscriptionExpires` available on its typed `request` argument. Its options type is
+`InflowSubscriptionSellerParameters`.
 
 This package ships no middleware of its own; use `mppx`'s framework adapters (`mppx/express`, `mppx/hono`,
 `mppx/nextjs`, `mppx/elysia`) or the manual mode above. See

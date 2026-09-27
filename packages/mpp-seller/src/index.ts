@@ -23,7 +23,12 @@ export {
   MppUnsupportedRailError,
 } from './errors.js';
 
-export type { InflowSellerParameters, LoadedConfig, TempoSellerParameters } from './types.js';
+export type {
+  InflowSellerParameters,
+  InflowSubscriptionSellerParameters,
+  LoadedConfig,
+  TempoSellerParameters,
+} from './types.js';
 
 export type { Environment, MppCurrencyRail, MppProblemDetail, MppReceipt } from '@inflowpayai/mpp';
 

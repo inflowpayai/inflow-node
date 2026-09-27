@@ -4,17 +4,12 @@ import type { MppClient, MppConfigResponse, MppCurrencyRail, MppIntentCurrencyRa
 import type { LoadedConfig } from './types.js';
 
 /**
- * The config client primes `GET /v1/mpp/config` once and exposes the slice the `inflow` method needs (feature flags and
- * the currency → rail map). The fetch is memoised: the first {@link InflowConfigClient.load} call performs the request;
- * subsequent calls return the same cached result. Construct it inside the `inflow` factory and share it across
- * charges.
- *
- * It mirrors `@inflowpayai/x402-seller`'s seller-client (prime-once, cache-forever) and, like it, never carries the
- * binding `secretKey` — that secret lives only on `Mppx.create`.
+ * Concurrent loads share one configuration request. A successful result stays cached for the lifetime of the client; a
+ * failed request is discarded so a later load can retry. The binding `secretKey` belongs to `Mppx.create`, not config.
  */
 export interface InflowConfigClient {
   /**
-   * Fetch (once) and cache the PSP config.
+   * Load the PSP config, reusing an in-flight request or a successful cached result.
    *
    * @returns The resolved config slice the SDK consumes.
    */
@@ -42,7 +37,10 @@ export function createConfigClient(client: MppClient): InflowConfigClient {
   }
 
   function load(): Promise<LoadedConfig> {
-    cached ??= fetchConfig();
+    cached ??= fetchConfig().catch((error: unknown) => {
+      cached = undefined;
+      throw error;
+    });
     return cached;
   }
 
