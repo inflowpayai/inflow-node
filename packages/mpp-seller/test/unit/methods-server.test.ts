@@ -14,7 +14,11 @@ import {
   MppUnsupportedRailError,
 } from '../../src/errors.js';
 import { inflow, tempo } from '../../src/methods.server.js';
-import type { InflowSellerParameters, TempoSellerParameters } from '../../src/types.js';
+import type {
+  InflowSellerParameters,
+  InflowSubscriptionSellerParameters,
+  TempoSellerParameters,
+} from '../../src/types.js';
 
 const BASE = 'https://mpp.test';
 const UUID = '11111111-1111-1111-1111-111111111111';
@@ -226,6 +230,8 @@ describe('native issuance: currency → rail in the minted 402', () => {
     mockConfig();
     const inflowCanOffer = vi.fn<NonNullable<InflowSellerParameters['canOffer']>>(() => true);
     expect(inflow({ apiKey: 'sk_test', baseUrl: BASE, canOffer: inflowCanOffer }).canOffer).toBe(inflowCanOffer);
+    const sharedParameters: InflowSellerParameters = { apiKey: 'sk_test', baseUrl: BASE, canOffer: inflowCanOffer };
+    expect(inflow.subscription(sharedParameters).canOffer).toBe(inflowCanOffer);
 
     const tempoCanOffer = vi.fn<NonNullable<TempoSellerParameters['canOffer']>>(
       ({ input }) => input.headers.get('x-enable-tempo') === 'yes',
@@ -578,6 +584,37 @@ describe('stableBinding', () => {
 });
 
 describe('credential lifecycle', () => {
+  it('recovers Tempo broadcast after a failed configuration warmup', async () => {
+    let configHits = 0;
+    const fetchConfig: typeof fetch = async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith('/v1/mpp/config')) {
+        configHits += 1;
+        return configHits === 1 ? new Response('{}', { status: 500 }) : Response.json(config());
+      }
+      return globalThis.fetch(input, init);
+    };
+    mockValidateSuccess();
+    mockBroadcastSuccess('tempo');
+    const { method, mppx } = makeTempoMppx(
+      tempo({
+        apiKey: 'sk_test',
+        environment: 'sandbox',
+        baseUrl: BASE,
+        timeoutMs: 1000,
+        fetch: fetchConfig,
+        currency: TEMPO_ASSET,
+        recipient: TEMPO_RECIPIENT,
+      }),
+    );
+    const challenge = await mppx.challenge.tempo.charge({ amount: '100' });
+    const credential = { challenge, payload: { type: 'transaction', signature: '0x76deadbeef' } };
+    // The challenge helper's request type is broader than the concrete Tempo method request.
+    const parameters = { credential, request: challenge.request } as TempoValidateArg;
+    expect((await method.verify(parameters)).status).toBe('success');
+    expect(configHits).toBe(2);
+  });
+
   it('validates without calling broadcast and returns the mppx validation envelope', async () => {
     mockConfig();
     const validationRequest = mockValidateSuccess();
@@ -1113,6 +1150,67 @@ describe('credential lifecycle', () => {
 });
 
 describe('inflow subscription: issuance, binding, verify', () => {
+  it('gates subscription offers with typed recurring terms and an asynchronous callback', async () => {
+    mockConfig();
+    const canOffer = vi.fn<NonNullable<InflowSubscriptionSellerParameters['canOffer']>>(async ({ input, request }) => {
+      await Promise.resolve();
+      expect(request.periodUnit).toBe('month');
+      expect(request.periodCount).toBe(1);
+      expect(request.subscriptionExpires).toBe(SUB.subscriptionExpires);
+      return input.headers.get('x-subscription-enabled') === 'yes';
+    });
+    const { method, mppx } = makeSubMppx(inflow.subscription({ apiKey: 'sk_test', baseUrl: BASE, canOffer }));
+    expect(method.canOffer).toBe(canOffer);
+    const handler = mppx.compose(['inflow/subscription', SUB]);
+    await expect(handler(new Request('https://app.test/r'))).rejects.toThrow('No payment offers are available');
+    const response = await handler(new Request('https://app.test/r', { headers: { 'x-subscription-enabled': 'yes' } }));
+    expect(response.status).toBe(402);
+    expect(canOffer).toHaveBeenCalledTimes(2);
+  });
+
+  it('propagates subscription selector failure without calling payment lifecycle endpoints', async () => {
+    mockConfig();
+    const failure = new Error('Selection failed');
+    const { mppx } = makeSubMppx(
+      inflow.subscription({
+        apiKey: 'sk_test',
+        baseUrl: BASE,
+        canOffer: () => {
+          throw failure;
+        },
+      }),
+    );
+    await expect(mppx.compose(['inflow/subscription', SUB])(new Request('https://app.test/r'))).rejects.toBe(failure);
+  });
+
+  it.each(['charge', 'subscription'] as const)(
+    'recovers %s issuance after the eager config request fails',
+    async (intent) => {
+      let hits = 0;
+      server.use(
+        http.get(`${BASE}/v1/mpp/config`, () => {
+          hits += 1;
+          if (hits === 1) return HttpResponse.json({}, { status: 500 });
+          return HttpResponse.json(config());
+        }),
+      );
+      const method =
+        intent === 'charge'
+          ? inflow({ apiKey: 'sk_test', baseUrl: BASE })
+          : inflow.subscription({ apiKey: 'sk_test', baseUrl: BASE });
+      const mppx = Mppx.create({ methods: [method], secretKey: SECRET, realm: REALM });
+      const handler =
+        intent === 'charge'
+          ? mppx.compose(['inflow/charge', { amount: '1', currency: 'USDC' }])
+          : mppx.compose(['inflow/subscription', SUB]);
+      await expect(handler(new Request('https://app.test/r'))).rejects.toBeInstanceOf(InflowApiError);
+      const recovered = await handler(new Request('https://app.test/r'));
+      expect(recovered.status).toBe(402);
+      expect((await handler(new Request('https://app.test/r'))).status).toBe(402);
+      expect(hits).toBe(2);
+    },
+  );
+
   it('mints a balance-rail subscription challenge carrying the recurring terms', async () => {
     mockConfig();
     const { mppx } = makeSubMppx();

@@ -2,7 +2,7 @@ import { MppClient } from '@inflowpayai/mpp';
 import type { MppConfigResponse } from '@inflowpayai/mpp';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createConfigClient } from '../../src/config-client.js';
 
@@ -80,5 +80,42 @@ describe('createConfigClient', () => {
     const loaded = await createConfigClient(client()).load();
     expect(loaded.currencyRails).toEqual({});
     expect(loaded.intentCurrencyRails).toEqual({});
+  });
+
+  it('shares failures and retries on a later load without refreshing successful config', async () => {
+    let hits = 0;
+    let release: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get(`${BASE}/v1/mpp/config`, async () => {
+        hits += 1;
+        if (hits === 1) {
+          await pending;
+          return HttpResponse.json({ code: 'UNAVAILABLE', message: 'Try later.' }, { status: 500 });
+        }
+        return HttpResponse.json(config());
+      }),
+    );
+    const c = createConfigClient(client());
+    const first = c.load();
+    const second = c.load();
+    expect(second).toBe(first);
+    const failed = Promise.allSettled([first, second]);
+    await vi.waitFor(() => expect(hits).toBe(1));
+    if (release === undefined) throw new Error('Expected pending response');
+    release();
+    const results = await failed;
+    expect(results).toMatchObject([{ status: 'rejected' }, { status: 'rejected' }]);
+    if (results[0].status !== 'rejected' || results[1].status !== 'rejected') throw new Error('expected failures');
+    expect(results[0].reason).toBe(results[1].reason);
+
+    const retry = c.load();
+    expect(c.load()).toBe(retry);
+    const loaded = await retry;
+    expect(loaded.sellerId).toBe(config().sellerId);
+    expect(await c.load()).toBe(loaded);
+    expect(hits).toBe(2);
   });
 });

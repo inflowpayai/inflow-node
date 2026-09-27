@@ -1,6 +1,3 @@
-// Public parameter and capability types for `@inflowpayai/mpp-seller`. Interfaces only — no runtime — so this module is
-// excluded from coverage (see vitest.config.ts).
-
 import type {
   charge as inflowCharge,
   CurrencyCode,
@@ -8,6 +5,7 @@ import type {
   MppCurrencyRail,
   MppFeatureFlags,
   MppIntentCurrencyRails,
+  subscription as inflowSubscription,
   tempoCharge,
 } from '@inflowpayai/mpp';
 import type { TempoMethodDetails } from '@inflowpayai/mpp';
@@ -35,6 +33,13 @@ export interface InflowSellerParameters {
   fetch?: typeof fetch;
   /** Decides whether a configured InFlow offer is available for a composed HTTP request. */
   canOffer?: Method.CanOfferFn<typeof inflowCharge>;
+}
+
+export interface InflowSubscriptionSellerParameters extends Omit<InflowSellerParameters, 'canOffer'> {
+  /** Decides whether a configured subscription offer is available for a composed HTTP request. */
+  canOffer?: (
+    parameters: Parameters<Method.CanOfferFn<typeof inflowSubscription>>[0],
+  ) => ReturnType<Method.CanOfferFn<typeof inflowSubscription>>;
 }
 
 /** Constructor parameters for the seller-side Tempo method factory. */

@@ -30,7 +30,12 @@ import {
   MppUnsupportedCurrencyError,
   MppUnsupportedRailError,
 } from './errors.js';
-import type { InflowSellerParameters, LoadedConfig, TempoSellerParameters } from './types.js';
+import type {
+  InflowSellerParameters,
+  InflowSubscriptionSellerParameters,
+  LoadedConfig,
+  TempoSellerParameters,
+} from './types.js';
 
 const MAX_RECEIPT_EXTENSION_DEPTH = 16;
 const MAX_RECEIPT_EXTENSION_ENTRIES = 256;
@@ -65,8 +70,8 @@ interface ResolvedMethodDetails {
  * - **`request`** is a _pure_ function of the request + cached `/config`: it sets the `recipient` to the authenticated
  *   seller (the config's `sellerId`) and selects a rail advertised for the request's intent and currency, failing fast
  *   for unsupported or ambiguous capabilities. Purity is required — mppx re-derives the request at verify, and a
- *   non-deterministic hook would trip the binding mismatch check. No randomness, no remote calls (the cached config is
- *   primed at construction), no transaction id minted here.
+ *   non-deterministic hook would trip the binding mismatch check. Configuration loading starts at construction;
+ *   requests await it and can retry after a failed load. Successful configuration stays cached.
  * - **`stableBinding`** opts `rail`/`instrumentId` into the bound set (default binding is only amount/currency/recipient)
  *   so a `balance` credential cannot be redeemed on an `instrument` route, or vice-versa.
  * - **`validate`** delegates the non-mutating acceptance check to `/v1/mpp/validate`.
@@ -90,9 +95,7 @@ function inflowChargeMethod(
   });
   const config = createConfigClient(client);
 
-  // Prime the config cache at construction (mirrors the x402 seller client). The result is memoised; a rejection here
-  // is swallowed so it surfaces at the first charge or lifecycle call rather than as an unhandled
-  // rejection at import time.
+  // Handle eager-load rejection here; request and lifecycle calls still await configuration and surface failures.
   void config.load().catch(() => undefined);
 
   const defaults = buildDefaults(parameters);
@@ -147,11 +150,11 @@ function inflowChargeMethod(
  * (`periodUnit`, `periodCount`, `subscriptionExpires`, `externalId`) so a credential cannot be redeemed against altered
  * subscription terms. Subscriptions settle on the balance rail (enforced server-side).
  *
- * @param parameters - Auth, environment, and seller defaults ({@link InflowSellerParameters}).
+ * @param parameters - Auth, environment, and seller defaults ({@link InflowSubscriptionSellerParameters}).
  * @returns The `inflow` subscription server method to pass into `Mppx.create({ methods: [...] })`.
  */
 function inflowSubscriptionMethod(
-  parameters: InflowSellerParameters,
+  parameters: InflowSubscriptionSellerParameters,
 ): Method.Server<typeof inflowSubscription, { currency?: string }> {
   const client = new MppClient({
     apiKey: parameters.apiKey,
@@ -165,6 +168,7 @@ function inflowSubscriptionMethod(
   void config.load().catch(() => undefined);
 
   return Method.toServer(inflowSubscription, {
+    canOffer: parameters.canOffer,
     defaults: buildDefaults(parameters),
 
     async request({ request }) {
@@ -306,7 +310,7 @@ export function tempo(
  * @param parameters - The seller parameters.
  * @returns A partial request used as mppx `defaults`.
  */
-function buildDefaults(parameters: InflowSellerParameters): { currency?: string } {
+function buildDefaults(parameters: Pick<InflowSellerParameters, 'currency'>): { currency?: string } {
   return {
     ...(parameters.currency !== undefined ? { currency: parameters.currency } : {}),
   };

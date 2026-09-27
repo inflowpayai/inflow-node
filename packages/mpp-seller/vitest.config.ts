@@ -8,8 +8,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      // `types.ts` is interfaces only (no runtime) — exclude so it doesn't skew the executable-code coverage.
-      exclude: ['src/**/*.d.ts', 'src/types.ts'],
+      exclude: ['src/**/*.d.ts'],
       reporter: ['text', 'lcov'],
       thresholds: {
         lines: 90,
