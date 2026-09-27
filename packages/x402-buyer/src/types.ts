@@ -12,8 +12,7 @@ import type {
 
 /**
  * Status of an x402 transaction's signing flow. `'INITIATED'` means the server-side approval is still pending. Any
- * other value indicates the approval has cleared — successful when paired with an `encodedPayload`, failed otherwise.
- * The SDK treats values other than `'INITIATED'` opaquely so new statuses don't require client changes.
+ * other nonterminal value without a payload continues waiting. Terminal failure statuses are preserved in errors.
  */
 export type TransactionStatus = 'INITIATED' | (string & {});
 
@@ -87,8 +86,8 @@ export interface SignOptions {
    */
   pollIntervalMs?: number;
   /**
-   * Hard timeout for the full sign / `awaitPayload` call. Default 900 000 ms (15 minutes) — matches the server-side
-   * approval expiry.
+   * Budget for each `awaitPayload` attempt, including polling requests and delays. Default 900 000 ms (15 minutes).
+   * Transaction creation uses the separate HTTP request timeout.
    */
   timeoutMs?: number;
   /** Cooperative cancellation. */
@@ -138,8 +137,7 @@ export interface PreparedPayment {
    * @param options - Per-call overrides. Concurrent callers share the underlying loop; only the FIRST call's
    *   `pollIntervalMs` / `timeoutMs` are honored.
    * @returns The signed {@link EncodedPayment}.
-   * @throws {@link X402ApprovalFailedError} When the server moves out of `'INITIATED'` without producing an
-   *   `encodedPayload`.
+   * @throws {@link X402ApprovalFailedError} When the server reports a terminal failure without a signed payload.
    * @throws {@link X402ApprovalTimeoutError} When wall-clock exceeds `timeoutMs` or the caller's `signal` aborts.
    */
   awaitPayload(options?: SignOptions): Promise<EncodedPayment>;

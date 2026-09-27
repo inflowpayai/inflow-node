@@ -37,8 +37,8 @@ function decodeJsonByteArray(trimmed: string): Uint8Array {
   let parsed: unknown;
   try {
     parsed = JSON.parse(trimmed);
-  } catch (err) {
-    throw new X402InvalidSolanaKeyError(`JSON parse failed: ${err instanceof Error ? err.message : String(err)}`);
+  } catch {
+    throw new X402InvalidSolanaKeyError('JSON parse failed');
   }
   if (!Array.isArray(parsed)) {
     throw new X402InvalidSolanaKeyError('JSON value is not an array');

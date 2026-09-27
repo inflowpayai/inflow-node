@@ -1,10 +1,8 @@
 import type { TransactionStatus } from './types.js';
 
 /**
- * Thrown by `awaitPayload` when the server moves the approval out of `'INITIATED'` without producing an
- * `encodedPayload` — the server has decided not to sign (insufficient funds, user-rejected, internal error, etc.). The
- * terminal `status` string is surfaced verbatim so callers can branch on it without the SDK having to enumerate every
- * server-side failure state.
+ * Thrown by `awaitPayload` for a terminal transaction failure without a signed payload. The terminal status is
+ * preserved for callers to inspect.
  */
 export class X402ApprovalFailedError extends Error {
   /** The approval id the server returned from `POST /v1/transactions/x402`. */

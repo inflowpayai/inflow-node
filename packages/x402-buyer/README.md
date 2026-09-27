@@ -199,9 +199,19 @@ Cancellation prevents subsequent waits from returning a payment, including cance
 
 ## Signing timeouts
 
-`SignOptions.timeoutMs` defaults to **15 minutes** to match the server-side approval expiry.
-`SignOptions.pollIntervalMs` defaults to **5 seconds** — caller-overridable, no jitter or backoff. Transient 5xx errors
-during a single poll are swallowed; the loop is itself the retry.
+`SignOptions.timeoutMs` defaults to **15 minutes** to match the server-side approval expiry. Each `awaitPayload` attempt
+starts its own budget, covering polling requests and waits between them. An expired budget aborts the active request and
+rejects late payloads. Transaction creation uses the separate HTTP request timeout. Custom fetch implementations must
+honor their abort signal. `SignOptions.pollIntervalMs` defaults to **5 seconds** — caller-overridable, no jitter or
+backoff. Network failures, HTTP 429 and 5xx responses are retried within the budget. Other HTTP errors and
+credential-provider failures propagate immediately. A two-phase failure does not cancel the approval; its caller still
+owns the handle.
+
+## Seller redirects
+
+`sellerProbe` and `replayWithPayment` return redirect responses without following them. Inspect the status and
+`Location` header before choosing a destination. Payment signatures, credentials and request bodies are sent only to the
+supplied URL; these helpers do not forward them to a redirect target.
 
 ## Caller-supplied payment IDs
 

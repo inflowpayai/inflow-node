@@ -79,7 +79,7 @@ export interface SellerProbeResult {
 /**
  * Make a request against a seller endpoint and capture the response without trying to interpret the body. Returns the
  * raw bytes, the response headers, and the content-type for downstream decoding (e.g. extracting a PAYMENT-REQUIRED
- * header from a 402).
+ * header from a 402). Redirect responses are returned without following their Location header.
  *
  * When `options.data` is present and no `Content-Type` header was supplied, defaults to `application/json` — matches
  * the convention used by curl-style CLI flags.
@@ -92,6 +92,7 @@ export async function sellerProbe(url: string, options: SellerProbeOptions): Pro
   const requestInit: RequestInit = {
     method: options.method,
     headers,
+    redirect: 'manual',
   };
   if (options.data !== undefined) {
     requestInit.body = options.data;
