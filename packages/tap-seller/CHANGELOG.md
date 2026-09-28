@@ -1,5 +1,14 @@
 # @inflowpayai/tap-seller
 
+## 0.2.1
+
+### Patch Changes
+
+- [#82](https://github.com/inflowpayai/inflow-node/pull/82)
+  [`9592880`](https://github.com/inflowpayai/inflow-node/commit/9592880903ee923c85cad8f135b9cf42b48c622d) Thanks
+  [@nkavian](https://github.com/nkavian)! - Reject requests with bodies when the signed content-type header is missing
+  or ambiguous.
+
 ## 0.2.0
 
 ### Minor Changes

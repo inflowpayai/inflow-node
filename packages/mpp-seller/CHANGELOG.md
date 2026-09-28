@@ -1,5 +1,20 @@
 # @inflowpayai/mpp-seller
 
+## 0.8.3
+
+### Patch Changes
+
+- [#80](https://github.com/inflowpayai/inflow-node/pull/80)
+  [`684aca5`](https://github.com/inflowpayai/inflow-node/commit/684aca5c80f2bf60b41855fbdede65ef94086f08) Thanks
+  [@nkavian](https://github.com/nkavian)! - Allow configuration loading to recover after a failed request, and honor
+  subscription offer-selection callbacks with subscription-specific request types.
+- Updated dependencies
+  [[`354b538`](https://github.com/inflowpayai/inflow-node/commit/354b5387fa967f2837fcf19389e16dc5b521a8bd),
+  [`cbf1707`](https://github.com/inflowpayai/inflow-node/commit/cbf17075a6a02ae4aa4d1b655c64bbd69e28eeca),
+  [`5d0c59f`](https://github.com/inflowpayai/inflow-node/commit/5d0c59febcc3960d2dd46a2cbf506ce777f1c0c8),
+  [`d060d79`](https://github.com/inflowpayai/inflow-node/commit/d060d7996f5443ec659aa1e99b353bcf8388135c)]:
+  - @inflowpayai/mpp@0.10.1
+
 ## 0.8.2
 
 ### Patch Changes
