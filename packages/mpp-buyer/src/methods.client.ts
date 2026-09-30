@@ -86,7 +86,7 @@ function inflowSubscriptionClient(parameters: InflowBuyerParameters) {
 
   const method = Method.toClient(Methods.subscription, {
     context: inflowSubscriptionContextSchema,
-    async createCredential({ challenge, context }) {
+    async createCredential({ challenge, context = {} }) {
       const parsed = challenge as FulfilChallenge;
       const credential =
         context.subscriptionId === undefined
