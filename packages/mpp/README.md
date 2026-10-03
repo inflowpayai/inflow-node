@@ -28,6 +28,10 @@ any authenticated InFlow account can use them, including a Seller account acting
   `charge` (`tempo` and `tempo.charge` are the same definition). Also exported: `tempoCharge`,
   `tempoChargeRequestSchema`, and `tempoCredentialPayloadSchema`.
 - **`Method` / `z`** — re-exported from `mppx` for method authoring.
+- **`cardCharge`** — InFlow's USD/Visa `card/charge` profile, with `cardChargeRequestSchema`,
+  `cardCredentialPayloadSchema`, `CardChargeRequest`, and `CardCredentialPayload`. The wire request uses integer cents
+  and an embedded RSA public encryption key. Use the seller package's `card(...)` factory to load merchant configuration
+  and accept payments. This definition does not implement buyer credential provisioning.
 - **`MppClient`** — typed client over the InFlow MPP REST endpoints: `getConfig`, non-mutating `validate`, authoritative
   `broadcast` (seller); `createTransaction`, `getTransaction` (buyer). There is no challenge-minting call — challenges
   are issued locally, not fetched from InFlow. `Idempotency-Key` is supported on `broadcast`. Wraps `InflowHttpClient`

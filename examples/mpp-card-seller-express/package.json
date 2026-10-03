@@ -1,0 +1,24 @@
+{
+  "name": "@inflowpayai/example-mpp-card-seller-express",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Example: accepting encrypted Visa network-token payments through InFlow.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@inflowpayai/mpp-seller": "workspace:^",
+    "dotenv": "^16.6.1",
+    "express": "^5.2.1",
+    "mppx": "^0.8.17"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.13.3",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3"
+  }
+}
