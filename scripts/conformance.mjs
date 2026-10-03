@@ -64,10 +64,10 @@ async function main() {
   });
   if (!values['contract-root'] || !values.output) {
     throw new Error(
-      'Usage: node scripts/conformance.mjs --suite runtime|mpp|x402 --contract-root PATH --output NEW_REPORT.json',
+      'Usage: node scripts/conformance.mjs --suite runtime|mpp|stripe|x402 --contract-root PATH --output NEW_REPORT.json',
     );
   }
-  if (!['runtime', 'mpp', 'x402'].includes(values.suite)) throw new Error('Unknown conformance suite');
+  if (!['runtime', 'mpp', 'stripe', 'x402'].includes(values.suite)) throw new Error('Unknown conformance suite');
   const contractRoot = resolve(values['contract-root']);
   const lock = JSON.parse(await readFile(new URL('../conformance/inflow-specs.lock.json', import.meta.url), 'utf8'));
   verifyContract(contractRoot, values['contract-revision'] ?? lock.revision);
@@ -78,9 +78,10 @@ async function main() {
   const suites = {
     runtime: ['runtime'],
     mpp: ['mpp-core', 'mpp-buyer', 'mpp-seller'],
+    stripe: ['mpp-seller'],
     x402: ['x402-core', 'x402-buyer', 'x402-seller'],
   }[values.suite];
-  const metadata = await implementation(values.suite, adapterNode);
+  const metadata = await implementation(values.suite === 'stripe' ? 'mpp' : values.suite, adapterNode);
   const output = await open(resolve(values.output), 'wx', 0o600);
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -89,7 +90,11 @@ async function main() {
   try {
     const report = await run({
       index,
-      capabilities: { suites, supported_features: [], unsupported_features: [] },
+      capabilities: {
+        suites,
+        supported_features: values.suite === 'mpp' ? ['mpp-seller-subscriptions'] : [],
+        unsupported_features: [],
+      },
       implementation: metadata,
       command: [
         adapterNode,
@@ -97,7 +102,7 @@ async function main() {
           root,
           values.suite === 'runtime'
             ? 'conformance/runtime-adapter.mjs'
-            : `conformance/${values.suite}-shared-adapter.mjs`,
+            : `conformance/${values.suite === 'stripe' ? 'mpp' : values.suite}-shared-adapter.mjs`,
         ),
       ],
       contractRoot,
