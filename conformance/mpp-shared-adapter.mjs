@@ -7,7 +7,7 @@ import * as core from '../packages/mpp/dist/index.js';
 import * as buyer from '../packages/mpp-buyer/dist/index.js';
 import * as seller from '../packages/mpp-seller/dist/index.js';
 
-const { Credential } = await import(
+const { Credential, Errors } = await import(
   createRequire(new URL('../packages/mpp-seller/package.json', import.meta.url)).resolve('mppx')
 );
 
@@ -42,6 +42,12 @@ export function classify(error, operation, input = {}) {
   } else if (error instanceof core.MppCodecError) {
     code = operation === 'mpp.core.decode-credential' ? 'invalid-credential' : 'invalid-input';
     message = code === 'invalid-credential' ? 'Invalid credential.' : 'Invalid input.';
+  } else if (error instanceof seller.MppStripeAmountError || error instanceof seller.MppStripeRequestError) {
+    code = 'invalid-input';
+    message = 'Invalid input.';
+  } else if (error instanceof Errors.InvalidChallengeError) {
+    code = 'invalid-credential';
+    message = 'Invalid credential.';
   } else if (error instanceof seller.MppCredentialProblemError) {
     code = 'payment-failed';
     message = 'Payment failed.';
@@ -52,6 +58,7 @@ export function classify(error, operation, input = {}) {
       seller.MppUnsupportedRailError,
       seller.MppAmbiguousRailError,
       seller.MppInstrumentRequiredError,
+      seller.MppStripeUnavailableError,
     ].some((type) => error instanceof type)
   ) {
     code = 'unsupported-capability';
@@ -138,10 +145,17 @@ async function executeSeller(operation, input, baseUrl) {
         ? seller.inflow.subscription
         : name === 'tempo' && intent === 'charge'
           ? seller.tempo
-          : undefined;
+          : name === 'stripe' && intent === 'charge'
+            ? seller.stripe
+            : undefined;
   if (!factory) throw new Error('Unsupported MPP method and intent');
   const request = challenge ? core.decode(challenge.request) : input.request;
-  const method = factory({ apiKey: input.api_key, baseUrl, currency: request.currency, recipient: request.recipient });
+  const method = await factory({
+    apiKey: input.api_key,
+    baseUrl,
+    currency: request.currency,
+    recipient: request.recipient,
+  });
   if (operation === 'mpp.seller.route-binding') {
     const framework = seller.Mppx.create({
       methods: [method],
@@ -159,7 +173,17 @@ async function executeSeller(operation, input, baseUrl) {
     );
     return { status: response.status };
   }
-  if (operation === 'mpp.seller.prepare') return method.request({ request });
+  if (operation === 'mpp.seller.prepare') {
+    if (name === 'stripe') {
+      const framework = seller.Mppx.create({
+        methods: [method],
+        secretKey: 'test-only-binding-secret-at-least-32-bytes',
+        realm: 'seller.example',
+      });
+      return (await framework.challenge.stripe.charge(request)).request;
+    }
+    return method.request({ request });
+  }
   const credential = { ...input.credential, challenge: { ...challenge, request } };
   if (operation === 'mpp.seller.verify') return method.verify({ credential, request });
   const value = await method.validate({ credential, request });

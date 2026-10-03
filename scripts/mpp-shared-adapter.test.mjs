@@ -109,6 +109,7 @@ test('Seller classification preserves real problems and projects only recognized
     new seller.MppUnsupportedRailError('USD', 'charge', 'instrument'),
     new seller.MppAmbiguousRailError('USD', 'charge'),
     new seller.MppInstrumentRequiredError('USD', 'charge'),
+    new seller.MppStripeUnavailableError(),
   ])
     assert.deepEqual(classify(capability, 'mpp.seller.prepare'), {
       code: 'unsupported-capability',
@@ -119,6 +120,15 @@ test('Seller classification preserves real problems and projects only recognized
     () => classify(unknown, 'mpp.seller.verify', { include_problem: false }),
     (value) => value === unknown,
   );
+});
+
+test('Stripe input failures retain their classification without masking unknown exceptions', () => {
+  for (const error of [
+    new seller.MppStripeAmountError('invalid amount'),
+    new seller.MppStripeRequestError('invalid metadata'),
+  ]) {
+    assert.deepEqual(classify(error, 'mpp.seller.prepare'), { code: 'invalid-input', message: 'Invalid input.' });
+  }
 });
 
 for (const [operation, accepted] of [

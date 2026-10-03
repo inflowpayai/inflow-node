@@ -90,9 +90,10 @@ function mockLifecycle(): {
       order.push('broadcast');
       body = await request.json();
       idempotencyKey = request.headers.get('Idempotency-Key');
+      // The fixture echoes the challenge identifier from the SDK's encoded wire credential.
       return HttpResponse.json({
         receipt: {
-          challengeId: 'stripe-challenge',
+          challengeId: (body as { credential: { challenge: { id: string } } }).credential.challenge.id,
           method: 'stripe',
           reference: 'pi_test_123',
           settlement: { amount: '1.00', currency: 'USD' },

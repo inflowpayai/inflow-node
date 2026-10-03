@@ -655,6 +655,17 @@ async function broadcast(
     const problem = isRecord(result) ? result['problem'] : undefined;
     throw new MppCredentialProblemError(problem ?? fallbackProblem('broadcast'));
   }
+  const methodDetails = credential.challenge.request['methodDetails'];
+  const requireBoundReceipt =
+    credential.challenge.method === 'stripe' ||
+    (credential.challenge.method === 'inflow' && isRecord(methodDetails) && methodDetails['rail'] === 'instrument');
+  if (
+    requireBoundReceipt &&
+    (result['receipt'].method !== credential.challenge.method ||
+      result['receipt'].challengeId !== credential.challenge.id)
+  ) {
+    throw new MppCredentialProblemError(fallbackProblem('broadcast'));
+  }
   return Receipt.from(toMppxReceipt(result['receipt']));
 }
 
