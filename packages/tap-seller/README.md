@@ -20,6 +20,10 @@ empty byte array represents a request with a body and therefore requires signed 
 fields. Frameworks that expose only a relative request target must reconstruct the absolute URL from trusted request
 metadata before verification.
 
+Pass the original absolute URL string to preserve the query exactly as received. A `URL` object is also accepted, but
+constructing one can change query spelling, such as converting an apostrophe to `%27`; the verifier cannot recover the
+original spelling from that object. Fragments are not part of the signed HTTP query.
+
 ```ts
 import { createTapVerifier } from '@inflowpayai/tap-seller';
 
@@ -37,8 +41,9 @@ if (facts.intent === 'pay') {
 ```
 
 Successful verification returns the signing key identifier, Ed25519 algorithm, `browse` or `pay` intent, nonce, creation
-and expiration times, and the covered HTTP components. It establishes that a Visa-recognized agent key signed the
-supplied request. It does not identify the buyer, authorize application access, or prove payment.
+and expiration times, and the covered HTTP components. It establishes that a key trusted by the configured resolver
+signed the supplied request; Visa is the default key source. It does not identify the buyer, authorize application
+access, or prove payment.
 
 Use `createTapMiddleware` when a function wrapper fits the application:
 
