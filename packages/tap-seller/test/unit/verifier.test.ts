@@ -1,4 +1,4 @@
-import { createPrivateKey, createPublicKey, sign } from 'node:crypto';
+import { createPrivateKey, createPublicKey, generateKeyPairSync, sign } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -72,6 +72,263 @@ const resolver: TapKeyResolver = {
 };
 
 describe('createTapVerifier', () => {
+  it('rejects RSA key material even when a custom resolver labels it ed25519', async () => {
+    const vector = required(vectors.positive[0]);
+    const { privateKey, publicKey: rsaKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const claim = vi.fn().mockReturnValue(true);
+    const next = vi.fn();
+    const verifier = createTapVerifier({
+      clock: () => vector.signatureParameters.created * 1000,
+      keyResolver: {
+        resolve: vi.fn().mockResolvedValue({ keyid: vectors.testKey.keyid, algorithm: 'ed25519', key: rsaKey }),
+      },
+      replayStore: { claim },
+    });
+    await expect(
+      createTapMiddleware(verifier)(
+        {
+          ...toRequest(vector),
+          headers: {
+            ...toRequest(vector).headers,
+            signature: `sig2=:${sign(null, Buffer.from(vector.signatureBase), privateKey).toString('base64')}:`,
+          },
+        },
+        next,
+      ),
+    ).rejects.toMatchObject({ code: 'SIGNATURE_INVALID' });
+    expect(claim).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('uses the default resolver and clock through the public verifier', async () => {
+    const vector = required(vectors.positive[0]);
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          keys: [
+            {
+              ...publicKey.export({ format: 'jwk' }),
+              kid: vectors.testKey.keyid,
+              alg: 'Ed25519',
+            },
+          ],
+        }),
+      ),
+    );
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(vector.signatureParameters.created * 1000);
+    try {
+      await expect(createTapVerifier().verify(toRequest(vector))).resolves.toMatchObject({ verified: true });
+      expect(fetch).toHaveBeenCalledOnce();
+    } finally {
+      fetch.mockRestore();
+      clock.mockRestore();
+    }
+  });
+
+  it.each([
+    'order',
+    'whitespace',
+    'leading-zero',
+    'created',
+    'expires',
+    'keyid',
+    'alg',
+    'nonce',
+    'tag',
+    'string-type',
+    'decimal-type',
+    'token-type',
+    'bytes-type',
+    'boolean-type',
+    'implicit-boolean',
+  ])('verifies canonical signature parameters with %s input', async (shape) => {
+    const vector = required(vectors.positive[0]);
+    let canonical = vector.signatureInput.slice(5);
+    let supplied = canonical;
+    if (shape === 'order') {
+      canonical = canonical.replace(/;created=(\d+);expires=(\d+)/, ';expires=$2;created=$1');
+      supplied = canonical;
+    } else if (shape === 'whitespace') {
+      supplied = canonical.replaceAll(' ', '   ').replaceAll(';', ';  ').replace('(', '(  ').replace(')', '  )');
+    } else if (shape === 'leading-zero') {
+      supplied = canonical.replace(';created=', ';created=000');
+    } else {
+      const prefix: Record<string, string> = {
+        created: `created=${vector.signatureParameters.created + 1000}`,
+        expires: 'expires=1',
+        keyid: 'keyid="untrusted"',
+        alg: 'alg="rsa"',
+        nonce: 'nonce="other"',
+        tag: 'tag="agent-payer-auth"',
+        'string-type': 'created="ignored"',
+        'decimal-type': 'created=1.5',
+        'token-type': 'created=ignored',
+        'bytes-type': 'created=:AQI=:',
+        'boolean-type': 'created=?0',
+        'implicit-boolean': 'created',
+      };
+      const field = required(prefix[shape]);
+      const name = required(field.split('=')[0]);
+      supplied = canonical.replace(`;${name}=`, `;${field};${name}=`);
+    }
+    const request = signedParameters(vector, canonical, `sig2=${supplied}`);
+    const verifier = createTapVerifier({
+      keyResolver: resolver,
+      clock: () => vector.signatureParameters.created * 1000,
+    });
+    await expect(createTapMiddleware(verifier)(request, (facts) => facts)).resolves.toMatchObject({
+      verified: true,
+      created: vector.signatureParameters.created,
+      expires: vector.signatureParameters.expires,
+      keyid: vectors.testKey.keyid,
+      intent: 'browse',
+    });
+  });
+
+  it('unescapes key identifiers and nonces consistently for lookup, signing and replay', async () => {
+    const vector = required(vectors.positive[0]);
+    const keyid = 'key\\"with escapes';
+    const nonce = 'nonce\\"with escapes';
+    const canonical = vector.signatureInput
+      .slice(5)
+      .replace(/keyid="[^"]*"/, `keyid=${JSON.stringify(keyid)}`)
+      .replace(/nonce="[^"]*"/, `nonce=${JSON.stringify(nonce)}`);
+    const resolve = vi.fn().mockResolvedValue({ keyid, algorithm: 'ed25519', key: publicKey });
+    const claim = vi.fn().mockReturnValue(true);
+    const verifier = createTapVerifier({
+      keyResolver: { resolve },
+      replayStore: { claim },
+      clock: () => vector.signatureParameters.created * 1000,
+    });
+    await expect(verifier.verify(signedParameters(vector, canonical))).resolves.toMatchObject({ keyid, nonce });
+    expect(resolve).toHaveBeenCalledWith(keyid, 'ed25519');
+    expect(claim).toHaveBeenCalledWith(keyid, nonce, vector.signatureParameters.expires);
+  });
+
+  it('does not verify a signature over raw duplicate parameters instead of their canonical form', async () => {
+    const vector = required(vectors.positive[0]);
+    const raw = vector.signatureInput.slice(5) + `;created=${vector.signatureParameters.created}`;
+    await expect(
+      createTapVerifier({ keyResolver: resolver, clock: () => vector.signatureParameters.created * 1000 }).verify(
+        signedParameters(vector, raw),
+      ),
+    ).rejects.toMatchObject({ code: 'SIGNATURE_INVALID' });
+  });
+
+  it('accepts outer signature whitespace and omitted base64 padding', async () => {
+    const vector = required(vectors.positive[0]);
+    const signature = `  ${vector.signature.replace(/=+:$/, ':')} \t`;
+    await expect(
+      createTapVerifier({ keyResolver: resolver, clock: () => vector.signatureParameters.created * 1000 }).verify({
+        ...toRequest(vector),
+        headers: { ...toRequest(vector).headers, signature },
+      }),
+    ).resolves.toMatchObject({ verified: true });
+  });
+
+  it('rejects a malformed overwritten byte sequence', async () => {
+    const vector = required(vectors.positive[0]);
+    const input = vector.signatureInput.replace(';created=', ';created=:A:;created=');
+    await expect(
+      createTapVerifier({ keyResolver: resolver, clock: () => vector.signatureParameters.created * 1000 }).verify({
+        ...toRequest(vector),
+        headers: { ...toRequest(vector).headers, 'signature-input': input },
+      }),
+    ).rejects.toMatchObject({ code: 'SIGNATURE_INPUT_INVALID' });
+  });
+
+  it.each([
+    [';created=1', 'SIGNATURE_LIFETIME_INVALID'],
+    [';expires=1', 'SIGNATURE_LIFETIME_INVALID'],
+    [';keyid="untrusted"', 'KEY_NOT_FOUND'],
+    [';alg="rsa"', 'SIGNATURE_INPUT_INVALID'],
+    [';nonce="other"', 'SIGNATURE_INVALID'],
+    [';tag="agent-payer-auth"', 'SIGNATURE_INVALID'],
+  ])('rejects an unsigned effective parameter change %s', async (suffix, code) => {
+    const vector = required(vectors.positive[0]);
+    const claim = vi.fn().mockReturnValue(true);
+    const next = vi.fn();
+    const verifier = createTapVerifier({
+      keyResolver: resolver,
+      replayStore: { claim },
+      clock: () => vector.signatureParameters.created * 1000,
+    });
+    await expect(
+      createTapMiddleware(verifier)(
+        {
+          ...toRequest(vector),
+          headers: {
+            ...toRequest(vector).headers,
+            'signature-input': vector.signatureInput + suffix,
+          },
+        },
+        next,
+      ),
+    ).rejects.toMatchObject({ code });
+    expect(claim).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ';created="1"',
+    ';created=1.0',
+    ';created=?1',
+    ';created',
+    ';created=:AQI=:',
+    ';created=token',
+    ';created=1000000000000000',
+    ';created=1e3',
+    ';created=+1',
+    ';created=1.0000',
+    ';expires="1"',
+    ';keyid=1',
+    ';keyid=""',
+    ';nonce=1',
+    ';nonce=""',
+    ';alg=1',
+    ';tag=1',
+    ';keyid="bad\\escape"',
+    ';keyid="bad\u007f"',
+    ';unknown=1',
+    '; created =1',
+    ';\tcreated=1',
+    ';created=1 ;created=2',
+    ';created=1\n',
+    ';created=1\r',
+    ';created=1, sig3=()',
+  ])('rejects malformed or incorrectly typed parameters %s', async (suffix) => {
+    const vector = required(vectors.positive[0]);
+    const resolve = vi.fn();
+    const verifier = createTapVerifier({
+      keyResolver: { resolve },
+      clock: () => vector.signatureParameters.created * 1000,
+    });
+    await expect(
+      verifier.verify({
+        ...toRequest(vector),
+        headers: {
+          ...toRequest(vector).headers,
+          'signature-input': vector.signatureInput + suffix,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'SIGNATURE_INPUT_INVALID' });
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it.each(['created', 'expires', 'keyid', 'alg', 'nonce', 'tag'])('requires the %s parameter', async (name) => {
+    const vector = required(vectors.positive[0]);
+    const input = vector.signatureInput.replace(new RegExp(`;${name}=(?:"[^"]*"|[0-9]+)`), '');
+    await expect(
+      createTapVerifier({ keyResolver: resolver }).verify({
+        ...toRequest(vector),
+        headers: {
+          ...toRequest(vector).headers,
+          'signature-input': input,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'SIGNATURE_INPUT_INVALID' });
+  });
+
   it.each(['missing', 'undefined', 'empty-array', 'multiple-values', 'duplicate-case', 'headers'])(
     'rejects %s content-type even with a signature over an empty field',
     async (shape) => {
@@ -369,6 +626,10 @@ describe('createTapVerifier', () => {
 });
 
 describe('VisaTapKeyResolver', () => {
+  it('treats an empty key-set object as no trusted keys', async () => {
+    const resolver = new VisaTapKeyResolver({ fetch: vi.fn().mockResolvedValue(new Response('{}')) });
+    await expect(resolver.resolve('missing', 'ed25519')).resolves.toBeUndefined();
+  });
   it('retrieves an Ed25519 JWK and selects it by key identifier', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
@@ -607,6 +868,26 @@ function toRequest(vector: Vector): TapRequest {
 function required<T>(value: T | undefined): T {
   if (value === undefined) throw new Error('Test vector is missing.');
   return value;
+}
+
+function signedParameters(vector: Vector, canonical: string, supplied = `sig2=${canonical}`): TapRequest {
+  const key = createPrivateKey({
+    key: Buffer.concat([
+      Buffer.from('302e020100300506032b657004220420', 'hex'),
+      Buffer.from(vectors.testKey.privateSeedHex, 'hex'),
+    ]),
+    format: 'der',
+    type: 'pkcs8',
+  });
+  const base = vector.signatureBase.replace(/"@signature-params": .*/, `"@signature-params": ${canonical}`);
+  return {
+    ...toRequest(vector),
+    headers: {
+      ...toRequest(vector).headers,
+      'signature-input': supplied,
+      signature: `sig2=:${sign(null, Buffer.from(base), key).toString('base64')}:`,
+    },
+  };
 }
 
 function mutateNegative(id: string, vector: Vector): { request: TapRequest; verificationTime: number } {

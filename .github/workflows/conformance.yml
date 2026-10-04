@@ -85,7 +85,7 @@ jobs:
         id: build
         run: |
           pnpm --filter @inflowpayai/mpp-buyer... --filter @inflowpayai/mpp-seller... \
-            --filter @inflowpayai/x402-buyer... --filter @inflowpayai/x402-seller... build
+            --filter @inflowpayai/x402-buyer... --filter @inflowpayai/x402-seller... --filter @inflowpayai/tap-seller build
 
       - name: Pinned contract
         env:
@@ -93,7 +93,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/conformance"
           result=0
-          for suite in runtime mpp x402; do
+          for suite in runtime mpp x402 tap; do
             node scripts/conformance.mjs --suite "$suite" --adapter-node "$ADAPTER_NODE" \
               --contract-root ../contract-pinned \
               --output "$RUNNER_TEMP/conformance/pinned-$suite.json" || result=1
@@ -108,7 +108,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/conformance"
           revision=$(git -C ../contract-current rev-parse HEAD)
           result=0
-          for suite in runtime mpp x402; do
+          for suite in runtime mpp x402 tap; do
             node scripts/conformance.mjs --suite "$suite" --adapter-node "$ADAPTER_NODE" \
               --contract-root ../contract-current --contract-revision "$revision" \
               --output "$RUNNER_TEMP/conformance/current-$suite.json" || result=1

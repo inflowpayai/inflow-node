@@ -6,9 +6,11 @@ import type { TapRequest, TapVerificationFacts, TapVerifier, TapVerifierOptions 
 
 const REQUIRED_COMPONENTS = ['@method', '@authority', '@path', '@query'] as const;
 const BODY_COMPONENTS = ['content-digest', 'content-type'] as const;
-const INPUT_PATTERN =
-  /^sig2=\((?<components>(?:"[a-z@-]+" ?)+)\);created=(?<created>\d+);expires=(?<expires>\d+);keyid="(?<keyid>[A-Za-z0-9._~-]{1,128})";alg="(?<algorithm>[A-Za-z0-9-]+)";nonce="(?<nonce>[A-Za-z0-9+/_=-]+)";tag="(?<tag>agent-browser-auth|agent-payer-auth)"$/;
-const SIGNATURE_PATTERN = /^sig2=:(?<value>[A-Za-z0-9+/]+={0,2}):$/;
+const INPUT_PATTERN = /^ *sig2=\( *(?<components>"[a-z@-]+"(?: +"[a-z@-]+")*) *\)(?<parameters>[^\r\n]*)$/;
+const PARAMETER_PATTERN =
+  /^; *(created|expires|keyid|alg|nonce|tag)(?:=("(?:[\x20-\x21\x23-\x5b\x5d-\x7e]|\\["\\])*"|-?\d{1,12}\.\d{1,3}|-?\d{1,15}|\?[01]|:(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}(?:==)?|[A-Za-z0-9+/]{3}=?)?:|[A-Za-z*][A-Za-z0-9!#$%&'*+.^_`|~:/-]*))?(?=;|[ \t]*$)/;
+const SIGNATURE_PATTERN =
+  /^ *sig2=:(?<value>(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}(?:==)?|[A-Za-z0-9+/]{3}=?)?):[ \t]*$/;
 
 interface ParsedInput {
   readonly components: readonly string[];
@@ -45,7 +47,10 @@ export function createTapVerifier(options: TapVerifierOptions = {}): TapVerifier
         ...parsed.components.map((component) => `"${component}": ${values.get(component) ?? ''}`),
         `"@signature-params": ${parsed.parameters}`,
       ].join('\n');
-      if (!verify(null, Buffer.from(signatureBase), key.key, parseSignature(signature))) {
+      if (
+        key.key.asymmetricKeyType !== 'ed25519' ||
+        !verify(null, Buffer.from(signatureBase), key.key, parseSignature(signature))
+      ) {
         throw failure('SIGNATURE_INVALID', 'The TAP signature is invalid.');
       }
       if (!(await replayStore.claim(parsed.keyid, parsed.nonce, parsed.expires))) {
@@ -66,28 +71,66 @@ export function createTapVerifier(options: TapVerifierOptions = {}): TapVerifier
 }
 
 function parseInput(value: string): ParsedInput {
-  const match = INPUT_PATTERN.exec(value);
-  const groups = match?.groups;
-  if (groups === undefined) throw failure('SIGNATURE_INPUT_INVALID', 'The TAP Signature-Input field is invalid.');
-  const componentsValue = requiredGroup(groups, 'components');
-  const components = [...componentsValue.matchAll(/"([a-z@-]+)"/g)].map((component) => component[1]).filter(isString);
-  if (components.length === 0 || new Set(components).size !== components.length) {
+  const groups = INPUT_PATTERN.exec(value)?.groups;
+  const componentsValue = groups?.['components'];
+  const parameterValue = groups?.['parameters'];
+  if (componentsValue === undefined || parameterValue === undefined) {
+    throw failure('SIGNATURE_INPUT_INVALID', 'The TAP Signature-Input field is invalid.');
+  }
+  const components = componentsValue.split(/ +/).map((component) => component.slice(1, -1));
+  if (new Set(components).size !== components.length) {
     throw failure('SIGNATURE_INPUT_INVALID', 'The TAP covered components are invalid.');
   }
-  const algorithm = requiredGroup(groups, 'algorithm');
-  if (!SUPPORTED_ALGORITHMS.has(algorithm)) {
-    throw failure('SIGNATURE_INPUT_INVALID', 'The TAP signature algorithm is invalid.');
+  const parameters = new Map<string, string | number | undefined>();
+  let remaining = parameterValue.replace(/[ \t]+$/, '');
+  while (remaining !== '') {
+    const parameter = PARAMETER_PATTERN.exec(remaining);
+    const name = parameter?.[1];
+    if (parameter === null || name === undefined) {
+      throw failure('SIGNATURE_INPUT_INVALID', 'The TAP Signature-Input field is invalid.');
+    }
+    const encoded = parameter[2];
+    const decoded =
+      encoded?.startsWith('"') === true
+        ? encoded.slice(1, -1).replace(/\\(["\\])/g, '$1')
+        : encoded !== undefined && /^-?\d+$/.test(encoded)
+          ? Number(encoded)
+          : undefined;
+    // RFC 8941 parameters keep their first position and their last value, including its type.
+    parameters.set(name, decoded);
+    remaining = remaining.slice(parameter[0].length);
   }
-  const parameters = value.slice('sig2='.length);
+  const created = parameters.get('created');
+  const expires = parameters.get('expires');
+  const keyid = parameters.get('keyid');
+  const algorithm = parameters.get('alg');
+  const nonce = parameters.get('nonce');
+  const tag = parameters.get('tag');
+  if (
+    typeof created !== 'number' ||
+    typeof expires !== 'number' ||
+    typeof keyid !== 'string' ||
+    keyid === '' ||
+    typeof algorithm !== 'string' ||
+    !SUPPORTED_ALGORITHMS.has(algorithm) ||
+    typeof nonce !== 'string' ||
+    nonce === '' ||
+    (tag !== 'agent-browser-auth' && tag !== 'agent-payer-auth')
+  ) {
+    throw failure('SIGNATURE_INPUT_INVALID', 'The TAP signature parameters are invalid.');
+  }
+  const serialized = [...parameters]
+    .map(([name, item]) => `;${name}=${typeof item === 'string' ? `"${item.replace(/["\\]/g, '\\$&')}"` : item}`)
+    .join('');
   return {
     components,
-    created: Number(requiredGroup(groups, 'created')),
-    expires: Number(requiredGroup(groups, 'expires')),
-    keyid: requiredGroup(groups, 'keyid'),
+    created,
+    expires,
+    keyid,
     algorithm: 'ed25519',
-    nonce: requiredGroup(groups, 'nonce'),
-    tag: requiredGroup(groups, 'tag') as ParsedInput['tag'],
-    parameters,
+    nonce,
+    tag,
+    parameters: `(${components.map((component) => `"${component}"`).join(' ')})${serialized}`,
   };
 }
 
@@ -156,14 +199,4 @@ function optionalHeader(headers: TapRequest['headers'], name: string): string | 
 
 function failure(code: ConstructorParameters<typeof TapVerificationError>[0], message: string): TapVerificationError {
   return new TapVerificationError(code, message);
-}
-
-function isString(value: string | undefined): value is string {
-  return value !== undefined;
-}
-
-function requiredGroup(groups: Record<string, string | undefined>, name: string): string {
-  const value = groups[name];
-  if (value === undefined) throw failure('SIGNATURE_INPUT_INVALID', 'The TAP Signature-Input field is invalid.');
-  return value;
 }

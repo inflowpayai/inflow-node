@@ -17,6 +17,11 @@ storage may finish after expiration. Visa's prose examples use `alg="Ed25519"`, 
 spelling and the RFC-registered lowercase spelling, preserves the received value in the signature base, and rejects
 every other algorithm value.
 
+Signature parameters may appear in any order. Repeated parameter names use the last value while keeping their first
+position, following RFC 8941. The verifier applies that same parsed value to time/key checks and signature
+reconstruction; it does not verify the raw parameter substring. Duplicate covered components remain invalid. This rule
+does not select the last value of an arbitrary repeated HTTP header.
+
 The `agent-browser-auth` tag identifies discovery and enrollment inspection. The `agent-payer-auth` tag identifies MPP
 and x402 payment attempts. These tags describe the agent interaction; payment and application authorization remain
 independent checks.

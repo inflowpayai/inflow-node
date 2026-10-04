@@ -86,17 +86,36 @@ The report records all three SDK package versions and their installed `@x402/cor
 These synthetic platform responses do not certify live signing, settlement, external-wallet execution, foundation
 middleware, or sponsorship execution.
 
+## TAP Seller
+
+```sh
+pnpm tap:conformance:shared --contract-root ../inflow-specs --output /tmp/inflow-tap-report.json
+```
+
+The adapter passes synthetic signed requests through the public `createTapVerifier` and `createTapMiddleware` functions.
+The SDK parses signature fields, reconstructs the signed message, verifies Ed25519 signatures and body digests, and
+claims nonces through its replay store. The adapter records protected-handler calls and replay claims; it does not
+implement signature parsing or verification. Key-service cases use the public `VisaTapKeyResolver` against the runner's
+local HTTP server, including cache refresh, outage fallback and concurrent retrieval.
+
+The report includes valid parameter orders and duplicate-parameter handling, request tampering, time boundaries, replay,
+custom resolver/store failures and caller-input preservation. It records the TAP package version, with no upstream
+runtime dependencies. This is local cryptographic and HTTP integration coverage, not certification of production Visa
+key registration or distributed replay storage. `pnpm tap:conformance` checks the separate signing fixtures; the shared
+command tests the built SDK itself.
+
 ## Hosted reports and contract drift
 
 The **shared conformance** workflow runs on pull requests, pushes to `main`, and manual dispatch. Each Node 22/24 and
-locked/latest foundation combination runs all three suites against both the pinned contract and the current
-`inflow-specs` main commit. A failure in one suite does not prevent the other suites from producing reports; any failure
-still fails the job. The current-contract step runs even if the pinned cases fail.
+locked/latest foundation combination runs runtime, MPP, x402 and TAP suites against both the pinned contract and the
+current `inflow-specs` main commit. A failure in one suite does not prevent the other suites from producing reports; any
+failure still fails the job. The current-contract step runs even if the pinned cases fail.
 
 Open the workflow run's **Artifacts** section and download `conformance-node22-locked`, `conformance-node22-latest`,
 `conformance-node24-locked`, or `conformance-node24-latest`. Each artifact contains `pinned-*.json` and `current-*.json`
-reports for runtime, MPP, and x402, retained for 14 days. Failed runs also upload available reports. Check `completed`
-and `passed`; an empty or incomplete report is not passing evidence. Installation/build failures may prevent reports.
+reports for runtime, MPP, x402 and TAP, retained for 14 days. Failed runs also upload available reports. Check
+`completed` and `passed`; an empty or incomplete report is not passing evidence. Installation/build failures may prevent
+reports.
 
 The contract runner uses Node 24; `--adapter-node` selects the executable that runs the SDK adapter. Reported
 `implementation.runtime` is that adapter's actual Node version. The latest-dependency jobs intentionally modify
