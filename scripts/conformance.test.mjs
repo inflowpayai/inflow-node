@@ -37,3 +37,10 @@ test('report runtime comes from the selected adapter executable', async () => {
   assert.equal((await implementation('runtime', process.execPath)).runtime, process.version);
   await assert.rejects(() => implementation('runtime', '/nonexistent/inflow-test-node'), /ENOENT/);
 });
+
+test('TAP metadata reports the actual Seller package without upstream dependencies', async () => {
+  const metadata = await implementation('tap');
+  assert.deepEqual(Object.keys(metadata.packages), ['@inflowpayai/tap-seller']);
+  assert.match(metadata.packages['@inflowpayai/tap-seller'], /^\d+\.\d+\.\d+/);
+  assert.deepEqual(metadata.dependencies, {});
+});

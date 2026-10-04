@@ -62,6 +62,10 @@ const response = await verifyTap(
 may supply a `VisaTapKeyResolver` with custom fetch, timeout, and cache settings, or a different `TapKeyResolver` that
 implements the same `keyid` contract. Keys absent from the configured resolver fail closed with `KEY_NOT_FOUND`.
 
+Signature parameters follow Structured Fields: their order is preserved, and a repeated parameter uses its last value
+for both validation and signature reconstruction. Repeating a covered component is invalid. Custom resolvers must return
+trusted Ed25519 key material for the requested identifier.
+
 ## Replay and failure handling
 
 `MemoryTapReplayStore` is process-local. Multi-process deployments must provide a `TapReplayStore` whose `claim`
@@ -72,17 +76,17 @@ keys, invalid signatures and body digests, invalid lifetimes, expired or not-yet
 Reject the merchant request on every verification error. A cached key may be used during a temporary key-service outage
 for at most the resolver's configured maximum cache age; an unavailable uncached key fails closed.
 
-| Code                         | Meaning                                                       |
-| ---------------------------- | ------------------------------------------------------------- |
-| `SIGNATURE_INPUT_INVALID`    | Required signature input is absent, duplicated, or malformed. |
-| `SIGNATURE_INVALID`          | The cryptographic signature does not verify.                  |
-| `CONTENT_DIGEST_INVALID`     | The supplied body bytes do not match the signed digest.       |
-| `SIGNATURE_LIFETIME_INVALID` | The declared validity interval is invalid.                    |
-| `SIGNATURE_NOT_YET_VALID`    | The request was received before its validity interval.        |
-| `SIGNATURE_EXPIRED`          | The request was received at or after its expiration time.     |
-| `KEY_NOT_FOUND`              | The configured resolver has no matching verification key.     |
-| `KEY_RETRIEVAL_FAILED`       | No usable cached key exists and key retrieval failed.         |
-| `NONCE_REPLAYED`             | The signing key and nonce combination was already claimed.    |
+| Code                         | Meaning                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------ |
+| `SIGNATURE_INPUT_INVALID`    | Signature fields or covered components are missing, malformed, or unsupported. |
+| `SIGNATURE_INVALID`          | The cryptographic signature does not verify.                                   |
+| `CONTENT_DIGEST_INVALID`     | The supplied body bytes do not match the signed digest.                        |
+| `SIGNATURE_LIFETIME_INVALID` | The declared validity interval is invalid.                                     |
+| `SIGNATURE_NOT_YET_VALID`    | The request was received before its validity interval.                         |
+| `SIGNATURE_EXPIRED`          | The request was received at or after its expiration time.                      |
+| `KEY_NOT_FOUND`              | The configured resolver has no matching verification key.                      |
+| `KEY_RETRIEVAL_FAILED`       | No usable cached key exists and key retrieval failed.                          |
+| `NONCE_REPLAYED`             | The signing key and nonce combination was already claimed.                     |
 
 ## Request investigation
 

@@ -39,6 +39,7 @@
     "mpp:conformance": "node scripts/mpp-conformance.mjs",
     "mpp:conformance:update": "node scripts/mpp-conformance.mjs --update",
     "tap:conformance": "node scripts/tap-conformance.mjs",
+    "tap:conformance:shared": "pnpm --filter @inflowpayai/tap-seller build && node scripts/conformance.mjs --suite tap",
     "check-exports": "node scripts/check-exports.mjs",
     "verify-publish": "node scripts/verify-publish.mjs",
     "check-publish": "pnpm build && pnpm check-exports && pnpm verify-publish",

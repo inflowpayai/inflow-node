@@ -11,30 +11,33 @@ export async function implementation(suite = 'runtime', adapterNode = process.ex
   const packages = {};
   const dependencies = {};
   const products =
-    suite === 'mpp'
-      ? [
-          ['mpp', 'mppx'],
-          ['mpp-buyer', 'mppx'],
-          ['mpp-seller', 'mppx'],
-        ]
-      : suite === 'x402'
+    suite === 'tap'
+      ? [['tap-seller', undefined]]
+      : suite === 'mpp'
         ? [
-            ['x402', '@x402/core'],
-            ['x402-buyer', '@x402/core'],
-            ['x402-seller', '@x402/core'],
-            ['x402-seller', '@x402/extensions'],
-          ]
-        : [
             ['mpp', 'mppx'],
-            ['x402', '@x402/core'],
-          ];
+            ['mpp-buyer', 'mppx'],
+            ['mpp-seller', 'mppx'],
+          ]
+        : suite === 'x402'
+          ? [
+              ['x402', '@x402/core'],
+              ['x402-buyer', '@x402/core'],
+              ['x402-seller', '@x402/core'],
+              ['x402-seller', '@x402/extensions'],
+            ]
+          : [
+              ['mpp', 'mppx'],
+              ['x402', '@x402/core'],
+            ];
   for (const [product, dependency] of products) {
     const packageRoot = resolve(root, 'packages', product);
     const manifest = JSON.parse(await readFile(resolve(packageRoot, 'package.json'), 'utf8'));
+    packages[manifest.name] = manifest.version;
+    if (dependency === undefined) continue;
     const installed = JSON.parse(
       await readFile(resolve(packageRoot, 'node_modules', dependency, 'package.json'), 'utf8'),
     );
-    packages[manifest.name] = manifest.version;
     if (dependencies[installed.name] !== undefined && dependencies[installed.name] !== installed.version) {
       throw new Error(`Conflicting installed versions for ${installed.name}`);
     }
@@ -64,10 +67,10 @@ async function main() {
   });
   if (!values['contract-root'] || !values.output) {
     throw new Error(
-      'Usage: node scripts/conformance.mjs --suite runtime|mpp|x402 --contract-root PATH --output NEW_REPORT.json',
+      'Usage: node scripts/conformance.mjs --suite runtime|mpp|x402|tap --contract-root PATH --output NEW_REPORT.json',
     );
   }
-  if (!['runtime', 'mpp', 'x402'].includes(values.suite)) throw new Error('Unknown conformance suite');
+  if (!['runtime', 'mpp', 'x402', 'tap'].includes(values.suite)) throw new Error('Unknown conformance suite');
   const contractRoot = resolve(values['contract-root']);
   const lock = JSON.parse(await readFile(new URL('../conformance/inflow-specs.lock.json', import.meta.url), 'utf8'));
   verifyContract(contractRoot, values['contract-revision'] ?? lock.revision);
@@ -79,6 +82,7 @@ async function main() {
     runtime: ['runtime'],
     mpp: ['mpp-core', 'mpp-buyer', 'mpp-seller'],
     x402: ['x402-core', 'x402-buyer', 'x402-seller'],
+    tap: ['tap-seller'],
   }[values.suite];
   const metadata = await implementation(values.suite, adapterNode);
   const output = await open(resolve(values.output), 'wx', 0o600);
@@ -89,7 +93,11 @@ async function main() {
   try {
     const report = await run({
       index,
-      capabilities: { suites, supported_features: [], unsupported_features: [] },
+      capabilities: {
+        suites,
+        supported_features: values.suite === 'mpp' ? ['mpp-seller-subscriptions'] : [],
+        unsupported_features: [],
+      },
       implementation: metadata,
       command: [
         adapterNode,
