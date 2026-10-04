@@ -132,7 +132,8 @@ Then `pnpm install` to update the lockfile.
 
 ## Reporting bugs
 
-Use GitHub Issues. For security-sensitive findings, see [SECURITY.md](../../SECURITY.md).
+Use GitHub Issues. Report security-sensitive findings privately through the
+[organization security policy](https://github.com/inflowpayai/.github/blob/main/SECURITY.md).
 
 ## See also
 

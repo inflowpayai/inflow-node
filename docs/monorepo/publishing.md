@@ -1,177 +1,88 @@
 # Publishing
 
-How releases work in this monorepo: Changesets-driven, npm provenance, single-branch trunk.
+Packages publish through Changesets and the [release workflow](../../.github/workflows/release.yml) on `main`, using npm
+Trusted Publishing and provenance.
 
-## Release model
+## Versions and support
 
-A single long-lived `main` branch hosts shipped code. Feature work happens on short-lived branches off `main`, merges
-via PR back to `main`. Releases are gated by [Changesets](https://github.com/changesets/changesets), not by branch
-merges.
+Published packages have independent versions. Before version 1.0, incompatible public API changes require a minor
+increment; compatible fixes use a patch increment. From version 1.0, use semantic versioning. See the shared
+[SDK support policy](https://github.com/inflowpayai/inflow-specs#sdk-compatibility-and-support) for maintenance of older
+releases.
 
-## When to add a changeset
+Add a Changeset for changes to published packages:
 
-Add one before merging any PR that touches `packages/**`. From the repo root:
-
-```bash
+```sh
 pnpm changeset
 ```
 
-Pick the affected packages, pick the bump type (`patch` / `minor` / `major`), and write a short user-facing summary. The
-CLI writes a `*.md` file under `.changeset/`; commit it alongside your code change. CI fails the PR if `packages/**`
-changed without a `.changeset/*.md` companion.
+Select the affected packages and bump types, and describe the user-visible change. Include every affected package when a
+change crosses package boundaries. Examples and repository-only documentation do not need a package release. The
+[Changesets configuration](../../.changeset/config.json) defines package exclusions and internal dependency updates.
 
-Examples don't need changesets — `@inflowpayai/example-*` is in the `ignore` list in `.changeset/config.json`.
+## Release flow
 
-## Release flow on merge to `main`
+1. Merge the reviewed change and its Changeset after checks pass.
+2. The workflow opens or updates a `chore(release): version packages` pull request. Review its package versions,
+   dependency updates, and changelogs.
+3. Merging that version pull request allows the workflow to publish unpublished package versions. An ordinary feature
+   merge does not itself apply pending version bumps.
+4. Confirm that the release workflow succeeds and that every published package has its expected version and provenance
+   attestation on npm.
 
-The `release` workflow runs on every push to `main`. It uses the official `changesets/action@v1`:
+The workflow builds the packages, then `pnpm release` checks package exports and tarball contents before running
+`changeset publish`. It verifies npm provenance attestations after publication, retrying registry reads to accommodate
+propagation delays. No pending Changesets and no unpublished versions means there is nothing to publish.
 
-1. **No pending changesets**: workflow is a no-op.
-2. **Pending changesets exist**: the Changesets bot opens (or updates) a "chore(release): version packages" PR. The diff
-   shows the version bumps and `CHANGELOG.md` entries each changeset would produce. The maintainer reviews and merges.
-3. **Version Packages PR merges**: workflow runs again, detects the applied versions, and calls `pnpm release` which
-   runs `changeset publish`. Each bumped package is published to npm with provenance attestations (OIDC-backed).
+## Verification before release
 
-The workflow's final step iterates `steps.changesets.outputs.publishedPackages` and queries
-`npm view <name>@<version> --json` for each just-published version, asserting `.dist.attestations` is non-null. The
-query is retried with backoff (six attempts across ~165s) because `npm publish` returns when the tarball reaches the npm
-origin, but `npm view` reads through the registry CDN, which lags writes by a few seconds to a couple of minutes. Any
-package landing without a provenance attestation after the retries fails the run. (We do not use `npm audit signatures`
-for this — that command audits dependencies installed in `node_modules`, not the tarballs we just published, and it
-can't see this repo's workspaces because they're declared in `pnpm-workspace.yaml` rather than
-`package.json#workspaces`.)
+Run the repository gates:
 
-## Publish-correctness gates
-
-Two scripts under `scripts/` validate every publishable package against publish-time pitfalls and run automatically:
-
-- **`scripts/check-exports.mjs`** — walks each package's `exports` map and confirms every referenced path resolves on
-  disk after build, and that every conditional block lists `types` first per the TypeScript dual-package handbook.
-  Surfaced as `pnpm check-exports`.
-- **`scripts/verify-publish.mjs`** — runs `pnpm pack --dry-run` per publishable package and asserts each tarball
-  contains `dist/`, `README.md`, and `LICENSE`; warns on accidental test-file inclusion. Surfaced as
-  `pnpm verify-publish`.
-
-Both run automatically in:
-
-1. **CI on every PR and push** (`.github/workflows/ci.yml`) — between the `Build` and `Test` steps. A broken `exports`
-   map or a missing `LICENSE` fails CI before the PR can merge.
-2. **The release pipeline** — `pnpm release` (invoked by `changesets/action@v1` when publishing) chains
-   `turbo run build && pnpm check-exports && pnpm verify-publish && changeset publish`, so a malformed tarball never
-   reaches npm.
-
-Run both locally before tagging a release or whenever publish-time troubleshooting is needed:
-
-```bash
-pnpm check-publish    # builds, then runs check-exports + verify-publish
+```sh
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm typedoc
+pnpm check-publish
 ```
 
-The combined `check-publish` script depends on a fresh `pnpm build`; the individual `check-exports` / `verify-publish`
-scripts assume `dist/` is already populated.
+`check-publish` builds the packages, validates export paths, and checks publishable tarballs for `dist/`, `README.md`,
+and `LICENSE`. CI also runs shared conformance against the pinned and current contracts, with locked and latest
+compatible x402 2.x dependencies. These checks do not send live payments.
 
-## npm setup (one-time)
+## Publishing authentication
 
-1. **Create the `@inflowpayai` scope on npmjs.com.** Use a team-owned account, not an individual.
-2. **Bootstrap each package's npm record, then register Trusted Publishing.** Trusted Publishing is configured per
-   package on the package's npmjs.com settings page, which only exists after the package has been published at least
-   once — see "First publish bootstrap" below for the procedure. Once each record points at this repo's `release.yml`,
-   the release workflow publishes via OIDC (`permissions.id-token: write`) with the `npm publish --provenance` defaults
-   from npm 11+, and no `NPM_TOKEN` secret lives in repo settings.
-3. **Verify provenance after a CI publish:**
-   ```bash
-   pnpm view @inflowpayai/x402 --json | jq '.dist.attestations'
-   ```
+Each published npm package needs its own Trusted Publisher configuration:
 
-## First publish bootstrap
+| Field             | Value         |
+| ----------------- | ------------- |
+| Repository owner  | `inflowpayai` |
+| Repository name   | `inflow-node` |
+| Workflow filename | `release.yml` |
+| Environment       | Leave blank   |
 
-Trusted Publishing has a chicken-and-egg: a package's Trusted Publisher record can only be created after the package
-exists on npm. The first publish therefore runs from a developer machine with a short-lived granular token; every
-publish after that runs from CI under OIDC.
+Configure this in the package's npm settings. The workflow requests a short-lived identity token; it does not require a
+permanent `NPM_TOKEN` repository secret. Package manifests enable provenance.
 
-Source versions in `packages/*/package.json` are at `0.5.0`. The bootstrap publishes those source versions directly with
-no version bump — there are no pending changesets to apply.
+For a new package name, arrange its first publication and Trusted Publisher setup before relying on the release
+workflow. Existing packages do not require another bootstrap publication, a no-op version bump, or a workflow-trigger
+change.
 
-1. **Gate the release workflow** so it cannot race the local publish and fail with `E403`. In
-   `.github/workflows/release.yml`, flip the trigger from `on: push: branches: [main]` to `on: workflow_dispatch:`.
-   Commit and push.
-2. **Dry-run locally:**
-   ```bash
-   pnpm install --frozen-lockfile
-   pnpm check-publish    # builds, then check-exports + verify-publish
-   ```
-   Every publishable package should report a non-empty tarball with `dist/`, `README.md`, and `LICENSE`.
-3. **Confirm clean changeset state:**
-   ```bash
-   pnpm changeset status --since=origin/main
-   ```
-4. **Mint a single-use granular access token** on npmjs.com scoped to `@inflowpayai` (read/write, 1-day expiry).
-   Authenticate the local npm CLI and publish. Every package has `publishConfig.provenance: true`, which fails without
-   an OIDC context, so the bootstrap run overrides it:
-   ```bash
-   echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
-   NPM_CONFIG_PROVENANCE=false pnpm release
-   ```
-   `pnpm release` is `turbo run build && pnpm check-exports && pnpm verify-publish && changeset publish`. With no
-   pending changesets, `changeset publish` finds each package's `0.5.0` source version newer than npm and publishes
-   `@inflowpayai/x402`, `@inflowpayai/x402-buyer`, and `@inflowpayai/x402-seller` without provenance attestations.
-5. **Register a Trusted Publisher on each package.** For each of `@inflowpayai/x402`, `@inflowpayai/x402-buyer`,
-   `@inflowpayai/x402-seller`: open `https://www.npmjs.com/package/<package>`, go to the Settings tab → Trusted
-   Publishers → Add. Publisher `GitHub Actions`, organization `inflowpayai`, repository `inflow-node`, workflow filename
-   `release.yml`, environment blank.
-6. **Restore the release trigger:** revert `release.yml` to `on: push: branches: [main]`, commit, and push. The release
-   workflow re-runs with no pending changesets and source versions matching npm, so `changeset publish` is a no-op and
-   the run goes green. The path is live for the next change.
-7. **Revoke the granular token** on npm and strip the `_authToken=` line from `~/.npmrc`. Confirm
-   `Settings → Secrets and variables → Actions` on GitHub has no `NPM_TOKEN` — Trusted Publishing makes one structurally
-   unnecessary.
+## Recovering a failed release
 
-The first CI-driven publish with provenance happens on the next change. To prove the OIDC path end-to-end before relying
-on it, add a no-op patch changeset for all three packages, merge it, then merge the resulting Version Packages PR — the
-`release` workflow runs `changeset publish` under OIDC and each package page should show the **Provenance: Signed and
-verified** badge. The workflow's final verify step (registry query of `.dist.attestations` per published version) fails
-the run if any package lands without attestations.
+Inspect the workflow logs and npm package versions before retrying. Publication of multiple packages is not atomic: some
+can succeed before another fails. If publication or registry verification was interrupted, rerun from the same reviewed
+release commit; Changesets skips versions already present on npm.
 
-From `0.5.1` onward, every change flows through the normal Changesets flow.
+The workflow checks provenance for packages published during that run. For versions published by an earlier attempt,
+also inspect `npm view <package>@<version> dist.attestations`; rerunning a workflow does not by itself recheck those
+attestations.
 
-## Linking related bumps
-
-Today the three packages version independently. When an x402 protocol-level change requires synchronous bumps across the
-whole tree (e.g. a `PaymentRequirements` shape change), use a `linked` group in `.changeset/config.json`:
-
-```jsonc
-"linked": [
-  ["@inflowpayai/x402", "@inflowpayai/x402-seller", "@inflowpayai/x402-buyer"]
-]
-```
-
-Changesets will then bump every package in the group together. The current pre-1.x state intentionally leaves `linked`
-empty — packages should be able to ship independent fixes.
-
-## Pre-release tags (alpha / beta / rc)
-
-For pre-release flows:
-
-```bash
-pnpm changeset pre enter alpha
-# edit changesets as usual
-git push
-# … release workflow publishes @inflowpayai/x402@1.1.0-alpha.0, etc.
-pnpm changeset pre exit
-```
-
-`alpha` / `beta` / `rc` are conventions; any tag works.
-
-## Yanking a release
-
-Don't. Instead, publish a `patch` that supersedes the broken release. `npm deprecate` the broken version after the patch
-is live so consumers see a warning on install:
-
-```bash
-pnpm exec npm deprecate @inflowpayai/x402-seller@1.2.3 \
-  "Broken release; use 1.2.4 or later (#issue-number)"
-```
+Never replace a published version or move its release tag. If the package contents must change, prepare a new version.
+After a replacement release is available, an incorrect release can be marked deprecated on npm with a message directing
+consumers to the replacement.
 
 ## See also
 
-- [contributing.md](./contributing.md) — branch model, PR template, local test workflow.
-- [tooling.md](./tooling.md) — pnpm, Turborepo, Changesets reference.
+- [Contributing](./contributing.md)
+- [Tooling](./tooling.md)

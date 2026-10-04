@@ -73,13 +73,13 @@ jobs:
           pnpm --dir ../contract-pinned install --frozen-lockfile
           pnpm --dir ../contract-current install --frozen-lockfile
 
-      - name: Override @x402/* foundation packages to latest
+      - name: Override @x402/* foundation packages to latest 2.x
         if: matrix.x402-foundation == 'latest'
         run: |
           pnpm -r update \
-            '@x402/core@latest' '@x402/evm@latest' '@x402/express@latest' \
-            '@x402/extensions@latest' '@x402/fastify@latest' '@x402/hono@latest' \
-            '@x402/next@latest' '@x402/paywall@latest' '@x402/svm@latest'
+            '@x402/core@^2.27.0' '@x402/evm@^2.27.0' '@x402/express@^2.27.0' \
+            '@x402/extensions@^2.27.0' '@x402/fastify@^2.27.0' '@x402/hono@^2.27.0' \
+            '@x402/next@^2.27.0' '@x402/paywall@^2.27.0' '@x402/svm@^2.27.0'
 
       - name: Build SDK packages
         id: build

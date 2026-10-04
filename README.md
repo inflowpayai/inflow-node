@@ -8,6 +8,10 @@
 
 Official Node.js SDKs for the [InFlow](https://www.inflowpay.ai) payments platform.
 
+See the shared
+[SDK compatibility and support policy](https://github.com/inflowpayai/inflow-specs#sdk-compatibility-and-support) for
+supported releases, dependency expectations, and security reporting.
+
 ## Accounts & environments
 
 Choose the account for the APIs your application calls:
@@ -183,7 +187,8 @@ For a tour of the monorepo itself — tooling, contributing, publishing — see 
 
 ## Security
 
-See [SECURITY.md](./SECURITY.md) for disclosure. Examples under `examples/` are illustrative and out of scope.
+Report vulnerabilities privately through the
+[organization security policy](https://github.com/inflowpayai/.github/blob/main/SECURITY.md).
 
 ## License
 
