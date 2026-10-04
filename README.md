@@ -12,6 +12,10 @@ See the shared
 [SDK compatibility and support policy](https://github.com/inflowpayai/inflow-specs#sdk-compatibility-and-support) for
 supported releases, dependency expectations, and security reporting.
 
+For an application written in another language, use the [Go](https://github.com/inflowpayai/inflow-go#readme),
+[Python](https://github.com/inflowpayai/inflow-python#readme), or
+[Rust](https://github.com/inflowpayai/inflow-rust#readme) SDK guide.
+
 ## Accounts & environments
 
 Choose the account for the APIs your application calls:
@@ -48,7 +52,7 @@ doc folder uses a product prefix (`x402-`, …) so multiple products can coexist
 
 ## Packages
 
-All packages publish under the `@inflowpayai` scope on npm and depend on `@x402/core@^2.27.0` as a peer.
+The x402 packages publish under the `@inflowpayai` scope on npm and depend on `@x402/core@^2.27.0` as a peer.
 
 | Package                                              | npm                                                                                                                     | Role                                                         |
 | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
@@ -56,7 +60,7 @@ All packages publish under the `@inflowpayai` scope on npm and depend on `@x402/
 | [`@inflowpayai/x402-seller`](./packages/x402-seller) | [![npm](https://img.shields.io/npm/v/@inflowpayai/x402-seller)](https://www.npmjs.com/package/@inflowpayai/x402-seller) | Facilitator client + seller client + `inflowAccepts` helper  |
 | [`@inflowpayai/x402-buyer`](./packages/x402-buyer)   | [![npm](https://img.shields.io/npm/v/@inflowpayai/x402-buyer)](https://www.npmjs.com/package/@inflowpayai/x402-buyer)   | `InflowClient` — foundation `x402Client` subclass for buyers |
 
-The **MPP** packages publish under the same scope but declare [`mppx`](https://github.com/wevm/mppx)`@^0.6.28` as their
+The **MPP** packages publish under the same scope but declare [`mppx`](https://github.com/wevm/mppx)`@^0.8.17` as their
 peer instead of `@x402/core`:
 
 | Package                                            | npm                                                                                                                   | Role                                                              |
