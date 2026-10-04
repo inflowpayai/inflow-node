@@ -1,5 +1,16 @@
 # @inflowpayai/tap-seller
 
+## 0.2.2
+
+### Patch Changes
+
+- [#86](https://github.com/inflowpayai/inflow-node/pull/86)
+  [`f78e0a6`](https://github.com/inflowpayai/inflow-node/commit/f78e0a6cd241a32602830c4d6d88ebd989b22bdc) Thanks
+  [@nkavian](https://github.com/nkavian)! - Accept valid TAP signature parameter ordering and Structured Field
+  serialization. Repeated parameters use their last value consistently for validation and signature verification.
+
+  Reject non-Ed25519 key material returned by a custom key resolver.
+
 ## 0.2.1
 
 ### Patch Changes

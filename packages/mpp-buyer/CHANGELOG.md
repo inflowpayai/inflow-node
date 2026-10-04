@@ -1,5 +1,14 @@
 # @inflowpayai/mpp-buyer
 
+## 0.7.4
+
+### Patch Changes
+
+- [#83](https://github.com/inflowpayai/inflow-node/pull/83)
+  [`9da6d37`](https://github.com/inflowpayai/inflow-node/commit/9da6d3709a2b8629f2a75f9cd9c5f84e15c410f0) Thanks
+  [@nkavian](https://github.com/nkavian)! - Fix subscription purchases through the MPP fetch client when optional
+  payment context is omitted.
+
 ## 0.7.3
 
 ### Patch Changes

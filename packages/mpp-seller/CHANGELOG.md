@@ -1,5 +1,16 @@
 # @inflowpayai/mpp-seller
 
+## 0.9.0
+
+### Minor Changes
+
+- [#64](https://github.com/inflowpayai/inflow-node/pull/64)
+  [`9886e0e`](https://github.com/inflowpayai/inflow-node/commit/9886e0ea655d9d8da0251f376e4cf7280704ac02) Thanks
+  [@mnebliienko](https://github.com/mnebliienko)! - Add an async Stripe charge method that uses the official mppx wire
+  schema, loads the authenticated seller profile from InFlow, validates exact USD limits before challenge issuance,
+  binds credential references to seller-provided references, and delegates validation and settlement to the PSP.
+  Document the Stripe Connect setup required for sellers.
+
 ## 0.8.3
 
 ### Patch Changes
