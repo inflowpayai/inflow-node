@@ -150,11 +150,16 @@ function validateTime(input: ParsedInput, now: number): void {
 }
 
 function componentValues(request: TapRequest, url: URL): Map<string, string> {
+  // RFC 9421 signs the original query; URL serialization can percent-encode it.
+  const target = String(request.url);
+  const fragmentStart = target.indexOf('#');
+  const withoutFragment = fragmentStart < 0 ? target : target.slice(0, fragmentStart);
+  const queryStart = withoutFragment.indexOf('?');
   const values = new Map<string, string>([
     ['@method', request.method],
     ['@authority', url.host],
     ['@path', url.pathname],
-    ['@query', url.search === '' ? '?' : url.search],
+    ['@query', queryStart < 0 ? '?' : withoutFragment.slice(queryStart)],
   ]);
   const digest = optionalHeader(request.headers, 'content-digest');
   const contentType =

@@ -72,6 +72,49 @@ const resolver: TapKeyResolver = {
 };
 
 describe('createTapVerifier', () => {
+  it.each([
+    ["?q=O'Reilly", "?q=O'Reilly", false],
+    ['?q=O%27Reilly', '?q=O%27Reilly', false],
+    ['?q=%23%3F&kind=a&kind=b', '?q=%23%3F&kind=a&kind=b', false],
+    ['?', '', false],
+    ['?', '?', false],
+    ['?', '#fragment?not-a-query', false],
+    ["?q=O'Reilly", "?q=O'Reilly#fragment?not-a-query", false],
+    ['?q=O%27Reilly', "?q=O'Reilly", true],
+    ['?', '', true],
+  ] as const)('preserves signed query %s with input %s (URL object: %s)', async (query, suffix, urlObject) => {
+    const vector = required(vectors.positive[0]);
+    const sample = {
+      ...vector,
+      request: { ...vector.request, query },
+      signatureBase: vector.signatureBase.replace(/^"@query": .*$/m, `"@query": ${query}`),
+    };
+    const originPath = `https://${vector.request.authority}${vector.request.path}`;
+    const suppliedUrl = originPath + suffix;
+    const request = {
+      ...signedParameters(sample, vector.signatureInput.slice(5)),
+      url: urlObject ? new URL(suppliedUrl) : suppliedUrl,
+    };
+    const originalUrl = String(request.url);
+    const next = vi.fn().mockReturnValue('recognized');
+    const verify = createTapMiddleware(
+      createTapVerifier({
+        keyResolver: resolver,
+        clock: () => vector.signatureParameters.created * 1000,
+      }),
+    );
+    const tamperedQuery =
+      query === "?q=O'Reilly" ? '?q=O%27Reilly' : query === '?q=O%27Reilly' ? "?q=O'Reilly" : '?q=changed';
+    await expect(verify({ ...request, url: originPath + tamperedQuery }, next)).rejects.toMatchObject({
+      code: 'SIGNATURE_INVALID',
+    });
+    expect(next).not.toHaveBeenCalled();
+    await expect(verify(request, next)).resolves.toBe('recognized');
+    await expect(verify(request, next)).rejects.toMatchObject({ code: 'NONCE_REPLAYED' });
+    expect(next).toHaveBeenCalledOnce();
+    expect(String(request.url)).toBe(originalUrl);
+  });
+
   it('rejects RSA key material even when a custom resolver labels it ed25519', async () => {
     const vector = required(vectors.positive[0]);
     const { privateKey, publicKey: rsaKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
