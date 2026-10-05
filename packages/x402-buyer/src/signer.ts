@@ -154,12 +154,8 @@ export async function createInflowSigner(options: SignerOptions): Promise<Inflow
         : {}),
       ...(merged.paymentId !== undefined ? { remotePaymentId: merged.paymentId } : {}),
     };
-    // Retries disabled: `POST /v1/transactions/x402` is idempotent only when
-    // the caller supplies a `remotePaymentId` (server-side `putIfAbsent`).
-    // Without that, a transparent 5xx retry would create a second Approval
-    // and Transaction while the first one ages out at the 15-min expiry.
-    // The buyer signer's polling loop is itself the retry mechanism for the
-    // approval-window patience; transport-level retry here would be unsafe.
+    // Creation retries require a caller-managed identifier and server idempotency support.
+    // Polling retries reuse an existing transaction; they do not repeat creation.
     const created = await http.post<X402TransactionResponse>(TRANSACTIONS_PATH, body, {
       retries: 0,
       ...(merged.signal !== undefined ? { signal: merged.signal } : {}),
@@ -268,10 +264,8 @@ function makePreparedPayment(
       pollIntervalMs,
       timeoutMs,
       signal,
-      // Short-circuit for the synchronous-approval path: when the server
-      // signed during `POST /v1/transactions/x402` (approvalStatus = APPROVED),
-      // the very first GET should already have the payload; the loop is
-      // still robust to a missed first poll.
+      // An approved creation can already have a persisted payload. The loop
+      // also waits when signing is still pending.
       createdApprovalStatus: created.approvalStatus,
     }).catch((err: unknown) => {
       if (cancelled) {
