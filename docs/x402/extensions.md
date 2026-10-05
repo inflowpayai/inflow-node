@@ -7,7 +7,10 @@ How the x402 extension mechanism works in this SDK, and how to add a new extensi
 Spec: [docs.x402.org/extensions/payment-identifier](https://docs.x402.org/extensions/payment-identifier).
 
 A `payment-identifier` is a 16–128-character string matching `^[a-zA-Z0-9_-]+$`. It's used as a server-side idempotency
-key — retrying settlement against the same identifier is a no-op once the payment is already recorded.
+key — retrying settlement against the same identifier is a no-op once the payment is already recorded. This does not
+cache the seller's product or prevent repeated handler execution. Sellers requiring HTTP response replay use the
+[optional Express replay helper](../../packages/x402-seller/README.md#durable-express-response-replay) with durable
+storage.
 
 ### Wire shape
 

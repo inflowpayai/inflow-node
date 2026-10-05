@@ -57,3 +57,14 @@ maximum of 0.10 USDC, and settles one atomic USDC unit per input byte. The found
 
 Pay with an external wallet using `UptoEvmScheme` from `@x402/evm/upto/client`, registered on a foundation `x402Client`.
 The wallet needs token allowance to Permit2. InFlow treasury buyers do not sign this payment method.
+
+## Durable response replay
+
+On Node 24, run `pnpm exec tsx src/response-replay.ts` with `INFLOW_API_KEY`, `APP_AUTH_TOKEN` and `REPLAY_DATABASE`
+configured. The database file must be inside a private directory. The authenticated `POST /api/hash` route returns a
+binary digest and replays identical paid requests from a durable SQLite store. The example does not enable replay on the
+ordinary `src/index.ts` routes. See the
+[store and recovery contract](../../packages/x402-seller/README.md#durable-express-response-replay).
+
+Run `pnpm exec tsx --test src/replay-store.test.ts` on Node 24 to check durable binary completion, atomic claims across
+separate SQLite connections, recovery ownership fencing and refusal to reclaim an unstaged operation.

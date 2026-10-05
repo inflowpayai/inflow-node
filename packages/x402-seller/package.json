@@ -16,6 +16,14 @@
       },
       "default": "./dist/index.js"
     },
+    "./express": {
+      "types": "./dist/express/index.d.ts",
+      "node": {
+        "import": "./dist/express/index.js",
+        "require": "./dist/express/index.cjs"
+      },
+      "default": "./dist/express/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -42,7 +50,9 @@
   "peerDependencies": {
     "@x402/core": "^2.27.0",
     "@x402/evm": "^2.27.0",
-    "@x402/extensions": "^2.27.0"
+    "@x402/extensions": "^2.27.0",
+    "@x402/express": "^2.27.0",
+    "express": "^4.0.0 || ^5.0.0"
   },
   "peerDependenciesMeta": {
     "@x402/core": {
@@ -53,6 +63,12 @@
     },
     "@x402/extensions": {
       "optional": false
+    },
+    "@x402/express": {
+      "optional": true
+    },
+    "express": {
+      "optional": true
     }
   },
   "devDependencies": {

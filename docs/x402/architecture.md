@@ -5,9 +5,9 @@ deliver an x402 integration.
 
 ## What InFlow ships vs. what the foundation owns
 
-InFlow does **not** ship seller middleware. The foundation already ships adapters for Express, Fastify, Hono, and
-Next.js; it owns the request loop, payment response cache controls, paywall, settlement hooks, and multi-facilitator
-resolution via declaration order. InFlow plugs into that with these factories and helpers:
+The foundation ships seller adapters for Express, Fastify, Hono, and Next.js; it owns the request loop, payment response
+cache controls, paywall, settlement hooks, and multi-facilitator resolution via declaration order. InFlow plugs into
+that with these factories and helpers:
 
 | InFlow surface                           | Returns                         | Drops into                                                                                             |
 | ---------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------ |
@@ -32,9 +32,12 @@ The buyer side ships `InflowClient`, a subclass of the foundation's `x402Client`
                               (InflowClient extends x402Client)
 ```
 
-The seller package has no framework adapter packages — sellers depend on `@x402/express`, `@x402/hono`, `@x402/fastify`,
-or `@x402/next` directly. The buyer package likewise has no transport adapter — buyers use `@x402/core`'s
-`x402HTTPClient` with their preferred HTTP client (`fetch`, `axios`, etc.).
+Sellers depend on `@x402/express`, `@x402/hono`, `@x402/fastify`, or `@x402/next` directly. The optional
+`@inflowpayai/x402-seller/express` replay helper surrounds the foundation Express middleware with a caller-owned durable
+product store; it does not replace the foundation verification or settlement lifecycle. See the
+[replay contract](../../packages/x402-seller/README.md#durable-express-response-replay). The buyer package has no
+transport adapter — buyers use `@x402/core`'s `x402HTTPClient` with their preferred HTTP client (`fetch`, `axios`,
+etc.).
 
 ## Seller side — request lifecycle
 

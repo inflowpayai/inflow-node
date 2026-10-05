@@ -14,3 +14,11 @@ export { inflowSchemeRegistrations } from './scheme-registrations.js';
 export type { InflowSchemeRegistration, InflowSchemeRegistrationsOptions } from './scheme-registrations.js';
 
 export { X402PriceParseError } from './errors.js';
+
+export type {
+  PaymentReplayClaim,
+  PaymentReplayProduct,
+  PaymentReplayRecord,
+  PaymentReplayResponse,
+  PaymentReplayStore,
+} from './replay.js';

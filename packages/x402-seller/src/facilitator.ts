@@ -224,8 +224,10 @@ function wait(milliseconds: number): Promise<void> {
  * Returns a payload that carries a valid `payment-identifier` extension entry. If the buyer already supplied one
  * (server-signed InFlow payloads always do; foundation buyers may), it is preserved unchanged. Otherwise the identifier
  * is derived from payment-specific wire material so verification and settlement retries use the same cache key.
+ *
+ * @internal
  */
-function ensurePaymentIdentifier(payload: InflowPaymentPayload): InflowPaymentPayload {
+export function ensurePaymentIdentifier(payload: InflowPaymentPayload): InflowPaymentPayload {
   const existing = payload.extensions?.[EXTENSION_PAYMENT_IDENTIFIER];
   const declaration = PAYMENT_IDENTIFIER.readDeclaration(existing);
   if (declaration !== null && existing !== null && typeof existing === 'object') {

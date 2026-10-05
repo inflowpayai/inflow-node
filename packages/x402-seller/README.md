@@ -1,8 +1,9 @@
 # @inflowpayai/x402-seller
 
 Seller-side InFlow primitives that plug into the foundation V2 middleware for Express, Fastify, Hono, and Next.js. This
-package does **not** ship middleware itself — sellers use those adapters directly and pass InFlow's facilitator client
-into the adapter's `facilitatorClients` argument.
+package uses those foundation adapters directly and passes InFlow's facilitator client into their `facilitatorClients`
+argument. The optional `@inflowpayai/x402-seller/express` entry point adds durable HTTP response replay around the
+foundation Express middleware.
 
 ## Foundation compatibility
 
@@ -30,6 +31,77 @@ unpaid challenges, Permit2 allowance responses, and settlement failures. Success
 `PAYMENT-RESPONSE` use `private`; the Express, Fastify, Hono, and Next.js route-handler integrations preserve existing
 handler cache directives. The Next.js proxy marks the settled `NextResponse.next()` continuation as `private`; Next.js
 owns the subsequent merge with the route response.
+
+## Durable Express response replay
+
+Settlement idempotency alone does not prevent a repeated protected handler. Import `createInflowExpressReplayMiddleware`
+from `@inflowpayai/x402-seller/express` when identical paid HTTP retries must return the original product and settlement
+receipt without running verification, the handler, or settlement again.
+
+Pass an existing `x402HTTPResourceServer`, an atomic durable `PaymentReplayStore`, a trusted seller/service `scope`, a
+resolver for the already authenticated `principal`, and the exact captured request `body`. Mount it after
+authentication, security/CORS middleware and raw-body capture, instead of a second payment middleware. Requests without
+a payment header retain the ordinary foundation behavior. The helper supports authorization flows, including metered
+`upto`, and bounded non-streaming responses. Request and product limits are one mebibyte each unless explicitly
+configured. Mount response compression after this helper so the stored bytes correspond to the emitted content encoding.
+A `grantAccess` protected-request hook can grant unpaid requests normally; payment-bearing requests that bypass
+verification are rejected with HTTP 400. The body callback returns `undefined` when raw bytes were not captured.
+Requests declaring a positive `Content-Length` or a `Transfer-Encoding` header require captured bytes; do not substitute
+an empty buffer for missing capture. Requests supplying both `PAYMENT-SIGNATURE` and `X-PAYMENT` are rejected with
+HTTP 400.
+
+The runnable [response replay example](../../examples/x402-seller-express/src/response-replay.ts) includes a
+[SQLite store](../../examples/x402-seller-express/src/replay-store.ts) with atomic claims, fenced writes, durable
+product staging and completion. It requires Node 24 for `node:sqlite`; the SDK's Node 22 floor is unchanged. Set
+`INFLOW_API_KEY`, `APP_AUTH_TOKEN`, and `REPLAY_DATABASE` to a database file inside a private directory, then run:
+
+```bash
+pnpm --filter @inflowpayai/example-x402-seller-express exec tsx src/response-replay.ts
+```
+
+The authenticated subject, payment envelope, actual method, canonical URL/query, raw body, and selected request headers
+are bound to the identifier within the trusted seller scope. Reusing one identifier under another principal conflicts,
+including while the first handler is running. `Accept`, `Accept-Language`, `Accept-Encoding` and `Content-Type` are
+always included; add every application header that changes authorization or the product through `requestHeaders`.
+`principal` must be a trusted application identity, not an arbitrary header or an unverified payer. Anonymous
+integrations must explicitly choose a shared principal and treat possession of the exact payment payload as bearer
+authorization; that is unsuitable for private personalized products.
+
+Use the same scope and shared store across every route and service using the same seller payment-identifier namespace.
+Separating them can permit concurrent handlers for one payment before either service finishes settlement. The URL
+fingerprint includes Express's request protocol and `Host`. Keep these stable across retries and configure `trust proxy`
+only for trusted reverse proxies; an origin change returns HTTP 409 instead of replaying the product.
+
+Completed records replay the original status, bytes, receipt and allowed response headers. Content metadata, cache
+directives, entity tags, modification times, locations and `Vary` are included; custom product headers require
+`responseHeaders`. Paid responses remove a conflicting `public` cache directive while preserving the foundation's
+`private` directive and other cache settings; the helper does not require `no-store`. Cookies, authentication headers,
+dates, content lengths and hop-by-hop headers are excluded, including headers nominated by `Connection`. Pre-helper
+security, CORS and session headers are preserved freshly on each response, never replayed from storage. Keep these out
+of `responseHeaders`; that allowlist is for product metadata only. Do not depend on a paid handler to set a session
+cookie. Current authentication, protected-request policy, extension validation and advertised requirements remain
+checked before replay. A changed price or route requirement may reject an older payment instead of replaying it.
+
+The store must compare fingerprints atomically, serialize claims, fence `stage`/`complete` with the claim token, and
+retain records for at least 24 hours and the entire supported payment retry lifetime. It must never reclaim an unstaged
+pending operation: the handler may already have performed a side effect. A changed fingerprint returns HTTP 409; a
+concurrent or unstaged pending request returns HTTP 409. Storage failures fail closed with HTTP 503. A missing product
+record paired with the InFlow facilitator's settled-verification marker also returns HTTP 409 without creating a fresh
+handler operation.
+
+The helper stages product bytes before settlement and records the final response before emitting it. A staged pending
+operation can be recovered with an atomically rotated ownership token; it reuses the product and original authorized
+payment, including the actual metered settlement amount. The facilitator must reconcile repeated or concurrent
+settlement attempts, including lost responses. The SQLite example renews its two-minute recovery lease when staging a
+product and keeps all records. A stopped staged owner remains pending until that lease expires; there is no automatic
+reclamation of unstaged handlers. Multi-host deployments need a shared durable database rather than separate SQLite
+files. The example restricts the database and existing write-ahead-log/shared-memory sidecars to owner-only access; the
+containing directory must also be private.
+
+A handler failure or a crash after a side effect but before staging remains pending and is never automatically rerun.
+Exactly-once recovery of that side effect requires a transactional or idempotent application operation; response replay
+cannot manufacture a lost product. Back up the database, protect stored payment material and product bytes, monitor
+pending records, and reconcile uncertain outcomes before any operator recovery or deletion.
 
 ## Seller Account
 
