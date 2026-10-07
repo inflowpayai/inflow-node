@@ -1,5 +1,26 @@
 # @inflowpayai/x402-buyer
 
+## 0.11.0
+
+### Minor Changes
+
+- [#96](https://github.com/inflowpayai/inflow-node/pull/96)
+  [`61338d1`](https://github.com/inflowpayai/inflow-node/commit/61338d1cd0a16c6d9bb820cfc2fb58732641194e) Thanks
+  [@nkavian](https://github.com/nkavian)! - Forward the buyer's selected Instrument ID for x402 card payments. Omit the
+  selection to use the primary card; rejected selections do not fall back to another funding source.
+
+- [#96](https://github.com/inflowpayai/inflow-node/pull/96)
+  [`61338d1`](https://github.com/inflowpayai/inflow-node/commit/61338d1cd0a16c6d9bb820cfc2fb58732641194e) Thanks
+  [@nkavian](https://github.com/nkavian)! - Add `getPaymentStatus` for reading settlement status and buyer
+  card-verification actions on an existing InFlow transaction. Keep credential and payload readiness separate from
+  payment settlement.
+
+### Patch Changes
+
+- Updated dependencies
+  [[`61338d1`](https://github.com/inflowpayai/inflow-node/commit/61338d1cd0a16c6d9bb820cfc2fb58732641194e)]:
+  - @inflowpayai/x402@0.11.0
+
 ## 0.10.0
 
 ### Minor Changes

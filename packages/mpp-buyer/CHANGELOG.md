@@ -1,5 +1,28 @@
 # @inflowpayai/mpp-buyer
 
+## 0.8.0
+
+### Minor Changes
+
+- [#96](https://github.com/inflowpayai/inflow-node/pull/96)
+  [`61338d1`](https://github.com/inflowpayai/inflow-node/commit/61338d1cd0a16c6d9bb820cfc2fb58732641194e) Thanks
+  [@nkavian](https://github.com/nkavian)! - Add a CARD buyer method for linked Visa cards with VIC allowances, required
+  merchant inputs, and optional instrument selection. Reuse approval polling and cancellation, preserve encrypted
+  credentials and challenge bindings, and expose transaction identifiers on payment failure errors.
+
+### Patch Changes
+
+- [#83](https://github.com/inflowpayai/inflow-node/pull/83)
+  [`9da6d37`](https://github.com/inflowpayai/inflow-node/commit/9da6d3709a2b8629f2a75f9cd9c5f84e15c410f0) Thanks
+  [@nkavian](https://github.com/nkavian)! - Fix subscription purchases through the MPP fetch client when optional
+  payment context is omitted.
+
+- Updated dependencies
+  [[`61338d1`](https://github.com/inflowpayai/inflow-node/commit/61338d1cd0a16c6d9bb820cfc2fb58732641194e),
+  [`6a8ec32`](https://github.com/inflowpayai/inflow-node/commit/6a8ec328ef7410b306518488c9276a003eaac9fd),
+  [`61338d1`](https://github.com/inflowpayai/inflow-node/commit/61338d1cd0a16c6d9bb820cfc2fb58732641194e)]:
+  - @inflowpayai/mpp@0.11.0
+
 ## 0.7.3
 
 ### Patch Changes

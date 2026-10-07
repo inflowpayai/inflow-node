@@ -1,5 +1,34 @@
 # @inflowpayai/mpp-seller
 
+## 0.9.0
+
+### Minor Changes
+
+- [#64](https://github.com/inflowpayai/inflow-node/pull/64)
+  [`9886e0e`](https://github.com/inflowpayai/inflow-node/commit/9886e0ea655d9d8da0251f376e4cf7280704ac02) Thanks
+  [@mnebliienko](https://github.com/mnebliienko)! - Add an async Stripe charge method that uses the official mppx wire
+  schema, loads the authenticated seller profile from InFlow, validates exact USD limits before challenge issuance,
+  binds credential references to seller-provided references, and delegates validation and settlement to the PSP.
+  Document the Stripe Connect setup required for sellers.
+
+- [#95](https://github.com/inflowpayai/inflow-node/pull/95)
+  [`6a8ec32`](https://github.com/inflowpayai/inflow-node/commit/6a8ec328ef7410b306518488c9276a003eaac9fd) Thanks
+  [@nkavian](https://github.com/nkavian)! - Add CARD seller acceptance for USD Visa network-token payments. Load
+  merchant and public encryption details from InFlow, construct bound challenges through mppx, and delegate credential
+  validation and settlement to InFlow.
+
+### Patch Changes
+
+- [#85](https://github.com/inflowpayai/inflow-node/pull/85)
+  [`8eefd36`](https://github.com/inflowpayai/inflow-node/commit/8eefd361edad4200003cf5d7747f725d3331b40c) Thanks
+  [@nkavian](https://github.com/nkavian)! - Reject Stripe and InFlow instrument payment receipts that omit the challenge
+  identifier or refer to a different payment method or challenge.
+- Updated dependencies
+  [[`61338d1`](https://github.com/inflowpayai/inflow-node/commit/61338d1cd0a16c6d9bb820cfc2fb58732641194e),
+  [`6a8ec32`](https://github.com/inflowpayai/inflow-node/commit/6a8ec328ef7410b306518488c9276a003eaac9fd),
+  [`61338d1`](https://github.com/inflowpayai/inflow-node/commit/61338d1cd0a16c6d9bb820cfc2fb58732641194e)]:
+  - @inflowpayai/mpp@0.11.0
+
 ## 0.8.3
 
 ### Patch Changes
