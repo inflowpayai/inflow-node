@@ -44,3 +44,9 @@ test('TAP metadata reports the actual Seller package without upstream dependenci
   assert.match(metadata.packages['@inflowpayai/tap-seller'], /^\d+\.\d+\.\d+/);
   assert.deepEqual(metadata.dependencies, {});
 });
+
+test('CARD and status suites report the packages exercised by their public adapters', async () => {
+  for (const suite of ['stripe', 'card', 'mpp-status'])
+    assert.deepEqual(await implementation(suite), await implementation('mpp'));
+  assert.deepEqual(await implementation('x402-status'), await implementation('x402'));
+});

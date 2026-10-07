@@ -69,6 +69,30 @@ framework-composed validation and broadcast hooks; the adapter does not implemen
 checks authenticated configuration, credential forwarding, rejection without settlement, receipt binding and retry keys.
 These tests do not create Stripe tokens or perform live payments. The `card/charge` method is separate.
 
+## CARD Buyer and Seller
+
+```sh
+pnpm card:conformance:shared --contract-root ../inflow-specs --output /tmp/inflow-card-report.json
+```
+
+The CARD corpus calls the public Buyer and Seller `card` factories. Buyer cases exercise merchant options, card
+selection, challenge and credential validation, pending fulfilment and failures that retain the original transaction
+identifier. Seller cases use the framework's challenge generator and verification hooks for configuration, amount
+conversion, route binding and receipt checks. The adapter does not decrypt credentials, implement validation, or create
+replacement purchases.
+
+## Payment-status recovery
+
+```sh
+pnpm mpp-status:conformance:shared --contract-root ../inflow-specs --output /tmp/inflow-mpp-status-report.json
+pnpm x402-status:conformance:shared --contract-root ../inflow-specs --output /tmp/inflow-x402-status-report.json
+```
+
+Both adapters call the public `getPaymentStatus` method. Cases cover explicit rechecks of the same transaction,
+card-authentication actions, API-key and Bearer credentials, failures and read retries. They compare transaction ID,
+status and any next action without treating credential readiness as settlement. No adapter follows the action URL,
+creates a payment or cancels an approval while reading status.
+
 ## x402 Core, Buyer, and Seller
 
 ```sh
@@ -120,15 +144,15 @@ command tests the built SDK itself.
 ## Hosted reports and contract drift
 
 The **shared conformance** workflow runs on pull requests, pushes to `main`, and manual dispatch. Each Node 22/24 and
-locked/latest foundation combination runs runtime, MPP, Stripe, x402 and TAP suites against both the pinned contract and
-the current `inflow-specs` main commit. A failure in one suite does not prevent the other suites from producing reports;
-any failure still fails the job. The current-contract step runs even if the pinned cases fail.
+locked/latest foundation combination runs runtime, MPP, Stripe, CARD, both payment-status, x402 and TAP suites against
+both the pinned contract and the current `inflow-specs` main commit. A failure in one suite does not prevent the other
+suites from producing reports; any failure still fails the job. The current-contract step runs even if the pinned cases
+fail.
 
 Open the workflow run's **Artifacts** section and download `conformance-node22-locked`, `conformance-node22-latest`,
 `conformance-node24-locked`, or `conformance-node24-latest`. Each artifact contains `pinned-*.json` and `current-*.json`
-reports for runtime, MPP, Stripe, x402 and TAP, retained for 14 days. Failed runs also upload available reports. Check
-`completed` and `passed`; an empty or incomplete report is not passing evidence. Installation/build failures may prevent
-reports.
+reports for all eight suites, retained for 14 days. Failed runs also upload available reports. Check `completed` and
+`passed`; an empty or incomplete report is not passing evidence. Installation/build failures may prevent reports.
 
 The contract runner uses Node 24; `--adapter-node` selects the executable that runs the SDK adapter. Reported
 `implementation.runtime` is that adapter's actual Node version. The latest-dependency jobs intentionally modify
