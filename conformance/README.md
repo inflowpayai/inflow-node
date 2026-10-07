@@ -56,6 +56,19 @@ platform are used.
 `pnpm mpp:conformance` remains the separate upstream MPP protocol-vector command. It does not run these InFlow payment
 workflows. Neither conformance runner is a dependency of the published SDKs.
 
+## Stripe Seller
+
+```sh
+pnpm stripe:conformance:shared --contract-root ../inflow-specs --output /tmp/inflow-stripe-report.json
+```
+
+This runs the separate Stripe charge corpus through the public `stripe(...)` factory and the same MPP adapter. Offer
+preparation uses the foundation's challenge generator, so decimal-dollar inputs pass through the SDK checks and become
+integer cents on the wire. Route-binding cases use the real protected-route handler. Verification uses the
+framework-composed validation and broadcast hooks; the adapter does not implement their sequence. The local platform
+checks authenticated configuration, credential forwarding, rejection without settlement, receipt binding and retry keys.
+These tests do not create Stripe tokens or perform live payments. The `card/charge` method is separate.
+
 ## x402 Core, Buyer, and Seller
 
 ```sh
@@ -107,13 +120,13 @@ command tests the built SDK itself.
 ## Hosted reports and contract drift
 
 The **shared conformance** workflow runs on pull requests, pushes to `main`, and manual dispatch. Each Node 22/24 and
-locked/latest foundation combination runs runtime, MPP, x402 and TAP suites against both the pinned contract and the
-current `inflow-specs` main commit. A failure in one suite does not prevent the other suites from producing reports; any
-failure still fails the job. The current-contract step runs even if the pinned cases fail.
+locked/latest foundation combination runs runtime, MPP, Stripe, x402 and TAP suites against both the pinned contract and
+the current `inflow-specs` main commit. A failure in one suite does not prevent the other suites from producing reports;
+any failure still fails the job. The current-contract step runs even if the pinned cases fail.
 
 Open the workflow run's **Artifacts** section and download `conformance-node22-locked`, `conformance-node22-latest`,
 `conformance-node24-locked`, or `conformance-node24-latest`. Each artifact contains `pinned-*.json` and `current-*.json`
-reports for runtime, MPP, x402 and TAP, retained for 14 days. Failed runs also upload available reports. Check
+reports for runtime, MPP, Stripe, x402 and TAP, retained for 14 days. Failed runs also upload available reports. Check
 `completed` and `passed`; an empty or incomplete report is not passing evidence. Installation/build failures may prevent
 reports.
 

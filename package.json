@@ -35,6 +35,7 @@
     "conformance:update": "pnpm mpp:conformance:update",
     "runtime:conformance": "pnpm --filter @inflowpayai/mpp... --filter @inflowpayai/x402 build && node scripts/conformance.mjs",
     "mpp:conformance:shared": "pnpm --filter @inflowpayai/mpp-buyer... --filter @inflowpayai/mpp-seller... build && node scripts/conformance.mjs --suite mpp",
+    "stripe:conformance:shared": "pnpm --filter @inflowpayai/mpp-buyer... --filter @inflowpayai/mpp-seller... build && node scripts/conformance.mjs --suite stripe",
     "x402:conformance:shared": "pnpm --filter @inflowpayai/x402-buyer... --filter @inflowpayai/x402-seller... build && node scripts/conformance.mjs --suite x402",
     "mpp:conformance": "node scripts/mpp-conformance.mjs",
     "mpp:conformance:update": "node scripts/mpp-conformance.mjs --update",
