@@ -7,7 +7,7 @@ import * as core from '../packages/mpp/dist/index.js';
 import * as buyer from '../packages/mpp-buyer/dist/index.js';
 import * as seller from '../packages/mpp-seller/dist/index.js';
 
-const { Credential, Errors } = await import(
+const { Credential, Errors, z } = await import(
   createRequire(new URL('../packages/mpp-seller/package.json', import.meta.url)).resolve('mppx')
 );
 
@@ -20,6 +20,13 @@ const codecs = new Map([
 ]);
 
 export function classify(error, operation, input = {}) {
+  if (error instanceof core.InflowApiError)
+    return {
+      code: 'api-error',
+      message: 'InFlow API request failed.',
+      http_status: error.httpStatus,
+      details: { body: error.body },
+    };
   let code, message, details;
   if (error instanceof buyer.MppPaymentExpiredError) {
     code = 'payment-expired';
@@ -39,10 +46,15 @@ export function classify(error, operation, input = {}) {
     code = 'payment-failed';
     message = 'Payment failed.';
     if (error.problem !== undefined) details = { problem: error.problem };
+    if (error.transactionId !== undefined) details = { ...details, transaction_id: error.transactionId };
   } else if (error instanceof core.MppCodecError) {
     code = operation === 'mpp.core.decode-credential' ? 'invalid-credential' : 'invalid-input';
     message = code === 'invalid-credential' ? 'Invalid credential.' : 'Invalid input.';
-  } else if (error instanceof seller.MppStripeAmountError || error instanceof seller.MppStripeRequestError) {
+  } else if (
+    error instanceof seller.MppStripeAmountError ||
+    error instanceof seller.MppStripeRequestError ||
+    error instanceof z.core.$ZodError
+  ) {
     code = 'invalid-input';
     message = 'Invalid input.';
   } else if (error instanceof Errors.InvalidChallengeError) {
@@ -59,6 +71,7 @@ export function classify(error, operation, input = {}) {
       seller.MppAmbiguousRailError,
       seller.MppInstrumentRequiredError,
       seller.MppStripeUnavailableError,
+      seller.MppCardUnavailableError,
     ].some((type) => error instanceof type)
   ) {
     code = 'unsupported-capability';
@@ -76,6 +89,7 @@ async function execute(operation, input) {
     ![
       'mpp.buyer.fulfil',
       'mpp.buyer.cancel',
+      'mpp.buyer.payment-status',
       'mpp.seller.prepare',
       'mpp.seller.validate',
       'mpp.seller.verify',
@@ -88,6 +102,23 @@ async function execute(operation, input) {
     throw new Error('MPP requests require the loopback platform');
   }
   if (operation.startsWith('mpp.seller.')) return executeSeller(operation, input, base.origin);
+  if (operation === 'mpp.buyer.payment-status') {
+    const client = new core.MppClient({
+      baseUrl: base.origin,
+      ...(input.api_key === undefined ? { getAccessToken: async () => input.access_token } : { apiKey: input.api_key }),
+    });
+    const results = [];
+    const options = Object.freeze(input.retries === undefined ? {} : { retries: input.retries });
+    for (let index = 0; index < (input.reads ?? 1); index++) {
+      const value = await client.getPaymentStatus(input.transaction_id, options);
+      results.push({
+        transactionId: value.transactionId,
+        status: value.status,
+        ...(value.nextAction === undefined ? {} : { nextAction: value.nextAction }),
+      });
+    }
+    return results;
+  }
   const { method: name, intent } = input.challenge;
   const factory =
     name === 'inflow' && intent === 'charge'
@@ -96,7 +127,9 @@ async function execute(operation, input) {
         ? buyer.inflow.subscription
         : name === 'tempo' && intent === 'charge'
           ? buyer.tempo
-          : undefined;
+          : name === 'card' && intent === 'charge'
+            ? buyer.card
+            : undefined;
   if (!factory) throw new Error('Unsupported MPP method and intent');
   let cancellation;
   const method = factory({
@@ -147,7 +180,9 @@ async function executeSeller(operation, input, baseUrl) {
           ? seller.tempo
           : name === 'stripe' && intent === 'charge'
             ? seller.stripe
-            : undefined;
+            : name === 'card' && intent === 'charge'
+              ? seller.card
+              : undefined;
   if (!factory) throw new Error('Unsupported MPP method and intent');
   const request = challenge ? core.decode(challenge.request) : input.request;
   const method = await factory({
@@ -174,13 +209,13 @@ async function executeSeller(operation, input, baseUrl) {
     return { status: response.status };
   }
   if (operation === 'mpp.seller.prepare') {
-    if (name === 'stripe') {
+    if (name === 'stripe' || name === 'card') {
       const framework = seller.Mppx.create({
         methods: [method],
         secretKey: 'test-only-binding-secret-at-least-32-bytes',
         realm: 'seller.example',
       });
-      return (await framework.challenge.stripe.charge(request)).request;
+      return (await framework.challenge[name].charge(request)).request;
     }
     return method.request({ request });
   }

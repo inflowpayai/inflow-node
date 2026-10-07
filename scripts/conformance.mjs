@@ -13,13 +13,13 @@ export async function implementation(suite = 'runtime', adapterNode = process.ex
   const products =
     suite === 'tap'
       ? [['tap-seller', undefined]]
-      : suite === 'mpp'
+      : ['mpp', 'stripe', 'card', 'mpp-status'].includes(suite)
         ? [
             ['mpp', 'mppx'],
             ['mpp-buyer', 'mppx'],
             ['mpp-seller', 'mppx'],
           ]
-        : suite === 'x402'
+        : ['x402', 'x402-status'].includes(suite)
           ? [
               ['x402', '@x402/core'],
               ['x402-buyer', '@x402/core'],
@@ -67,25 +67,37 @@ async function main() {
   });
   if (!values['contract-root'] || !values.output) {
     throw new Error(
-      'Usage: node scripts/conformance.mjs --suite runtime|mpp|stripe|x402|tap --contract-root PATH --output NEW_REPORT.json',
+      'Usage: node scripts/conformance.mjs --suite runtime|mpp|stripe|card|mpp-status|x402|x402-status|tap --contract-root PATH --output NEW_REPORT.json',
     );
   }
-  if (!['runtime', 'mpp', 'stripe', 'x402', 'tap'].includes(values.suite)) throw new Error('Unknown conformance suite');
+  if (!['runtime', 'mpp', 'stripe', 'card', 'mpp-status', 'x402', 'x402-status', 'tap'].includes(values.suite))
+    throw new Error('Unknown conformance suite');
   const contractRoot = resolve(values['contract-root']);
   const lock = JSON.parse(await readFile(new URL('../conformance/inflow-specs.lock.json', import.meta.url), 'utf8'));
   verifyContract(contractRoot, values['contract-revision'] ?? lock.revision);
   const adapterNode = values['adapter-node'] ?? process.execPath;
   const { run } = await import(pathToFileURL(resolve(contractRoot, 'runner/run.mjs')));
-  const fixtures = await import(pathToFileURL(resolve(contractRoot, `fixtures/${values.suite}.mjs`)));
-  const index = values.suite === 'runtime' ? runtimeCases(fixtures.runtimeScenarios) : fixtures[`${values.suite}Cases`];
+  const statusSuite = values.suite.endsWith('-status');
+  const fixtures = await import(
+    pathToFileURL(resolve(contractRoot, `fixtures/${statusSuite ? 'payment-status' : values.suite}.mjs`))
+  );
+  const index =
+    values.suite === 'runtime'
+      ? runtimeCases(fixtures.runtimeScenarios)
+      : statusSuite
+        ? fixtures.paymentStatusCases
+        : fixtures[`${values.suite}Cases`];
   const suites = {
     runtime: ['runtime'],
     mpp: ['mpp-core', 'mpp-buyer', 'mpp-seller'],
     stripe: ['mpp-seller'],
+    card: ['mpp-buyer', 'mpp-seller'],
+    'mpp-status': ['mpp-buyer'],
+    'x402-status': ['x402-buyer'],
     x402: ['x402-core', 'x402-buyer', 'x402-seller'],
     tap: ['tap-seller'],
   }[values.suite];
-  const metadata = await implementation(values.suite === 'stripe' ? 'mpp' : values.suite, adapterNode);
+  const metadata = await implementation(values.suite, adapterNode);
   const output = await open(resolve(values.output), 'wx', 0o600);
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -106,7 +118,7 @@ async function main() {
           root,
           values.suite === 'runtime'
             ? 'conformance/runtime-adapter.mjs'
-            : `conformance/${values.suite === 'stripe' ? 'mpp' : values.suite}-shared-adapter.mjs`,
+            : `conformance/${['stripe', 'card', 'mpp-status'].includes(values.suite) ? 'mpp' : values.suite === 'x402-status' ? 'x402' : values.suite}-shared-adapter.mjs`,
         ),
       ],
       contractRoot,

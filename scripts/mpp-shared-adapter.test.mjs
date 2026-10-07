@@ -56,6 +56,14 @@ test('failure classification uses SDK error types, preserving problems and ident
       { code: 'payment-failed', message: 'Payment failed.', details: { problem } },
     ],
     [new buyer.MppPaymentFailedError(), { code: 'payment-failed', message: 'Payment failed.' }],
+    [
+      new buyer.MppPaymentFailedError(problem, 'tx'),
+      { code: 'payment-failed', message: 'Payment failed.', details: { problem, transaction_id: 'tx' } },
+    ],
+    [
+      new buyer.MppPaymentFailedError(undefined, 'tx'),
+      { code: 'payment-failed', message: 'Payment failed.', details: { transaction_id: 'tx' } },
+    ],
     [new MppCodecError('input', 'invalid'), { code: 'invalid-input', message: 'Invalid input.' }],
   ])
     assert.deepEqual(classify(error, 'mpp.buyer.fulfil'), expected);
@@ -110,6 +118,7 @@ test('Seller classification preserves real problems and projects only recognized
     new seller.MppAmbiguousRailError('USD', 'charge'),
     new seller.MppInstrumentRequiredError('USD', 'charge'),
     new seller.MppStripeUnavailableError(),
+    new seller.MppCardUnavailableError(),
   ])
     assert.deepEqual(classify(capability, 'mpp.seller.prepare'), {
       code: 'unsupported-capability',

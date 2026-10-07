@@ -50,6 +50,7 @@ async function execute(operation, input) {
       'x402.buyer.sign',
       'x402.buyer.cancel',
       'x402.buyer.concurrent-await',
+      'x402.buyer.payment-status',
       'x402.seller.verify',
       'x402.seller.settle',
       'x402.seller.verify-settle',
@@ -71,7 +72,24 @@ async function execute(operation, input) {
       ? { verification, settlement: await client.settle(input.payment_payload, input.payment_requirements) }
       : { verification };
   }
-  const client = await buyer.createInflowClient({ apiKey: input.api_key, baseUrl: base.origin });
+  const client = await buyer.createInflowClient({
+    baseUrl: base.origin,
+    ...(input.api_key === undefined ? { getAccessToken: async () => input.access_token } : { apiKey: input.api_key }),
+    ...(input.instrument_id === undefined ? {} : { instrument: { id: input.instrument_id } }),
+  });
+  if (operation === 'x402.buyer.payment-status') {
+    const results = [];
+    const options = Object.freeze(input.retries === undefined ? {} : { retries: input.retries });
+    for (let index = 0; index < (input.reads ?? 1); index++) {
+      const value = await client.getPaymentStatus(input.transaction_id, options);
+      results.push({
+        transactionId: value.transactionId,
+        status: value.status,
+        ...(value.nextAction === undefined ? {} : { nextAction: value.nextAction }),
+      });
+    }
+    return results;
+  }
   const prepared = await client.prepareInflowPayment(input.requirement, input.context, {
     paymentId: input.payment_id,
     pollIntervalMs: input.poll_interval_ms ?? 1,
