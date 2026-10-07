@@ -67,8 +67,7 @@ describe('payload narrowing helpers', () => {
     signature: '0xsig',
   };
   const instrument: InstrumentPayloadData = {
-    transactionId: 'tx_1',
-    signature: 'sig_1',
+    transactionId: '00000000-0000-0000-0000-000000000abc',
   };
 
   it('isBalancePayload narrows on accepted.scheme === "balance"', () => {

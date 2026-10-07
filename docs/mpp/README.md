@@ -5,11 +5,10 @@ scheme ([paymentauth.org](https://paymentauth.org)). A seller answers `402 Payme
 `WWW-Authenticate: Payment …` challenge headers; the buyer pays and resubmits an `Authorization: Payment <credential>`
 header; the seller verifies and returns a `Payment-Receipt`.
 
-InFlow is the **PSP (payment service provider)**: it redeems credentials and settles. The seller issues the challenge
-locally — there is no server round-trip to mint one — and InFlow correlates the redemption by the transaction id carried
-in the credential and settles. These packages are SDK glue that talks to InFlow's REST endpoints; they do not
-re-implement the protocol engine. This mirrors the [x402 product](../x402/README.md), substituting the MPP wire protocol
-for x402's.
+InFlow is the **PSP (payment service provider)**: it validates payment credentials and processes settlement. The seller
+issues the challenge locally — there is no server round-trip to mint one. These packages talk to InFlow's REST
+endpoints; they do not re-implement the protocol engine. This mirrors the [x402 product](../x402/README.md),
+substituting the MPP wire protocol for x402's.
 
 ## Packages
 
@@ -46,48 +45,58 @@ orchestration. It exports:
   defaults to `charge` (`inflow` and `inflow.charge` are the same definition; see [extensions.md](./extensions.md)).
 - **`tempo`** — the `mppx` `Method` definition for Tempo TIP-20 charges (`tempo` and `tempo.charge` are the same
   definition). The buyer/seller packages attach `Method.toClient` / `Method.toServer` behaviour to both methods.
+- **`cardCharge`** — the USD/Visa CARD definition. The seller package loads the merchant configuration; the buyer
+  package requests an encrypted purchase credential using a linked Visa card and its VIC allowance.
 - **Wire types** — `MppChallenge`, `MppCredential`, `MppReceipt`, `MppProblemDetail`, and the InFlow REST DTOs
   (`MppConfigResponse`, `MppCredentialRequest`, `MppValidateRequest/Response`, `MppBroadcastRequest/Response`,
   `MppTransactionRequest/Response`). These match the MPP wire format byte-for-byte.
 - **Codec** — RFC 8785 JCS + base64url-without-padding `encode`/`decode` for `request`/`opaque`/`credential`/`receipt`,
   plus `renderChallengeHeader` / `parseChallengeHeader(s)` for the `WWW-Authenticate: Payment` grammar.
 - **`MppClient`** — a thin typed client over the InFlow MPP REST endpoints (`/v1/mpp/config`, `/v1/mpp/validate`,
-  `/v1/mpp/broadcast`, `/v1/transactions/mpp`, `/v1/transactions/{id}/mpp`), with `Idempotency-Key` support on the
-  mutating routes.
+  `/v1/mpp/broadcast`, `/v1/transactions/mpp`, `/v1/transactions/{id}/mpp`), with `Idempotency-Key` support on seller
+  broadcast. Buyer transaction creation is not automatically retried.
 - **Constants and typed errors** — header names, scheme/method/intent labels, problem-type URIs; `InflowApiError`,
   `MppCodecError`, `MppProtocolVersionError`.
 
-```ts
-import { parseChallengeHeaders, MppClient } from '@inflowpayai/mpp';
+See the [core client example](../../packages/mpp/README.md#example) for parsing a real challenge and retaining the
+transaction ID, and [payment status](../../packages/mpp/README.md#card-verification-and-payment-status) for bank
+verification and settlement recovery.
 
-// Buyer: parse a 402's challenges, then fulfil one via the InFlow buyer endpoint.
-const mpp = new MppClient({ apiKey: process.env.INFLOW_API_KEY!, environment: 'sandbox' });
-const [challenge] = parseChallengeHeaders(wwwAuthenticateValues);
-const tx = await mpp.createTransaction({ challenge });
-// `ready` → send `Authorization: Payment ${tx.credential}` on the retried request.
-// `pending` → poll `mpp.getTransaction(tx.transactionId!)` until it flips to `ready`.
-```
+## Choose a card payment method
+
+Sellers connect Stripe through their InFlow Seller dashboard and explicitly enable the methods they want to offer in
+their application. The SDK uses an InFlow API key, not a Stripe secret key.
+
+| Seller offer           | Buyer requirements                                                                                          | Buyer SDK                                                                                                                |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `inflow/charge` in USD | InFlow account with a linked card; no VIC allowance or USD wallet balance                                   | [`inflow`](../../packages/mpp-buyer/README.md#pay-with-a-linked-card)                                                    |
+| `card/charge`          | Encrypted Visa network-token credential; InFlow buyers need a linked Visa card and a verified VIC allowance | [`card`](../../packages/mpp-buyer/README.md#pay-a-card-offer-with-a-vic-allowance), or a compatible external CARD client |
+| `stripe/charge`        | Stripe Shared Payment Token, such as one obtained through Stripe Link                                       | A compatible Stripe buyer; this buyer package does not obtain Shared Payment Tokens                                      |
+
+For x402, ordinary linked-card payments use the separate
+[`instrument` scheme](../../packages/x402-seller/README.md#linked-card-payments). MPP CARD credentials and Stripe Shared
+Payment Tokens are not x402 Instrument payloads.
 
 ## Quickstart — seller
 
 The seller package (`@inflowpayai/mpp-seller`) attaches non-mutating validation and authoritative broadcast behavior to
 `Method.toServer`: an unpaid request returns a locally issued `402` challenge, and a paid one is validated and settled
-through InFlow. It exports seller methods for `inflow`, `tempo`, and one-time Stripe charges. `await stripe(...)` reads
-the authenticated seller's Stripe profile capability from InFlow. Sellers link their Stripe account through Stripe
-Connect in the InFlow dashboard; the SDK uses an InFlow API key, and InFlow handles Stripe settlement with its platform
-credentials and the seller's connected-account ID. To accept **multiple InFlow currencies** on one route (one challenge
-per currency), use the package's `inflowCharges` / `inflowChargesNodeListener` helpers over the core `mppx/server`
-instance — the framework adapters expose only the single-currency `charge`. See [architecture.md](./architecture.md) for
-the PSP boundary, and [`examples/mpp-seller-express`](../../examples/mpp-seller-express) or
+through InFlow. It exports seller methods for `inflow`, `tempo`, `card`, and one-time Stripe charges.
+`await stripe(...)` reads the authenticated seller's Stripe profile capability from InFlow. Sellers link their Stripe
+account through Stripe Connect in the InFlow dashboard; the SDK uses an InFlow API key, and InFlow handles Stripe
+settlement with its platform credentials and the seller's connected-account ID. To accept **multiple InFlow currencies**
+on one route (one challenge per currency), use the package's `inflowCharges` / `inflowChargesNodeListener` helpers over
+the core `mppx/server` instance — the framework adapters expose only the single-currency `charge`. See
+[architecture.md](./architecture.md) for the PSP boundary, and
+[`examples/mpp-seller-express`](../../examples/mpp-seller-express) or
 [`examples/mpp-seller-hono`](../../examples/mpp-seller-hono) for the complete runnable shape.
 
 ## Quickstart — buyer
 
-The buyer package (`@inflowpayai/mpp-buyer`) provides `Method.toClient` behaviour for `inflow` and `tempo`. Its
+The buyer package (`@inflowpayai/mpp-buyer`) provides `Method.toClient` behaviour for `inflow`, `tempo`, and `card`. Its
 `createCredential` forwards the parsed challenge to `POST /v1/transactions/mpp`, polls `GET /v1/transactions/{id}/mpp`
-through the `pending → ready` lifecycle, and returns the server-produced credential. The buyer does not sign locally and
-does not synthesise `source` — the server-produced credential already carries it. See
-[`examples/mpp-buyer-fetch`](../../examples/mpp-buyer-fetch) (transparent, polyfilled `fetch`) and
+through the `pending → ready` lifecycle, and returns the server-produced credential without inventing or rewriting its
+fields. See [`examples/mpp-buyer-fetch`](../../examples/mpp-buyer-fetch) (transparent, polyfilled `fetch`) and
 [`examples/mpp-buyer-manual`](../../examples/mpp-buyer-manual) (explicit `mppx.fetch`) for the complete runnable shape.
 
 ## Deeper reading

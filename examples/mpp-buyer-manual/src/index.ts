@@ -8,15 +8,22 @@ if (apiKey === undefined || apiKey === '') {
 }
 
 const target = process.env['TARGET_URL'] ?? 'http://localhost:3000/api/widgets';
+const baseUrl = process.env['INFLOW_BASE_URL'];
+const instrumentId = process.env['INSTRUMENT_ID'];
 
 // `polyfill: false` leaves `globalThis.fetch` untouched; payment happens only through the returned `mppx.fetch`.
 const mppx = Mppx.create({
+  maxPaymentRetries: 1,
   polyfill: false,
-  methods: [inflow({ apiKey, environment: 'sandbox' })],
+  methods: [
+    inflow({ apiKey, environment: 'sandbox', ...(baseUrl === undefined || baseUrl === '' ? {} : { baseUrl }) }),
+  ],
 });
 
 console.log(`GET ${target}`);
-const res = await mppx.fetch(target);
+const res = await mppx.fetch(target, {
+  context: instrumentId === undefined || instrumentId === '' ? {} : { instrumentId },
+});
 console.log(`  status: ${res.status.toString()}`);
 console.log(`  body: ${await res.text()}`);
 
@@ -24,4 +31,6 @@ console.log(`  body: ${await res.text()}`);
 if (res.ok) {
   const receipt = Receipt.fromResponse(res);
   console.log(`  paid via ${receipt.method}: ${receipt.reference}`);
+} else {
+  process.exitCode = 1;
 }

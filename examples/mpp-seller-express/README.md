@@ -22,6 +22,34 @@ pnpm install
 pnpm dev
 ```
 
+## USD linked-card example
+
+To accept an ordinary card linked to an InFlow buyer account, connect a Stripe account in the sandbox Seller dashboard
+and complete Stripe onboarding so the account can accept charges. Run this separate entry point instead of `pnpm dev`:
+
+```bash
+pnpm start:instrument
+```
+
+`GET http://localhost:3000/api/report` costs USD 1.00 and offers only `inflow/charge` on the `instrument` rail. The
+buyer approves the purchase in InFlow; InFlow charges the selected linked card when the seller redeems the credential.
+This is not VIC `card/charge` or Stripe Shared Payment Tokens. The seller example needs no Stripe secret, card number or
+buyer Instrument ID.
+
+Use the [manual buyer example](../mpp-buyer-manual#pay-the-usd-linked-card-example) with a separate buyer API key. The
+buyer needs a linked sandbox card and may choose its ID or use their primary card. The minimum is USD 0.50, with amounts
+in whole cents; this example uses USD 1.00. Failed or pending settlement does not run the protected route handler.
+
+A bank may require verification after InFlow approval. The buyer must complete that step through the dashboard, then
+retry the original request with its existing credential. See
+[card verification and recovery](../../packages/mpp/README.md#card-verification-and-payment-status). The example does
+not open a verification page or create a replacement payment on failure.
+
+`INFLOW_BASE_URL` is an optional override for a development InFlow API. Leave it empty to use sandbox; both buyer and
+seller must use the same environment. Send API keys only to an InFlow API you trust.
+
+## Balance and multi-currency examples
+
 The server listens on `http://localhost:3000` and serves these routes:
 
 | Route                | Price                      | Notes                                                                           |

@@ -358,6 +358,20 @@ export interface MppTransactionRequest {
 /** Buyer-side fulfilment state of an MPP transaction; mirrors the server's `MppTransactionResponse.state` union. */
 export type MppTransactionState = 'expired' | 'failed' | 'pending' | 'ready';
 
+/** Payment fields returned by `GET /v1/transactions/{id}`, separate from credential readiness. */
+export interface PaymentStatusResponse {
+  /** Original InFlow transaction identifier. */
+  transactionId: string;
+  /** Server transaction status, such as `PENDING`, `SETTLED` or `GENERAL_ERROR`. */
+  status: string;
+  /** Buyer action available for this payment; absence does not establish settlement. */
+  nextAction?: {
+    type: 'authenticate_card';
+    /** Authenticated dashboard page; not a Stripe client secret. */
+    url: string;
+  };
+}
+
 /**
  * Response body for `POST /v1/transactions/mpp` and `GET /v1/transactions/{id}/mpp`. Mirrors the server's
  * `MppTransactionResponse`. Which optional fields are populated depends on `state` (see each field).

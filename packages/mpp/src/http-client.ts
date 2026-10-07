@@ -16,6 +16,7 @@ import type {
   MppTransactionResponse,
   MppValidateRequest,
   MppValidateResponse,
+  PaymentStatusResponse,
   SubscriptionAuthorizationRequest,
   SubscriptionAuthorizationResponse,
 } from './types.js';
@@ -567,6 +568,14 @@ export class MppClient {
    */
   async getTransaction(transactionId: string, options: RequestOptions = {}): Promise<MppTransactionResponse> {
     return this.http.get<MppTransactionResponse>(transactionPath(transactionId), options);
+  }
+
+  /** Reads settlement and buyer actions without creating, confirming or cancelling a payment. */
+  async getPaymentStatus(transactionId: string, options: RequestOptions = {}): Promise<PaymentStatusResponse> {
+    return this.http.get<PaymentStatusResponse>(`/v1/transactions/${encodeURIComponent(transactionId)}`, {
+      ...options,
+      retries: options.retries ?? 0,
+    });
   }
 
   /**

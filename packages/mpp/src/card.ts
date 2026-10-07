@@ -1,5 +1,19 @@
 import { Method, z } from 'mppx';
 
+export const cardPaymentOptionsSchema = z.object({
+  instrumentId: z.optional(z.guid()),
+  merchant: z.object({
+    name: z.string().check(
+      z.maxLength(200),
+      z.refine((value) => value.trim().length > 0, 'Merchant name is required'),
+    ),
+    url: z.url({ protocol: /^https?$/ }).check(z.maxLength(2048)),
+    countryCode: z.string().check(z.regex(/^[A-Za-z]{2}$/)),
+  }),
+});
+
+export type CardPaymentOptions = z.infer<typeof cardPaymentOptionsSchema>;
+
 const publicEncryptionKey = z.object({
   kty: z.literal('RSA'),
   alg: z.literal('RSA-OAEP-256'),

@@ -80,11 +80,11 @@ generate one with `openssl rand -base64 32`. See the [`mppx`](https://github.com
 
 The rail is determined by the charge currency, using the server-authoritative map from `GET /v1/mpp/config`:
 
-| Charge currency          | Rail         | Result                                               |
-| ------------------------ | ------------ | ---------------------------------------------------- |
-| Crypto (e.g. `USDC`)     | `balance`    | one challenge; no extra params                       |
-| Fiat (e.g. `USD`)        | `instrument` | one challenge; `methodDetails.instrumentId` optional |
-| Unsupported (e.g. `JPY`) | —            | `MppUnsupportedCurrencyError`                        |
+| Charge currency          | Rail         | Result                                                 |
+| ------------------------ | ------------ | ------------------------------------------------------ |
+| Crypto (e.g. `USDC`)     | `balance`    | one challenge; no extra params                         |
+| Fiat (`USD`)             | `instrument` | buyer selects a linked card or uses their primary card |
+| Unsupported (e.g. `JPY`) | —            | `MppUnsupportedCurrencyError`                          |
 
 Configuration loading starts when the method is constructed. Concurrent callers share the request, and successful
 configuration stays cached for that method's lifetime. If loading fails, a later request can try again; there is no
@@ -133,6 +133,32 @@ This package ships no middleware of its own; use `mppx`'s framework adapters (`m
 `mppx/nextjs`, `mppx/elysia`) or the manual mode above. See
 [`examples/mpp-seller-express`](../../examples/mpp-seller-express) and
 [`examples/mpp-seller-hono`](../../examples/mpp-seller-hono) for the complete runnable shape.
+
+## USD payments with an InFlow linked card
+
+Use `inflow(...)` with `currency: 'USD'` to accept ordinary linked-card payments from InFlow buyers. The seller needs a
+connected Stripe account that can accept charges. The buyer links a card in their own InFlow account and approves the
+purchase, or an existing policy approves it. InFlow then charges that card through Stripe when the seller redeems the
+credential. Ordinary card payments do not use a VIC allowance.
+
+The seller chooses the price, not the buyer's card. Supply amounts such as `'1.00'` in dollars, with a minimum of USD
+0.50 and no fractional cents. The SDK derives `instrument` from the server's USD capability; explicitly setting
+`methodDetails: { rail: 'instrument' }` restricts the offer to that rail. Do not put a buyer Instrument ID into a public
+challenge. The buyer sends `options.instrumentId` to InFlow, or omits it to use their primary card. An existing
+challenge that pins `methodDetails.instrumentId` constrains that selection; it does not give the seller access to the
+card.
+
+For a runnable USD-only route, use
+[`examples/mpp-seller-express`](../../examples/mpp-seller-express#usd-linked-card-example) and `pnpm start:instrument`.
+The application uses only its InFlow Seller API key and challenge-signing secret, not Stripe keys or raw card details.
+
+Only serve the paid response after settlement succeeds. A `ready` buyer credential is authorization to attempt payment,
+not proof of settlement. If the bank requires verification, the payment remains pending while the buyer completes the
+dashboard step. The seller must accept a retry of the original request and credential without creating a second order.
+See [buyer verification and recovery](../mpp/README.md#card-verification-and-payment-status).
+
+These offers use `inflow/charge` on the `instrument` rail. VIC uses `card/charge`; Stripe Shared Payment Tokens use
+`stripe/charge`, described below. They are separate payment methods, even when Stripe processes the final charge.
 
 ## Stripe one-time charges
 
@@ -225,10 +251,11 @@ Set a distinct `scope` for each protected operation, especially with Express or 
 or resource identifier when access is specific to that item. Hono supplies a route-pattern scope automatically; Express
 does not. A common price and signing secret alone do not distinguish two resources.
 
-The encrypted payload is forwarded without decryption or inspection. Do not log credentials or billing details. Buyers
-need a compatible client enabler to obtain encrypted Visa network-token credentials; they do not need an InFlow buyer
-login to pay this seller. This package does not mint those credentials or provide a card-entry form. Application login,
-if your service requires it, is separate from payment acceptance.
+The encrypted payload is forwarded without decryption or inspection. Do not log credentials or billing details. InFlow
+buyers use the [buyer package's `card` method](../mpp-buyer/README.md#pay-a-card-offer-with-a-vic-allowance), with a
+linked Visa card and a verified VIC allowance. External buyers can supply compatible encrypted Visa network-token
+credentials without an InFlow buyer account. This seller package does not mint those credentials or provide a card-entry
+form. Application login, if your service requires it, is separate from payment acceptance.
 
 For composed offers, `canOffer` receives the configured request with the amount in cents, as it does for `stripe(...)`.
 Use `mppx.compose([cardMethod, { amount: '1.00' }], [stripeMethod, { amount: '1.00' }])` on a core `Mppx` instance to

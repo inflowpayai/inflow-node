@@ -122,7 +122,7 @@ export function createFulfiller(parameters: InflowBuyerParameters): Fulfiller {
         case 'ready':
           return decodeReady(current);
         case 'failed':
-          throw new MppPaymentFailedError(current.problem);
+          throw new MppPaymentFailedError(current.problem, current.transactionId);
         case 'expired':
           throw new MppPaymentExpiredError(current.transactionId);
         case 'pending':
@@ -195,8 +195,10 @@ function decodeReady(response: MppTransactionResponse): MppCredential {
 /**
  * Build the server's wire `MppChallenge` from the parsed `mppx` challenge. `mppx` hands us `request` as a decoded
  * object; the server expects it base64url-JCS encoded, so re-encode it here (byte-parity with the server codec).
+ *
+ * @internal
  */
-function toWireChallenge(challenge: FulfilChallenge): MppChallenge {
+export function toWireChallenge(challenge: FulfilChallenge): MppChallenge {
   return {
     id: challenge.id,
     realm: challenge.realm,

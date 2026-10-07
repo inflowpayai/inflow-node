@@ -2,8 +2,43 @@ import * as Methods from '@inflowpayai/mpp';
 import { z } from '@inflowpayai/mpp';
 import { Credential, Method } from 'mppx';
 
-import { createFulfiller } from './fulfilment.js';
+import { MppMalformedCredentialError } from './errors.js';
+import { createFulfiller, toWireChallenge } from './fulfilment.js';
 import type { FulfilChallenge, InflowBuyerParameters } from './types.js';
+
+export const cardContextSchema = Methods.cardPaymentOptionsSchema;
+
+/** Uses a linked Visa card and its VIC allowance; the server issues the encrypted purchase credential. */
+export function card(parameters: InflowBuyerParameters) {
+  const fulfiller = createFulfiller(parameters);
+  const method = Method.toClient(Methods.cardCharge, {
+    context: cardContextSchema,
+    canHandleChallenge: ({ challenge }) => Methods.cardChargeRequestSchema.safeParse(challenge.request).success,
+    async createCredential({ challenge, context }) {
+      const options = cardContextSchema.parse(context);
+      Methods.cardChargeRequestSchema.parse(challenge.request);
+      // mppx permits explicit undefined on optional fields; the wire encoder omits those fields.
+      const parsed = challenge as FulfilChallenge;
+      const expectedChallenge = Methods.encode(toWireChallenge(parsed));
+      const credential = await fulfiller.fulfil(parsed, options);
+      if (Methods.encode(credential.challenge) !== expectedChallenge) {
+        throw new MppMalformedCredentialError('CARD credential does not match the requested challenge');
+      }
+      if (!Methods.cardCredentialPayloadSchema.safeParse(credential.payload).success) {
+        throw new MppMalformedCredentialError('invalid CARD credential payload');
+      }
+      return `Payment ${Methods.encodeCredential(credential)}`;
+    },
+  });
+  return Object.assign(method, {
+    cleanup(): void {
+      fulfiller.cleanup();
+    },
+    cancelApproval(approvalId: string): Promise<void> {
+      return fulfiller.cancelApproval(approvalId);
+    },
+  });
+}
 
 /**
  * Per-call payment options for the `inflow` method, validated by `mppx` before `createCredential` runs. Mirrors the

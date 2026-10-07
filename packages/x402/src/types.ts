@@ -14,14 +14,14 @@ export type { ResourceInfo, VerifyResponse };
 /**
  * Payment-scheme identifier carried on the wire. `'exact'` covers EIP-3009 and Permit2 EVM transfers as well as non-EVM
  * signed transfers; `'upto'` covers metered Permit2 transfers; `'balance'` covers InFlow internal balance transfers;
- * `'instrument'` is reserved.
+ * `'instrument'` charges a linked card in fiat USD.
  *
  * The `(string & {})` branch keeps editor autocomplete focused on the known values while still accepting any string at
  * runtime, so consumers can interoperate with future schemes the SDK hasn't yet enumerated.
  */
 export type PaymentScheme = 'exact' | 'upto' | 'balance' | 'instrument' | (string & {});
 
-/** Funding-source type carried in `instrument`-scheme payloads and extras. Reserved for future use. */
+/** Reserved funding-source classification; not carried in Instrument payment payloads. */
 export type InstrumentType = 'card' | 'bank' | (string & {});
 
 /**
@@ -34,10 +34,10 @@ export interface PaymentRequirements {
   scheme: PaymentScheme;
   /**
    * CAIP-2 network identifier. `'eip155:8453'` and `'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp'` for blockchain networks;
-   * `'inflow:1'` for InFlow's internal ledger (balance and reserved instrument schemes).
+   * `'inflow:1'` for InFlow balance and Instrument payments.
    */
   network: string;
-  /** On-chain contract address or mint. Empty string when not applicable. */
+  /** On-chain contract address/mint, balance currency name, or `'USD'` for Instrument payments. */
   asset: string;
   /** Amount in atomic units of `asset` (or the method's own decimal scale). */
   amount: string;
@@ -100,12 +100,9 @@ export interface ExactPayloadData {
   signature: string;
 }
 
-/** Inner payload shape for the `'instrument'` scheme. Reserved. */
+/** Inner payload for an approved card purchase. Card and vault identifiers stay on the InFlow server. */
 export interface InstrumentPayloadData {
   transactionId: string;
-  signature: string;
-  instrumentId?: string;
-  instrumentType?: InstrumentType;
 }
 
 /**
@@ -182,7 +179,7 @@ export function isPermit2Payload(p: InflowPaymentPayload): p is InflowPaymentPay
   );
 }
 
-/** Narrows to the reserved `'instrument'` scheme branch. Returns `false` for all production traffic today. */
+/** Narrows to the `'instrument'` scheme branch. */
 export function isInstrumentPayload(
   p: InflowPaymentPayload,
 ): p is InflowPaymentPayload & { payload: InstrumentPayloadData } {
@@ -302,12 +299,12 @@ export interface X402WalletInfo {
 
 /**
  * Non-blockchain payment method metadata. Read from `X402ConfigResponse.paymentMethods[]` by `inflowAccepts` when
- * constructing `'balance'` and (reserved) `'instrument'` entries.
+ * constructing `'balance'` and `'instrument'` entries.
  */
 export interface PaymentMethodInfo {
-  /** Scheme this method handles — `'balance'` today, `'instrument'` reserved. */
+  /** Scheme this method handles — `'balance'` or `'instrument'`. */
   scheme: PaymentScheme;
-  /** Network identifier for the method. `'inflow:1'` for `'balance'`; CAIP-2 for any future on-chain method. */
+  /** Network identifier for the method; `'inflow:1'` for balance and Instrument payments. */
   network: string;
   /** Recipient identifier — the seller UUID for `'balance'` / `'instrument'`. */
   payTo: string;
@@ -324,7 +321,7 @@ export interface PaymentMethodInfo {
 export interface X402ConfigResponse {
   /** Per-`(blockchain, currency)` on-chain asset metadata. */
   assets: X402AssetInfo[];
-  /** Non-blockchain methods — `'balance'` and (reserved) `'instrument'`. */
+  /** Non-blockchain methods — `'balance'` and `'instrument'`. Instrument requires a connected Stripe account. */
   paymentMethods: PaymentMethodInfo[];
   /** Seller UUID — also the `payTo` value for non-blockchain schemes. */
   sellerId: string;

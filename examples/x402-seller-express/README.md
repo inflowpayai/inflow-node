@@ -37,6 +37,17 @@ cd ../x402-buyer-fetch
 INFLOW_API_KEY=$INFLOW_API_KEY TARGET_URL=http://localhost:3000/api/widgets pnpm start
 ```
 
+## Linked-card route
+
+Connect a Stripe account in your sandbox Seller dashboard, then run `pnpm start:instrument`. This separate example
+serves `GET /api/report` for USD 1.00 using only the `instrument` scheme. It stops at startup if the seller
+configuration does not advertise Instrument support; it does not fall back to a stablecoin offer.
+
+The buyer needs a linked card and must explicitly select `prefer: ['instrument']`; the default buyer preferences do not
+include card payments. See the [buyer configuration](../../packages/x402-buyer/README.md#paying-with-a-linked-card).
+Omit the Instrument ID to use the primary card, or supply an owned card's ID. Use sandbox accounts and cards for this
+example. Approval alone does not mean a charge has succeeded.
+
 ## Metered Permit2 route
 
 Run `pnpm start:upto` for `POST /api/hash`. This variant requires the sandbox seller configuration to advertise `upto`
