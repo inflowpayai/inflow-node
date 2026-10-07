@@ -32,9 +32,9 @@ export interface PaymentStatusResponse {
 }
 
 /**
- * Status of a buyer-side approval. `'APPROVED'` means the server has synchronously signed; `'PENDING'` means the buyer
- * must approve in their dashboard. Other terminal values (declined, cancelled, etc.) are surfaced verbatim and treated
- * opaquely.
+ * Status of a buyer-side approval. `'APPROVED'` means approval was granted; polling can still wait for signing.
+ * `'PENDING'` means the buyer must approve in their dashboard. Other terminal values (declined, cancelled, etc.) are
+ * surfaced verbatim and treated opaquely.
  */
 export type ApprovalStatus = 'APPROVED' | 'PENDING' | (string & {});
 

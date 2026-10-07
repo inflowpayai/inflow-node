@@ -287,6 +287,14 @@ The ID is forwarded to the server's `remotePaymentId` field and embedded in the 
 `X402PaymentIdFormatError` before any server round trip. The one-shot `createPaymentPayload` path doesn't carry a
 per-call `paymentId` — use `prepareInflowPayment` when a custom ID is required.
 
+On servers supporting buyer-creation idempotency, the identifier is case-sensitive and scoped to the authenticated
+buyer. Repeating the same requirements, resource, protocol version, service and authorization context returns the
+original approval and transaction identifiers. Conflicting reuse returns HTTP 409 through `InflowApiError`. A cancelled,
+expired or failed payment does not become a replacement payment; use a new identifier for a new attempt.
+
+Creation has no automatic transport retries. Idempotency requires server support; forwarding an identifier alone does
+not prove that an older deployment deduplicates creation. Polling an existing handle does not create another approval.
+
 ## See also
 
 - [@inflowpayai/x402](../x402) — protocol types and HTTP client
