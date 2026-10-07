@@ -1,7 +1,7 @@
 {
   "name": "@inflowpayai/mpp-seller",
   "version": "0.8.3",
-  "description": "InFlow MPP seller SDK: local mppx challenges with non-mutating validation and authoritative InFlow settlement for InFlow, Tempo, and Stripe payments.",
+  "description": "InFlow MPP seller SDK: local mppx challenges with non-mutating validation and authoritative InFlow settlement for InFlow, Tempo, Stripe, and CARD payments.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -49,7 +49,10 @@
   },
   "devDependencies": {
     "@inflowpayai/mpp-internal": "workspace:*",
+    "@types/express": "^5.0.6",
     "@vitest/coverage-v8": "^5.0.0",
+    "express": "^5.2.1",
+    "hono": "^4.13.7",
     "mppx": "^0.8.17",
     "msw": "^2.15.0"
   },

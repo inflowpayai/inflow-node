@@ -2,8 +2,8 @@
 // no `./server` subpath; the foundation `Mppx` server handler is re-exported here so a single import gives both the
 // handler and the InFlow method: `import { Mppx, inflow } from '@inflowpayai/mpp-seller'`.
 
-export { inflow, stripe, tempo } from './methods.server.js';
-export type { StripeSellerParameters } from './methods.server.js';
+export { card, inflow, stripe, tempo } from './methods.server.js';
+export type { CardSellerParameters, StripeSellerParameters } from './methods.server.js';
 
 export {
   inflowCharges,
@@ -17,6 +17,7 @@ export { createConfigClient } from './config-client.js';
 export type { InflowConfigClient } from './config-client.js';
 
 export {
+  MppCardUnavailableError,
   MppAmbiguousRailError,
   MppInstrumentRequiredError,
   MppCredentialProblemError,

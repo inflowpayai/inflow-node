@@ -162,6 +162,34 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  examples/mpp-card-seller-express:
+    dependencies:
+      '@inflowpayai/mpp-seller':
+        specifier: workspace:^
+        version: link:../../packages/mpp-seller
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
+      mppx:
+        specifier: ^0.8.17
+        version: 0.8.17(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.13.7)(typescript@5.9.3)(viem@2.56.3(typescript@5.9.3)(zod@4.4.3))
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   examples/mpp-seller-express:
     dependencies:
       '@inflowpayai/mpp-seller':
@@ -542,9 +570,18 @@ importers:
       '@inflowpayai/mpp-internal':
         specifier: workspace:*
         version: link:../mpp-internal
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
       '@vitest/coverage-v8':
         specifier: ^5.0.0
         version: 5.0.0(vitest@5.0.3)
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
+      hono:
+        specifier: ^4.13.7
+        version: 4.13.7
       mppx:
         specifier: ^0.8.17
         version: 0.8.17(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.13.7)(typescript@5.9.3)(viem@2.56.3(typescript@5.9.3)(zod@4.4.3))

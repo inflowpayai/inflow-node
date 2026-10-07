@@ -41,6 +41,8 @@ authoritative replay or authorization guard.
   Tokens. It loads the authenticated seller's verified Stripe business-profile capability from InFlow before returning a
   method. Validation and settlement still use InFlow's `/validate` and `/broadcast` endpoints; no Stripe secret enters
   the application or SDK.
+- `await card(parameters)` — the seller `card/charge` method for USD Visa network-token payments. InFlow provides the
+  connected Stripe recipient, merchant name and public encryption key, and handles decryption and processing.
 - `inflowCharges(mppx, prices)` — present several currencies on one route. Returns the Web-fetch handler from
   `compose(...)`: one `WWW-Authenticate` challenge per price (the MPP analog of `@inflowpayai/x402-seller`'s
   `inflowAccepts`). See [Multiple currencies](#multiple-currencies) below.
@@ -57,13 +59,15 @@ authoritative replay or authorization guard.
 - `Mppx` and `Expires` (re-exported from `mppx/server`) and `Receipt` (from `mppx`) — a single import gives the
   foundation server handler and the InFlow methods.
 - `Discovery` (from `mppx/discovery`) — generates and parses OpenAPI `x-payment-info.offers[]` metadata.
-- Types: `InflowSellerParameters`, `StripeSellerParameters`, `TempoSellerParameters`, `LoadedConfig`,
-  `InflowChargePrice`, plus the core re-exports `Environment`, `MppCurrencyRail`, `MppProblemDetail`, `MppReceipt`.
+- Types: `CardSellerParameters`, `InflowSellerParameters`, `StripeSellerParameters`, `TempoSellerParameters`,
+  `LoadedConfig`, `InflowChargePrice`, plus the core re-exports `Environment`, `MppCurrencyRail`, `MppProblemDetail`,
+  `MppReceipt`.
 - Errors: `MppUnsupportedCurrencyError` (charge currency has no rail in the PSP config), `MppCredentialProblemError`
   (credential validation or broadcast failed; carries the PSP's RFC 9457 problem), `MppStripeUnavailableError` (seller
   has no safe Stripe capability), and `MppStripeAmountError` (amount is below $0.50, above $999,999.99, or cannot be
   expressed as exact cents). `MppStripeRequestError` identifies unsupported metadata or an `externalId` longer than 255
   characters. Malformed request fields can raise the foundation schema's validation error before these SDK checks.
+- `MppCardUnavailableError` means the seller configuration does not advertise the required USD Visa CARD capability.
 
 ## Configuration
 
@@ -173,6 +177,64 @@ For composed offers, `canOffer` receives the same authoritative request as the i
 integer cents. Metadata allows up to 45 string entries, with keys up to 40 characters and values up to 500 characters;
 keys cannot be blank, contain square brackets, or use `externalId`, `inflowMppTransactionId`, `mppChallengeId`,
 `mppIntent`, `mppMethod`, or `stripeNetworkProfile`.
+
+## CARD network-token payments
+
+Connect a charge-enabled Stripe account in your InFlow Seller dashboard. Then add `card(...)` to the payment methods
+your application offers. This is separate from `stripe(...)`: CARD accepts encrypted Visa network-token credentials,
+whereas `stripe(...)` accepts Stripe Shared Payment Tokens. Choose either or both for your routes. CARD does not require
+the Stripe business-profile capability used by the Shared Payment Token method.
+
+```ts
+import { Mppx, card } from '@inflowpayai/mpp-seller';
+
+const apiKey = process.env['INFLOW_API_KEY'];
+const secretKey = process.env['MPP_SECRET_KEY'];
+if (!apiKey || !secretKey) throw new Error('Set INFLOW_API_KEY and MPP_SECRET_KEY.');
+
+const payments = Mppx.create({
+  methods: [await card({ apiKey, environment: 'sandbox' })],
+  secretKey,
+});
+
+export async function handler(request: Request): Promise<Response> {
+  const result = await payments.charge({ amount: '1.00', externalId: 'order-123', scope: 'GET /report' })(request);
+  if (result.status === 402) return result.challenge;
+  return result.withReceipt(Response.json({ access: 'granted' }));
+}
+```
+
+Pass the price in dollars: `"1.00"` becomes `"100"` integer cents in the challenge. Supported prices range from USD 0.50
+through 999999.99, with at most two fractional digits; extra precision is rejected, not rounded. `externalId` is an
+optional order reference of at most 255 characters. CARD receipts use the challenge's reference; the buyer does not need
+to repeat it in the credential payload. Set `billingRequired: true` on a charge when billing address information is
+required.
+
+The factory loads `GET /v1/mpp/config` once, using your InFlow Seller API key. Its configuration supplies the recipient,
+merchant name, accepted network and public encryption key; route parameters cannot replace them. Recreate the method or
+restart the application after changing the connected account or rotating the advertised public key. InFlow keeps the
+encryption private keys. Sellers do not need to configure those keys or pass Stripe API credentials to the SDK.
+
+Your `MPP_SECRET_KEY` has a different purpose: mppx uses it to sign and verify your application's challenges. Retain it
+across restarts. The HTTP handler checks the challenge binding and expiration before forwarding a credential. InFlow's
+non-mutating `/validate` endpoint checks the credential, and `/broadcast` processes payment and enforces replay
+protection. Content is released only with a successful CARD receipt for that challenge. Pending or rejected payments
+remain payment failures rather than successful responses.
+
+Set a distinct `scope` for each protected operation, especially with Express or a manual Fetch handler. Include an order
+or resource identifier when access is specific to that item. Hono supplies a route-pattern scope automatically; Express
+does not. A common price and signing secret alone do not distinguish two resources.
+
+The encrypted payload is forwarded without decryption or inspection. Do not log credentials or billing details. Buyers
+need a compatible client enabler to obtain encrypted Visa network-token credentials; they do not need an InFlow buyer
+login to pay this seller. This package does not mint those credentials or provide a card-entry form. Application login,
+if your service requires it, is separate from payment acceptance.
+
+For composed offers, `canOffer` receives the configured request with the amount in cents, as it does for `stripe(...)`.
+Use `mppx.compose([cardMethod, { amount: '1.00' }], [stripeMethod, { amount: '1.00' }])` on a core `Mppx` instance to
+advertise both methods. See the runnable [`CARD Express example`](../../examples/mpp-card-seller-express) and the
+[CARD charge draft](https://paymentauth.org/draft-card-charge-00.html). The supported InFlow profile is USD, Visa,
+one-time charges and embedded encryption keys; it does not expose remote key discovery or subscriptions.
 
 ## Multiple currencies
 

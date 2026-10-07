@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  cardCharge,
+  cardChargeRequestSchema,
   charge as inflowCharge,
   encode,
   MppClient,
@@ -10,6 +12,7 @@ import {
 } from '@inflowpayai/mpp';
 import { UNSAFE_OBJECT_KEYS, sanitizeJsonValue } from '@inflowpayai/mpp-internal';
 import type {
+  CardChargeRequest,
   InflowChargeRequestInput,
   Environment,
   MppChallenge,
@@ -26,6 +29,7 @@ import { Methods as StripeMethods } from 'mppx/stripe';
 
 import { createConfigClient } from './config-client.js';
 import {
+  MppCardUnavailableError,
   MppAmbiguousRailError,
   MppInstrumentRequiredError,
   MppCredentialProblemError,
@@ -350,6 +354,107 @@ export function tempo(
         request,
         ...(credential.source !== undefined ? { source: credential.source } : {}),
       };
+    },
+  });
+}
+
+export interface CardSellerParameters extends Omit<StripeSellerParameters, 'canOffer'> {
+  canOffer?: Method.CanOfferFn<typeof cardCharge>;
+}
+
+type CardDefaults = Pick<CardChargeRequest, 'currency' | 'recipient' | 'methodDetails'>;
+type CardRequest = CardChargeRequest & {
+  billingRequired?: boolean;
+};
+
+const cardDollarAmount = z.pipe(
+  z.string().check(z.regex(/^(?:0|[1-9]\d{0,5})(?:\.\d{1,2})?$/, 'USD amount must have at most two decimal places')),
+  z.transform((amount) => {
+    const dot = amount.indexOf('.');
+    const whole = dot < 0 ? amount : amount.slice(0, dot);
+    const fraction = dot < 0 ? '' : amount.slice(dot + 1);
+    return (BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'))).toString();
+  }),
+);
+
+/** Amounts passed to charge are dollars. InFlow supplies the recipient and public encryption key. */
+export async function card(parameters: CardSellerParameters) {
+  const client = new MppClient({
+    apiKey: parameters.apiKey,
+    ...(parameters.environment !== undefined ? { environment: parameters.environment } : {}),
+    ...(parameters.baseUrl !== undefined ? { baseUrl: parameters.baseUrl } : {}),
+    ...(parameters.timeoutMs !== undefined ? { timeoutMs: parameters.timeoutMs } : {}),
+    ...(parameters.fetch !== undefined ? { fetch: parameters.fetch } : {}),
+  });
+  const config = await client.getConfig();
+  const capability = config.supportedMethods.find((entry) => entry.id === 'card');
+  const details = capability?.methodDetails;
+  const parsed = cardChargeRequestSchema.safeParse({
+    amount: '100',
+    currency: 'usd',
+    recipient: details?.['recipient'],
+    methodDetails: details,
+  });
+  if (
+    !capability?.supportedCurrencies.includes('USD') ||
+    !capability.supportedIntents.includes('charge') ||
+    !parsed.success
+  ) {
+    throw new MppCardUnavailableError();
+  }
+  const defaults: CardDefaults = {
+    currency: 'usd',
+    recipient: parsed.data.recipient,
+    methodDetails: parsed.data.methodDetails,
+  };
+  const method = Method.from({
+    ...cardCharge,
+    schema: {
+      ...cardCharge.schema,
+      request: z.pipe(
+        z.transform((request: CardRequest): CardChargeRequest => ({
+          ...request,
+          ...defaults,
+          methodDetails: {
+            ...defaults.methodDetails,
+            ...(request.billingRequired !== undefined ? { billingRequired: request.billingRequired } : {}),
+          },
+        })),
+        z.extend(cardChargeRequestSchema, { amount: z.pipe(cardDollarAmount, cardChargeRequestSchema.shape.amount) }),
+      ),
+    },
+  });
+  const canOffer = parameters.canOffer;
+  return Method.toServer<typeof method, CardDefaults>(method, {
+    defaults,
+    canOffer: canOffer === undefined ? undefined : (context) => canOffer(context),
+    stableBinding(request) {
+      return {
+        amount: request.amount,
+        currency: request.currency,
+        recipient: request.recipient,
+        externalId: request.externalId,
+        methodDetails: request.methodDetails,
+      };
+    },
+    async validate({ credential }) {
+      const details = await validateCredential(credential, client);
+      return {
+        challenge: credential.challenge,
+        credential,
+        details,
+        intent: cardCharge.intent,
+        method: cardCharge.name,
+        request: credential.challenge.request,
+        ...(credential.source !== undefined ? { source: credential.source } : {}),
+      };
+    },
+    async broadcast({ credential }) {
+      const receipt = await broadcast(credential, client, config);
+      if (receipt.method !== 'card' || !('challengeId' in receipt) || receipt.challengeId !== credential.challenge.id) {
+        throw new MppCredentialProblemError(fallbackProblem('broadcast'));
+      }
+      return receipt;
     },
   });
 }

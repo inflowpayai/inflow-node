@@ -1,5 +1,8 @@
 // Public barrel for `@inflowpayai/mpp`. Anything not re-exported here is internal.
 
+export { cardCharge, cardChargeRequestSchema, cardCredentialPayloadSchema } from './card.js';
+export type { CardChargeRequest, CardCredentialPayload } from './card.js';
+
 export {
   CACHE_CONTROL,
   CREDENTIAL_AUTHORIZATION_ID,

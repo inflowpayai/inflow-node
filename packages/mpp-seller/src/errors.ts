@@ -2,6 +2,16 @@ import { PROBLEM_TYPES, type MppProblemDetail } from '@inflowpayai/mpp';
 import { sanitizeMppProblemDetail } from '@inflowpayai/mpp-internal';
 import { Errors } from 'mppx';
 
+export class MppCardUnavailableError extends Error {
+  override readonly name = 'MppCardUnavailableError';
+
+  constructor() {
+    super(
+      'card: InFlow has no USD Visa capability for this seller. Connect a charge-enabled Stripe account in the InFlow dashboard.',
+    );
+  }
+}
+
 /**
  * Thrown when the PSP rejects validation or broadcast. It extends mppx's {@link Errors.PaymentError} so the framework
  * treats it as a payment failure and renders the RFC 9457 problem body with the correct HTTP status, rather than

@@ -178,7 +178,7 @@ export interface MppReceipt {
   [extension: string]: unknown;
   /** Challenge id this receipt responds to, when supplied by the payment method. */
   challengeId?: string;
-  /** Seller-provided reconciliation metadata echoed for a subscription settlement. */
+  /** Seller-provided reconciliation reference, including CARD and subscription settlements. */
   externalId?: string;
   /** Payment method identifier (e.g. `'inflow'`). Required. */
   method: MppMethodLabel;

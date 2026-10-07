@@ -141,6 +141,8 @@ Runnable end-to-end examples live in [`examples/`](./examples). Start a seller, 
 
 - [`mpp-aep-seller-express`](./examples/mpp-aep-seller-express) — Express server applying AEP API-key authentication
   before MPP payment enforcement on the same protected routes.
+- [`mpp-card-seller-express`](./examples/mpp-card-seller-express) — Express server accepting USD Visa network-token
+  payments with the `card` method and an InFlow-connected Stripe account.
 - [`mpp-seller-express`](./examples/mpp-seller-express) — Express server accepting MPP payments via `mppx`'s Express
   adapter + InFlow's `inflow` seller method, plus a multi-currency `/api/checkout` route via
   `inflowChargesNodeListener`.
