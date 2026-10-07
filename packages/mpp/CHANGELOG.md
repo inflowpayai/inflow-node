@@ -1,5 +1,27 @@
 # @inflowpayai/mpp
 
+## 0.11.0
+
+### Minor Changes
+
+- [#96](https://github.com/inflowpayai/inflow-node/pull/96)
+  [`61338d1`](https://github.com/inflowpayai/inflow-node/commit/61338d1cd0a16c6d9bb820cfc2fb58732641194e) Thanks
+  [@nkavian](https://github.com/nkavian)! - Add `getPaymentStatus` for reading settlement status and buyer
+  card-verification actions on an existing InFlow transaction. Keep credential and payload readiness separate from
+  payment settlement.
+
+- [#95](https://github.com/inflowpayai/inflow-node/pull/95)
+  [`6a8ec32`](https://github.com/inflowpayai/inflow-node/commit/6a8ec328ef7410b306518488c9276a003eaac9fd) Thanks
+  [@nkavian](https://github.com/nkavian)! - Add CARD seller acceptance for USD Visa network-token payments. Load
+  merchant and public encryption details from InFlow, construct bound challenges through mppx, and delegate credential
+  validation and settlement to InFlow.
+
+- [#96](https://github.com/inflowpayai/inflow-node/pull/96)
+  [`61338d1`](https://github.com/inflowpayai/inflow-node/commit/61338d1cd0a16c6d9bb820cfc2fb58732641194e) Thanks
+  [@nkavian](https://github.com/nkavian)! - Add a CARD buyer method for linked Visa cards with VIC allowances, required
+  merchant inputs, and optional instrument selection. Reuse approval polling and cancellation, preserve encrypted
+  credentials and challenge bindings, and expose transaction identifiers on payment failure errors.
+
 ## 0.10.1
 
 ### Patch Changes

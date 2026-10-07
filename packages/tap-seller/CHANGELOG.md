@@ -1,5 +1,21 @@
 # @inflowpayai/tap-seller
 
+## 0.2.2
+
+### Patch Changes
+
+- [#87](https://github.com/inflowpayai/inflow-node/pull/87)
+  [`646933e`](https://github.com/inflowpayai/inflow-node/commit/646933ecbcafe0d4504b0530090e5b972c36e21c) Thanks
+  [@nkavian](https://github.com/nkavian)! - Preserve original query spelling during TAP signature verification,
+  rejecting changes between literal and percent-encoded characters.
+
+- [#86](https://github.com/inflowpayai/inflow-node/pull/86)
+  [`f78e0a6`](https://github.com/inflowpayai/inflow-node/commit/f78e0a6cd241a32602830c4d6d88ebd989b22bdc) Thanks
+  [@nkavian](https://github.com/nkavian)! - Accept valid TAP signature parameter ordering and Structured Field
+  serialization. Repeated parameters use their last value consistently for validation and signature verification.
+
+  Reject non-Ed25519 key material returned by a custom key resolver.
+
 ## 0.2.1
 
 ### Patch Changes

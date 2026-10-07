@@ -1,5 +1,21 @@
 # @inflowpayai/x402-seller
 
+## 0.9.0
+
+### Minor Changes
+
+- [#96](https://github.com/inflowpayai/inflow-node/pull/96)
+  [`61338d1`](https://github.com/inflowpayai/inflow-node/commit/61338d1cd0a16c6d9bb820cfc2fb58732641194e) Thanks
+  [@nkavian](https://github.com/nkavian)! - Support explicitly selected Instrument/USD seller offers without stablecoin
+  expansion. Validate whole-cent card prices and the USD 0.50 minimum. Align Instrument payload types with the server's
+  transaction-ID-only response.
+
+### Patch Changes
+
+- Updated dependencies
+  [[`61338d1`](https://github.com/inflowpayai/inflow-node/commit/61338d1cd0a16c6d9bb820cfc2fb58732641194e)]:
+  - @inflowpayai/x402@0.11.0
+
 ## 0.8.0
 
 ### Minor Changes
