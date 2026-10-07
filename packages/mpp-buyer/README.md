@@ -31,6 +31,10 @@ authentication forms are mutually exclusive.
   (fire-and-forget cancel of a backing approval, e.g. for out-of-process resumption).
 - `tempo(parameters)` — the buyer `tempo` client method. It uses the same InFlow buyer endpoints and returns the
   server-produced Tempo credential.
+- `card(parameters)` — the buyer `card/charge` method for Visa payments using a linked card and its VIC allowance. It
+  supports `cleanup()` and `cancelApproval(approvalId)` like the other buyer methods.
+- `cardContextSchema` and `CardPaymentOptions` — required merchant name, website URL and country code, with an optional
+  instrument ID.
 - `inflowContextSchema` — the per-call context schema (`{ instrumentId? }`) `mppx` validates before `createCredential`
   runs.
 - `tempoContextSchema` — the empty per-call context schema for Tempo charges.
@@ -97,7 +101,91 @@ path (`Mppx.create({ polyfill: false })` + `mppx.fetch`) is
 [`examples/mpp-buyer-manual`](../../examples/mpp-buyer-manual).
 
 The rail (`balance` for crypto, `instrument` for fiat) is **derived from the seller's challenge** — the buyer does not
-choose it. The only buyer-supplied per-call option is `instrumentId` for instrument-rail challenges.
+choose it. For the `inflow` method, the only buyer-supplied per-call option is `instrumentId` for instrument-rail
+challenges.
+
+## Pay with a linked card
+
+An `inflow/charge` offer in USD uses an ordinary card linked to your InFlow account. It does not require a VIC allowance
+or a USD wallet balance. Link a card in the matching sandbox or production dashboard before paying. Omitting the
+Instrument ID uses your primary card; selecting an unavailable card fails rather than falling back to another card.
+
+For an HTTP request, pass the selection in the buyer's per-call context:
+
+```ts
+import { Mppx, inflow } from '@inflowpayai/mpp-buyer';
+
+const buyer = Mppx.create({
+  maxPaymentRetries: 1,
+  polyfill: false,
+  methods: [inflow({ apiKey: process.env['INFLOW_API_KEY'] ?? '', environment: 'sandbox' })],
+});
+const instrumentId = process.env['INSTRUMENT_ID'];
+const response = await buyer.fetch('http://localhost:3000/api/report', {
+  context: instrumentId === undefined ? {} : { instrumentId },
+});
+console.log(response.status);
+```
+
+The selection goes to the InFlow buyer endpoint, not the seller. The seller's challenge supplies the price and rail; the
+buyer does not substitute a different currency or switch to balance funding after a failure.
+
+InFlow approval and bank verification are distinct steps. Credential creation waits for InFlow approval; it does not
+wait for the seller's subsequent settlement or open a bank verification page. A pending settlement response or lost
+connection must not trigger a fresh `buyer.fetch` purchase. Applications that handle recovery should retain the original
+transaction ID and credential using [`MppClient`](../mpp/README.md#card-verification-and-payment-status), inspect
+`getPaymentStatus`, and replay the same credential after settlement. The high-level method does not retain that recovery
+state for the application.
+
+Run the [manual buyer example](../../examples/mpp-buyer-manual#pay-the-usd-linked-card-example) against the USD-only
+seller example to exercise a USD 1.00 purchase.
+
+## Pay a CARD offer with a VIC allowance
+
+Use `card` when the seller advertises `card/charge`. Link a Visa card in your InFlow dashboard and create and verify its
+VIC allowance before paying. This method supports USD charges of at least USD 0.50; unlike ordinary `inflow` instrument
+payments, it requires an allowance. The seller can use InFlow or another CARD-compatible processor integration.
+
+Provide the merchant's business name, absolute HTTP or HTTPS website URL, and two-letter country code for every payment.
+These describe the seller, not the buyer's billing address. Obtain them from the seller; the SDK does not guess or ask
+interactive questions. InFlow uses verified Seller details instead when it recognizes an InFlow seller. Omitting
+`instrumentId` selects your primary card; an invalid selection does not fall back to a different card.
+
+```ts
+import { card, Mppx } from '@inflowpayai/mpp-buyer';
+
+const method = card({ apiKey: process.env['INFLOW_API_KEY'] ?? '', environment: 'sandbox' });
+const buyer = Mppx.create({ methods: [method], polyfill: false, maxPaymentRetries: 1 });
+try {
+  const response = await buyer.fetch('https://seller.example/report', {
+    context: {
+      merchant: { name: 'Example Seller', url: 'https://seller.example', countryCode: 'US' },
+      // instrumentId: '00000000-0000-4000-8000-000000000001',
+    },
+  });
+  console.log(response.status);
+} finally {
+  method.cleanup();
+}
+```
+
+`maxPaymentRetries: 1` permits one credential-backed request after the initial 402. A further 402 is returned to your
+application rather than starting another purchase. Do not automatically repeat `buyer.fetch` after an error, timeout, or
+uncertain response. For resumable applications, use the core `MppClient` transaction methods, retain the transaction ID
+and request, and recover the saved credential with `getTransaction(transactionId)`. Replay that credential for the same
+purchase instead of calling `createTransaction` again. Treat stored credentials as secrets.
+
+The method waits for InFlow approval, then polls for the encrypted purchase credential. It neither decrypts card data
+nor holds Basis Theory or Stripe keys. `ready` means the credential is available, not that the seller has charged the
+card. An issuance failure raises `MppPaymentFailedError` with the server's explanation and `transactionId` when
+supplied. An unknown issuance outcome requires support or reconciliation, not a replacement payment.
+
+To check server availability, call `MppClient.getSupported()` and look for method `card` with intent `charge`. CARD has
+no InFlow settlement rail, so its `rails` list is empty; it is not the `inflow` method's `instrument` rail. That
+capability does not establish that a particular buyer has a usable card or allowance.
+
+Cancelling a pending approval can stop issuance. Once approval has completed, `cleanup()` only stops the local wait; it
+does not revoke an issued credential or reverse a payment.
 
 ## Lifecycle, cancellation, and orphans
 

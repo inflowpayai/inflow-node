@@ -61,6 +61,63 @@ function encodedFor(payload: InflowPaymentPayload): string {
 }
 
 describe('InflowClient.prepareInflowPayment — handle construction', () => {
+  it.each([
+    ['instrument', '00000000-0000-0000-0000-000000000123'],
+    ['instrument', undefined],
+    ['balance', '00000000-0000-0000-0000-000000000123'],
+  ])('selects a card only for %s with Instrument ID %s', async (scheme, id) => {
+    server.use(
+      http.get(`${PROD_BASE}/v1/transactions/x402-supported`, () =>
+        HttpResponse.json({
+          kinds: [...SUPPORTED.kinds, { scheme: 'instrument', network: 'inflow:1', x402Version: 2 }],
+        }),
+      ),
+    );
+    let captured: unknown;
+    server.use(
+      http.post(`${PROD_BASE}/v1/transactions/x402`, async ({ request }) => {
+        captured = await request.json();
+        return HttpResponse.json({ approvalId: 'a', approvalStatus: 'PENDING', transactionId: 't' });
+      }),
+    );
+    const client = await createInflowClient({ apiKey: 'sk_test', ...(id !== undefined ? { instrument: { id } } : {}) });
+    const requirement = { ...REQUIREMENT, scheme, asset: 'USD' };
+    await client.prepareInflowPayment(requirement, CONTEXT);
+    expect(captured).toEqual({
+      accept: requirement,
+      resource: CONTEXT.resource,
+      x402Version: 2,
+      ...(scheme === 'instrument' && id !== undefined ? { instrumentId: id } : {}),
+    });
+    expect(requirement.extra).toEqual({});
+  });
+
+  it('does not retry with the primary card when the selected card is rejected', async () => {
+    server.use(
+      http.get(`${PROD_BASE}/v1/transactions/x402-supported`, () =>
+        HttpResponse.json({
+          kinds: [{ scheme: 'instrument', network: 'inflow:1', x402Version: 2 }],
+        }),
+      ),
+    );
+    const requests: unknown[] = [];
+    server.use(
+      http.post(`${PROD_BASE}/v1/transactions/x402`, async ({ request }) => {
+        requests.push(await request.json());
+        return HttpResponse.json(
+          { code: 'PARAMETER_INVALID', message: 'A usable payment card owned by the buyer is required.' },
+          { status: 400 },
+        );
+      }),
+    );
+    const id = '00000000-0000-0000-0000-000000000123';
+    const client = await createInflowClient({ apiKey: 'sk_test', prefer: ['instrument'], instrument: { id } });
+    const requirement = { ...REQUIREMENT, scheme: 'instrument', asset: 'USD' };
+    await expect(client.prepareInflowPayment(requirement, CONTEXT)).rejects.toMatchObject({ httpStatus: 400 });
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({ instrumentId: id });
+  });
+
   it('POSTs accept + resource + x402Version and returns the PreparedPayment handle', async () => {
     installSupported();
     let captured: unknown;

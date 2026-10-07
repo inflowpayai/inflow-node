@@ -25,8 +25,8 @@ exposes to the corresponding upstream V2 names.
 V2 spec mandates CAIP-2. EVM uses `eip155:<chainId>` (e.g. `eip155:8453`); Solana uses the spec-strict
 `solana:<first-32-base58-chars-of-genesis-hash>` (e.g. `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` for mainnet,
 `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` for devnet — the foundation's `@x402/svm` rejects the shorthand
-`solana:mainnet`/`solana:devnet`). InFlow **extends** this with the literal `'inflow:1'` for balance and (reserved)
-instrument schemes. As a result:
+`solana:mainnet`/`solana:devnet`). InFlow **extends** this with the literal `'inflow:1'` for balance and instrument
+schemes. As a result:
 
 - The SDK's `network: string` field accepts either form.
 - `@x402/core`'s `Network` template literal type (`` `${string}:${string}` ``) also accepts `'inflow:1'`. The SDK's
@@ -53,10 +53,10 @@ SCHEMES = {
 - `'upto'` is used for explicitly selected metered offers with Permit2 metadata. InFlow-managed buyers do not sign these
   payments; see the [seller guide](../../packages/x402-seller/README.md) for external-wallet integration.
 - `'balance'` is used for InFlow-internal ledger transfers. `network` is always `'inflow:1'`; `payTo` is the seller's
-  UUID; `asset` is empty.
-- `'instrument'` is reserved. `inflowAccepts` passes every scheme the server publishes through unchanged, so an
-  `'instrument'` entry will flow into `PaymentOption[]` if the server ever advertises one; settlement support is not yet
-  enabled end-to-end.
+  UUID; `asset` is the balance currency name, such as `USDC`.
+- `'instrument'` charges a linked card. `network` is `'inflow:1'`, `payTo` is the seller's UUID, and `asset` is `'USD'`.
+  Sellers explicitly select the scheme. The approved transaction identifies the card on the server; the payment payload
+  does not contain card credentials.
 
 ## Decimals
 
@@ -83,8 +83,9 @@ silently truncating.
 
 When `PriceSpec.currency` is set alongside an amount that also embeds a currency, **`currency` wins** on conflict.
 
-`'USD'` is a wildcard that matches any stablecoin the seller has configured (USDC, USDT, PYUSD, …). Concrete currency
-codes only match the exact asset.
+For balance/blockchain offers, `'USD'` matches configured stablecoins (USDC, USDT, PYUSD, …); concrete currency codes
+match that currency. Explicitly selected Instrument offers use fiat USD and require at least USD 0.50 in whole cents.
+Instrument uses an 18-decimal wire scale, not cents: USD 1.00 is `1000000000000000000`.
 
 ## Headers
 
@@ -131,7 +132,7 @@ const updated = setExtra(req.extra, EXTRA_KEYS.FEE_PAYER, '0xfee');
 | `'balance'`    | `BalancePayloadData` — `{ transactionId }`.                                                                               |
 | `'exact'`      | `ExactPayloadData` — `{ authorization: { from, to, value, validAfter, validBefore, nonce }, signature }` (EIP-3009 form). |
 | `'exact'`      | `Permit2PayloadData` — Permit2 form of the `exact` scheme; discriminate with `isPermit2Payload`.                          |
-| `'instrument'` | `InstrumentPayloadData` — `{ transactionId, signature, instrumentId?, instrumentType? }`. Reserved.                       |
+| `'instrument'` | `InstrumentPayloadData` — `{ transactionId }`. Card and vault identifiers remain on the server.                           |
 
 Narrowing helpers `isBalancePayload`, `isExactPayload`, `isPermit2Payload`, `isInstrumentPayload` discriminate without
 bangs. Use `isExactPayload` + `isPermit2Payload` together to split the two `'exact'` variants.

@@ -1,6 +1,7 @@
 import {
   ASSET_TRANSFER_METHODS,
   EXTRA_KEYS,
+  SCHEMES,
   InflowApiError,
   InflowHttpClient,
   normalizeDecimalString,
@@ -9,6 +10,7 @@ import type {
   InflowPaymentPayload,
   PaymentRequirements,
   PaymentScheme,
+  RequestOptions,
   X402BuyerSupportedResponse,
 } from '@inflowpayai/x402';
 import { EXTENSION_REGISTRY, validatePaymentId } from '@inflowpayai/x402/extensions';
@@ -26,6 +28,7 @@ import type {
   BuyerLedgerBalance,
   EncodedPayment,
   InflowSigner,
+  PaymentStatusResponse,
   PreparedPayment,
   SignerOptions,
   SignOptions,
@@ -146,6 +149,9 @@ export async function createInflowSigner(options: SignerOptions): Promise<Inflow
       accept: requirement,
       resource: context.resource,
       x402Version: context.x402Version,
+      ...(requirement.scheme === SCHEMES.INSTRUMENT && options.instrument?.id !== undefined
+        ? { instrumentId: options.instrument.id }
+        : {}),
       ...(merged.paymentId !== undefined ? { remotePaymentId: merged.paymentId } : {}),
     };
     // Retries disabled: `POST /v1/transactions/x402` is idempotent only when
@@ -180,6 +186,16 @@ export async function createInflowSigner(options: SignerOptions): Promise<Inflow
     return http.get<X402PayloadResponse>(TRANSACTION_X402_PATH(transactionId), { retries: 0 });
   }
 
+  async function getPaymentStatus(
+    transactionId: string,
+    requestOptions: RequestOptions = {},
+  ): Promise<PaymentStatusResponse> {
+    return http.get<PaymentStatusResponse>(`/v1/transactions/${encodeURIComponent(transactionId)}`, {
+      ...requestOptions,
+      retries: requestOptions.retries ?? 0,
+    });
+  }
+
   async function cancelApproval(approvalId: string): Promise<void> {
     try {
       await http.post(APPROVAL_CANCEL_PATH(approvalId), undefined, { retries: 0 });
@@ -203,6 +219,7 @@ export async function createInflowSigner(options: SignerOptions): Promise<Inflow
     refreshSupported,
     getBalances,
     getX402Payload,
+    getPaymentStatus,
     cancelApproval,
   };
   return signer;

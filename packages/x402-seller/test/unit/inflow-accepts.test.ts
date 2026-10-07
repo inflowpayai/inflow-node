@@ -26,6 +26,95 @@ async function makeClient(configOverride?: typeof SAMPLE_CONFIG) {
   return createInflowSellerClient({ environment: 'production', apiKey: 'sk_test' });
 }
 
+const INSTRUMENT_METHOD = {
+  scheme: 'instrument',
+  network: 'inflow:1',
+  payTo: SAMPLE_CONFIG.sellerId,
+  decimals: 18,
+};
+
+describe('Instrument offers', () => {
+  it('preserves default offers when the server advertises Instrument', async () => {
+    const client = await makeClient({
+      ...SAMPLE_CONFIG,
+      paymentMethods: [...SAMPLE_CONFIG.paymentMethods, INSTRUMENT_METHOD],
+    });
+    const original = await inflowAccepts(await makeClient(), { price: '$0.01' });
+    expect(await inflowAccepts(client, { price: '$0.01' })).toEqual(original);
+  });
+
+  it.each(['$1.00', '1 USD', { amount: '1', currency: 'USD' }, '$1.00000000'])(
+    'emits one fiat offer without blockchain assets for %j',
+    async (price) => {
+      const client = await makeClient({
+        ...SAMPLE_CONFIG,
+        assets: [],
+        wallets: [],
+        paymentMethods: [INSTRUMENT_METHOD],
+      });
+      expect(await inflowAccepts(client, { price, schemes: ['instrument'] })).toEqual([
+        {
+          scheme: 'instrument',
+          network: 'inflow:1',
+          payTo: SAMPLE_CONFIG.sellerId,
+          price: { asset: 'USD', amount: '1000000000000000000' },
+          maxTimeoutSeconds: 300,
+          extra: { assetName: 'USD' },
+        },
+      ]);
+    },
+  );
+
+  it('keeps mixed balance and Instrument currencies separate without mutating config', async () => {
+    const config = { ...SAMPLE_CONFIG, paymentMethods: [...SAMPLE_CONFIG.paymentMethods, INSTRUMENT_METHOD] };
+    const client = await makeClient(config);
+    const original = structuredClone(await client.config());
+    const offers = await inflowAccepts(client, { price: '$1', schemes: ['balance', 'instrument'] });
+    expect(offers.map(({ scheme, price }) => ({ scheme, price }))).toEqual([
+      { scheme: 'balance', price: { asset: 'USDC', amount: '1000000000000000000' } },
+      { scheme: 'balance', price: { asset: 'USDT', amount: '1000000000000000000' } },
+      { scheme: 'instrument', price: { asset: 'USD', amount: '1000000000000000000' } },
+    ]);
+    expect(await client.config()).toEqual(original);
+  });
+
+  it.each(['0', '0.49', '0.501', '1.00000001', '92233720368547758.08'])(
+    'rejects unsupported card amount %s instead of silently omitting it',
+    async (amount) => {
+      const client = await makeClient({ ...SAMPLE_CONFIG, paymentMethods: [INSTRUMENT_METHOD] });
+      await expect(
+        inflowAccepts(client, { price: `$${amount}`, schemes: ['instrument', 'balance'] }),
+      ).rejects.toBeInstanceOf(X402PriceParseError);
+    },
+  );
+
+  it.each([
+    ['$0.50', '500000000000000000'],
+    ['$92233720368547758.07', '92233720368547758070000000000000000'],
+  ])('accepts boundary amount %s exactly', async (price, amount) => {
+    const client = await makeClient({ ...SAMPLE_CONFIG, paymentMethods: [INSTRUMENT_METHOD] });
+    expect(await inflowAccepts(client, { price, schemes: ['instrument'] })).toMatchObject([
+      { price: { asset: 'USD', amount } },
+    ]);
+  });
+
+  it.each(['USDC', 'USDT', 'EUR'])('does not interpret %s as fiat USD', async (currency) => {
+    const client = await makeClient({ ...SAMPLE_CONFIG, paymentMethods: [INSTRUMENT_METHOD] });
+    expect(await inflowAccepts(client, { price: `1 ${currency}`, schemes: ['instrument'] })).toEqual([]);
+  });
+
+  it('honors network filters before validating an excluded card price', async () => {
+    const client = await makeClient({ ...SAMPLE_CONFIG, paymentMethods: [INSTRUMENT_METHOD] });
+    expect(await inflowAccepts(client, { price: '$0.01', schemes: ['instrument'], networks: ['eip155:8453'] })).toEqual(
+      [],
+    );
+  });
+
+  it('does not invent Instrument capability for a seller without it', async () => {
+    expect(await inflowAccepts(await makeClient(), { price: '$1', schemes: ['instrument'] })).toEqual([]);
+  });
+});
+
 describe('inflowAccepts', () => {
   it('emits one entry per (wallet, asset) with no filter', async () => {
     const client = await makeClient();
@@ -311,7 +400,7 @@ describe('inflowAccepts', () => {
       ...SAMPLE_CONFIG,
       paymentMethods: [
         {
-          scheme: 'instrument' as const,
+          scheme: 'future-method',
           network: 'inflow:1',
           payTo: SAMPLE_CONFIG.sellerId,
           decimals: 18,
@@ -320,9 +409,9 @@ describe('inflowAccepts', () => {
     };
     const client = await makeClient(override);
     const out = await inflowAccepts(client, { price: '$0.01' });
-    const instrumentEntries = out.filter((o) => o.scheme === 'instrument');
-    expect(instrumentEntries.length).toBeGreaterThan(0);
-    for (const entry of instrumentEntries) {
+    const futureEntries = out.filter((o) => o.scheme === 'future-method');
+    expect(futureEntries.length).toBeGreaterThan(0);
+    for (const entry of futureEntries) {
       expect(entry.network).toBe('inflow:1');
       expect(entry.payTo).toBe(SAMPLE_CONFIG.sellerId);
     }

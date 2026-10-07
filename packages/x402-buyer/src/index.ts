@@ -6,6 +6,7 @@ export type { InflowBearerClientOptions } from '@inflowpayai/x402';
 export type {
   ApprovalStatus,
   EncodedPayment,
+  PaymentStatusResponse,
   PreparedPayment,
   SignerOptions,
   SignOptions,

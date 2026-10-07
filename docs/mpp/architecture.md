@@ -7,7 +7,9 @@ deliver an MPP integration, and where that diverges from the generic `mppx` cust
 
 The InFlow server owns balance/instrument provisioning, validation, and settlement. `GET /v1/mpp/config` advertises each
 currency's rail capability (`currencyRails`). The **seller issues challenges locally**; the server does not mint them.
-During the credential lifecycle it correlates by the server-stamped `transactionId` carried in the payload.
+InFlow's `inflow/charge` credential carries a server-stamped `transactionId`. A CARD credential instead carries
+encrypted payment data; buyer applications retain the transaction ID returned by the buyer API, not an ID extracted from
+that encrypted payload. The seller checks the credential against its challenge and submits it to InFlow for processing.
 
 - The **seller** package's `Method.toServer` methods issue and render `WWW-Authenticate` challenges locally. `validate`
   forwards the credential to non-mutating `POST /v1/mpp/validate`; `broadcast` calls authoritative
@@ -56,6 +58,7 @@ client) and exposes one method per route:
 | `POST /v1/mpp/broadcast`         | `broadcast`         | seller |
 | `POST /v1/transactions/mpp`      | `createTransaction` | buyer  |
 | `GET  /v1/transactions/{id}/mpp` | `getTransaction`    | buyer  |
+| `GET  /v1/transactions/{id}`     | `getPaymentStatus`  | buyer  |
 
 (There is no public `POST /v1/mpp/challenges` surface — the seller issues challenges locally, so the core client exposes
 no challenge-minting call.)
@@ -89,3 +92,30 @@ buyer                         InFlow server
   │ ◀─────────────────────────────│
   │  Authorization: Payment <b64url>  (forwarded verbatim — see protocol-mapping.md)
 ```
+
+## Ordinary linked-card settlement
+
+For USD `inflow/charge`, the buyer pays with a card linked to their InFlow account. The selected Instrument is saved
+with the approved purchase; omission selects the buyer's primary card. A rejected selection does not fall back to a
+different card. InFlow charges through the seller's connected Stripe account at redemption, not when the credential
+becomes `ready`. No VIC allowance or InFlow USD balance funds this flow.
+
+The buyer can use `getPaymentStatus` to read the original transaction's settlement status. If issuer authentication is
+required, the response contains a buyer dashboard URL in `nextAction`; the buyer completes verification there. Neither
+the SDK nor the seller receives the Stripe client secret. After `SETTLED`, retry the original seller request with the
+same credential. `getTransaction` can recover that credential for a settled Instrument charge without extending its
+expiry. The server returns the saved receipt on an exact replay; it does not create another payment or approval.
+
+The SDK's high-level buyer method handles approval-to-credential polling, not issuer verification or settlement
+resumption. Applications implementing recovery retain the original transaction ID and request. A failed status read is
+an unknown outcome, not evidence that a new purchase is safe. See the
+[core client guide](../../packages/mpp/README.md#card-verification-and-payment-status).
+
+## VIC CARD issuance
+
+The buyer's `card` method supplies merchant details and an optional Instrument ID to the same transaction endpoints.
+InFlow resolves the buyer's card and allowance, obtains approval, and issues an encrypted purchase credential. The SDK
+checks its challenge binding and forwards the credential without decrypting or rewriting it. Seller redemption is a
+separate step; credential readiness does not prove settlement. An unknown issuance result must not trigger a replacement
+purchase. The [CARD buyer guide](../../packages/mpp-buyer/README.md#pay-a-card-offer-with-a-vic-allowance) covers
+required inputs, retry limits and recovery using the saved transaction.

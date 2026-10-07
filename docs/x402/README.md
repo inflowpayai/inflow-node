@@ -2,7 +2,7 @@
 
 InFlow's Node.js SDK for the [x402 protocol](https://docs.x402.org). Add InFlow to your existing foundation V2
 middleware as a facilitator, generate your route's `accepts[]` from your seller config, and accept or make x402 payments
-— InFlow balance transfers, on-chain exact-amount transfers, and (forthcoming) instrument-based payments.
+— InFlow balance transfers, on-chain transfers, and linked-card payments.
 
 ## Packages
 
@@ -163,7 +163,7 @@ that an InFlow facilitator placed first wins on its claimed pairs.
 
 ## Schemes
 
-The SDK supports three payment schemes:
+The SDK supports these payment schemes:
 
 - **`balance`** — InFlow-internal ledger transfer between two InFlow accounts. No on-chain transaction, no gas. The
   fastest path; uses the literal `'inflow:1'` network identifier.
@@ -171,8 +171,12 @@ The SDK supports three payment schemes:
   Aptos, Stellar). Uses CAIP-2 network identifiers — `eip155:<chainId>` for EVM (e.g. `eip155:8453`); for Solana, the
   spec-strict `solana:<first-32-base58-chars-of-genesis-hash>` (e.g. `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` for
   mainnet).
-- **`instrument`** — reserved. The value is in the type union for forward compatibility; `inflowAccepts` passes it
-  through unchanged if a server ever publishes it, but end-to-end settlement support is not yet enabled.
+- **`instrument`** — charges an InFlow buyer's linked card in fiat USD through the seller's connected Stripe account.
+  Sellers explicitly include `schemes: ['instrument']`; buyers select `prefer: ['instrument']`. Defaults remain balance
+  and blockchain payments. See the
+  [linked-card seller guide](../../packages/x402-seller/README.md#linked-card-payments).
+- **`upto`** — metered Permit2 payments authorized by an external-wallet buyer. Requires explicit seller selection and
+  the optional foundation EVM peer; see [metered payments](../../packages/x402-seller/README.md#metered-evm-payments).
 
 See [protocol-mapping.md](./protocol-mapping.md) for how each scheme maps to the on-the-wire `PaymentRequirements` /
 `PaymentOption` shapes.

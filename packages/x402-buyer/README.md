@@ -65,6 +65,62 @@ The same composition works with axios — see [`examples/x402-buyer-axios`](../.
 variant that swaps `fetch` for an axios call and decodes the response header with `decodePaymentResponseHeader` from
 `@x402/core/http`.
 
+## Paying with a linked card
+
+To select the seller's `instrument` offer, set `prefer: ['instrument']`. The seller must advertise an Instrument/USD
+payment option, and your InFlow account must have a linked card.
+
+```ts
+import { createInflowClient } from '@inflowpayai/x402-buyer';
+
+const client = await createInflowClient({
+  apiKey: process.env['INFLOW_API_KEY'] ?? '',
+  environment: 'sandbox',
+  prefer: ['instrument'],
+  instrument: { id: '00000000-0000-0000-0000-000000000123' },
+});
+```
+
+Replace the example ID with a card's Instrument ID from your InFlow account. Omit `instrument` to use your primary card.
+An explicit selection must belong to you and be usable; a rejected selection does not fall back to your primary card.
+InFlow binds the selected card to the purchase before approval, so changing your primary card afterward does not change
+the funding source for that purchase. The card identifier goes to InFlow, not into the seller's payment payload.
+
+The default scheme preference remains `['balance', 'exact']`. Configuring an Instrument ID alone does not enable card
+payments. Card payments require USD amounts of at least $0.50 in whole cents; the x402 wire amount uses 18 decimal
+places.
+
+### Card verification after approval
+
+A signed payment payload authorizes a request; it does not prove that the seller has received payment. If seller
+settlement remains pending, read the original InFlow transaction with `getPaymentStatus`. A bank verification request
+appears as `nextAction`, containing a dashboard URL for the buyer to open and sign in. The SDK does not receive a Stripe
+client secret or open a browser.
+
+Use the `transactionId` returned by the original `prepareInflowPayment` handle or its `awaitPayload` result. Retain that
+ID and the signed payload before submitting payment to the seller. The
+[two-phase example](#two-phase-signing-pending-approval-ui) shows how to obtain them; a newly created transaction cannot
+tell you what happened to the original purchase.
+
+```ts
+import { createInflowClient } from '@inflowpayai/x402-buyer';
+
+const apiKey = process.env['INFLOW_API_KEY'];
+const transactionId = process.env['TRANSACTION_ID'];
+if (!apiKey || !transactionId) throw new Error('Set INFLOW_API_KEY and the original TRANSACTION_ID.');
+const client = await createInflowClient({ apiKey, environment: 'sandbox' });
+const payment = await client.getPaymentStatus(transactionId);
+if (payment.nextAction?.type === 'authenticate_card') {
+  console.log('Verify this payment:', payment.nextAction.url);
+}
+```
+
+Each call performs one read by default; it does not poll automatically. Request options accept `signal`, `timeoutMs` and
+`retries`. Stopping a read does not cancel the payment. An absent `nextAction` is not evidence of success. For an
+Instrument purchase, wait for `SETTLED`, then retry the original seller request with the same signed payload and payment
+identifier to obtain the response and receipt. Keep those values when payment is pending; do not call
+`prepareInflowPayment` to start a replacement purchase. A failed status request leaves the outcome unknown.
+
 ## Composing with foundation schemes
 
 Permit2 payments always use an external wallet registered with the foundation scheme. They are excluded from InFlow's
@@ -176,7 +232,7 @@ console.log(`approval ${prepared.approvalId} pending — show dashboard prompt`)
 
 try {
   const payment = await prepared.awaitPayload({ timeoutMs: 5 * 60 * 1000 });
-  console.log(payment.encodedPayload);
+  console.log('Signed payment ready for transaction:', payment.transactionId);
 } catch (err) {
   void prepared.cancel(); // fire-and-forget; never rejects
   throw err;
@@ -185,6 +241,10 @@ try {
 
 The two-phase flow is InFlow-specific — there's no foundation equivalent. `prepareInflowPayment` throws
 `X402AdapterRoutingError` if the requirement is not in the InFlow buyer capability cache.
+
+Save `prepared.transactionId` when preparation returns. Save `payment.encodedPayload` securely after signing and use it
+for the original seller request's `PAYMENT-SIGNATURE` header. Do not log the payload. Keep the original request and
+payload for settlement recovery; polling for approval and checking settlement are separate operations.
 
 Use `selectInflowRequirement` to apply registered selection policies before preparation. Preparation accepts the chosen
 requirement and does not rerun policies against that single offer. Before hooks run before the approval is created;

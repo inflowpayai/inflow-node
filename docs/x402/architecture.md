@@ -159,16 +159,17 @@ Given an `InflowSellerClient` and a `PriceSpec`, `inflowAccepts` produces a foun
    pair using `asset.assetTransferMethod` verbatim — the SDK does **not** fan out an implicit EIP-3009/Permit2 pair.
    Sellers can explicitly select configured Permit2 alternatives through `inflowRoute`. For Permit2 entries,
    `extra.permit2Proxy` is set from `asset.permit2Proxy`.
-2. **Non-blockchain entries**: for each `paymentMethod` (`balance`, future `instrument`), emit one `PaymentOption` per
-   selected currency using the method's own `payTo` and decimals. `USD` selects every distinct currency in
-   `config.assets`; an explicit currency selects that currency alone.
+2. **Non-blockchain entries**: use each method's own `payTo` and decimals. Balance expands `USD` into the distinct
+   configured stablecoins; an explicit currency selects that currency alone. Instrument requires explicit inclusion in
+   `options.schemes` and a USD price, and emits one fiat USD offer independently of `config.assets`. Card prices must be
+   at least USD 0.50 in whole cents and fit the server's signed 64-bit cent amount; invalid prices throw.
 3. **Metered entries**: only when `options.schemes` explicitly includes `upto`, match each Permit2-capable EVM asset
    (`asset.permit2Proxy` present) to its network's `config.supported` entry for `upto`. That entry supplies
    `extra.assetTransferMethod: 'permit2'`, `extra.permit2Proxy` for the metered proxy, and `extra.facilitatorAddress`
    for the signed witness. The route price is the authorization ceiling. Exact entries retain the asset's configured
    transfer method; metered support does not imply an exact Permit2 alternative.
 4. **Filter**: `options.schemes` and `options.networks` are combined as logical AND. Without a scheme filter, emit
-   fixed-price entries only.
+   fixed-price balance/blockchain entries only; Instrument and metered payments require explicit selection.
 
 Ordering: on-chain entries by wallet declaration order, then payment methods in declaration order.
 

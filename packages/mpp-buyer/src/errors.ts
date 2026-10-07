@@ -26,12 +26,13 @@ export class MppPaymentCancelledError extends Error {
 export class MppPaymentFailedError extends Error {
   /** The problem detail the server returned with the failed state, when present. */
   readonly problem?: MppProblemDetail;
+  readonly transactionId?: string;
 
-  /** @param problem - The server-returned RFC 9457 problem detail, when present. */
-  constructor(problem?: MppProblemDetail) {
+  constructor(problem?: MppProblemDetail, transactionId?: string) {
     super(problem?.detail ?? problem?.title ?? 'MPP payment failed');
     this.name = 'MppPaymentFailedError';
     if (problem !== undefined) this.problem = problem;
+    if (transactionId !== undefined) this.transactionId = transactionId;
   }
 }
 

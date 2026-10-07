@@ -74,7 +74,8 @@ cannot load Seller configuration; `createInflowSellerClient()` rejects with an `
 | `<integer>(.<decimals>)?` (bare)     | `'0.01'`                                 | from `PriceSpec.currency` (required) |
 
 If both `amount` and `currency` carry a currency and they disagree, the `currency` field wins. `'USD'` is a wildcard
-that matches any stablecoin asset the seller has configured.
+that matches configured stablecoins for balance/blockchain offers. For an explicitly selected Instrument offer it means
+fiat USD, not a stablecoin.
 
 ## Quickstart
 
@@ -114,6 +115,41 @@ app.use(
 );
 app.listen(3000);
 ```
+
+## Linked-card payments
+
+Connect a Stripe account in your InFlow Seller dashboard, then explicitly include `instrument` in the route's schemes.
+The buyer needs an InFlow account with a linked card. These are ordinary card charges, not VIC CARD credentials or
+stablecoin payments.
+
+```ts
+const accepts = await inflowAccepts(client, {
+  price: '$1.00',
+  schemes: ['instrument'],
+});
+if (accepts.length === 0) throw new Error('Instrument payments are unavailable for this seller.');
+```
+
+Use `accepts` in a route configured as in the quickstart above. `inflowSchemeRegistrations(client)` includes the
+server-advertised Instrument registration; if you supply a schemes filter there, include `instrument` too. An
+unavailable method produces no offers, so check before starting an Instrument-only route. The runnable
+[Instrument example](../../examples/x402-seller-express/src/instrument.ts) performs that check.
+
+Instrument prices must be USD, at least USD 0.50, and expressible in whole cents. The helper rejects invalid prices
+rather than rounding them. It emits one `instrument` / `inflow:1` / `USD` offer; a USD 1.00 price is encoded as
+`1000000000000000000`, using the server's 18-decimal scale. The server converts the amount to cents for card processing.
+Explicit stablecoin prices such as `1 USDC` do not produce Instrument offers.
+
+To offer a card alongside balance and blockchain payments, pass `schemes: ['instrument', 'balance', 'exact']` with a USD
+price. The Instrument offer stays in USD while the other offers use configured stablecoins. Omitting `schemes` does not
+enable Instrument. Buyers opt in separately with `prefer: ['instrument']`; see the
+[buyer guide](../x402-buyer/README.md#paying-with-a-linked-card) for card selection.
+
+Approval authorizes a purchase; it does not confirm a card charge. The facilitator settles the charge when the buyer
+redeems the payment payload. If the server returns `409 idempotency_pending`, the facilitator retries the same purchase
+up to five total attempts, then throws the error. A pending result is not proof of payment; do not fulfill it or
+initiate a replacement purchase automatically. The foundation authorization flow runs the handler before settlement and
+buffers the response, so irreversible fulfillment must not rely on handler execution alone.
 
 ## Metered EVM payments
 

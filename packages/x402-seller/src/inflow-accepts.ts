@@ -35,7 +35,8 @@ export interface PriceSpec {
   amount: string;
   /**
    * Currency override. When set, takes precedence over any currency embedded in {@link PriceSpec.amount}. Required when
-   * `amount` is in bare numeric form. `'USD'` is a wildcard that matches any stablecoin the seller has configured.
+   * `amount` is in bare numeric form. `'USD'` matches configured stablecoins for balance/blockchain payments and fiat
+   * USD for explicitly selected Instrument payments.
    */
   currency?: 'USD' | 'USDC' | 'USDT' | 'PYUSD' | (string & {});
 }
@@ -55,7 +56,8 @@ export interface InflowAcceptsOptions {
   /**
    * Optional filter: emit only entries whose `scheme` is in this list. Combined with
    * {@link InflowAcceptsOptions.networks} as logical AND. Metered `upto` entries require explicit inclusion; omitting
-   * this filter emits fixed-price entries only. For `upto`, `price` is the maximum authorized charge.
+   * this filter emits fixed-price balance/blockchain entries only. Instrument payments also require explicit inclusion
+   * and a USD price of at least $0.50 in whole cents. For `upto`, `price` is the maximum authorized charge.
    */
   schemes?: PaymentScheme[];
   /**
@@ -135,13 +137,17 @@ export function buildInflowAccepts(
     }
   }
 
-  // Non-blockchain entries: one per (paymentMethod, supported stablecoin).
-  // Every scheme the server publishes flows through unchanged — the SDK
-  // does not gate on specific scheme names. New schemes light up as soon
-  // as the server starts including them in /v1/x402/config.
   for (const method of config.paymentMethods) {
     if (!includeEntry(options, method.scheme, method.network)) continue;
-    for (const currency of resolveCurrencies(config, targetCurrency)) {
+    const instrument = method.scheme === SCHEMES.INSTRUMENT;
+    if (instrument) {
+      if (!options.schemes?.includes(SCHEMES.INSTRUMENT) || targetCurrency !== 'USD') continue;
+      const cents = BigInt(factorParsed(parsedAmount, 2, priceSpec.amount));
+      if (cents < 50n || cents > 9223372036854775807n) {
+        throw new X402PriceParseError(`${priceSpec.amount} (card payments require USD 0.50–92233720368547758.07)`);
+      }
+    }
+    for (const currency of instrument ? ['USD'] : resolveCurrencies(config, targetCurrency)) {
       entries.push(
         buildPaymentMethodOption({
           method,
@@ -231,10 +237,9 @@ function buildPaymentMethodOption(args: PaymentMethodOptionArgs): PaymentOption 
   const { method, currency, amount, maxTimeoutSeconds } = args;
   const base: PaymentOption = {
     scheme: method.scheme,
-    // CAIP-2 string (`'inflow:1'` for the InFlow balance ledger).
+    // CAIP-2 string (`'inflow:1'` for InFlow balance and Instrument payments).
     network: method.network as PaymentOption['network'],
     payTo: method.payTo,
-    // The currency name keys the InFlow ledger that gets debited.
     price: { asset: currency, amount },
     maxTimeoutSeconds,
   };

@@ -13,6 +13,7 @@ import type {
   InflowPaymentPayload,
   PaymentRequirements,
   PaymentScheme,
+  RequestOptions,
   X402BuyerSupportedResponse,
 } from '@inflowpayai/x402';
 import { EXTRA_KEYS, INFLOW_AMOUNT_SCALE, SCHEMES } from '@inflowpayai/x402';
@@ -25,6 +26,7 @@ import type {
   BuyerLedgerBalance,
   EncodedPayment,
   InflowSigner,
+  PaymentStatusResponse,
   PreparedPayment,
   SignerOptions,
   SignOptions,
@@ -245,6 +247,11 @@ export class InflowClient extends x402Client {
    */
   async getX402Payload(transactionId: string): Promise<X402PayloadResponse> {
     return this.inflowSigner.getX402Payload(transactionId);
+  }
+
+  /** Reads settlement and buyer actions without creating, confirming or cancelling a payment. */
+  async getPaymentStatus(transactionId: string, options: RequestOptions = {}): Promise<PaymentStatusResponse> {
+    return this.inflowSigner.getPaymentStatus(transactionId, options);
   }
 
   /**

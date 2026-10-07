@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { cardCharge, cardChargeRequestSchema, cardCredentialPayloadSchema } from '../../src/index.js';
+import {
+  cardCharge,
+  cardChargeRequestSchema,
+  cardCredentialPayloadSchema,
+  cardPaymentOptionsSchema,
+} from '../../src/index.js';
 
 const request = {
   amount: '100',
@@ -21,6 +26,28 @@ const payload = {
 };
 
 describe('InFlow CARD wire profile', () => {
+  it('accepts complete merchant details without changing caller-owned values', () => {
+    const merchant = Object.freeze({ name: 'A Seller', url: 'https://seller.example/shop', countryCode: 'US' });
+    for (const options of [{ merchant }, { merchant, instrumentId: '00000000-0000-4000-8000-000000000001' }]) {
+      expect(cardPaymentOptionsSchema.parse(Object.freeze(options))).toEqual(options);
+    }
+  });
+
+  it.each([
+    undefined,
+    {},
+    { merchant: {} },
+    { merchant: { name: ' ', url: 'https://seller.example', countryCode: 'US' } },
+    { merchant: { name: 'x'.repeat(201), url: 'https://seller.example', countryCode: 'US' } },
+    { merchant: { name: 'Seller', url: '/shop', countryCode: 'US' } },
+    { merchant: { name: 'Seller', url: 'ftp://seller.example', countryCode: 'US' } },
+    { merchant: { name: 'Seller', url: 'https://seller.example', countryCode: 'USA' } },
+    { merchant: { name: 'Seller', url: 'https://seller.example', countryCode: '12' } },
+    { merchant: { name: 'Seller', url: 'https://seller.example', countryCode: 'US' }, instrumentId: 'invalid' },
+  ])('rejects incomplete or malformed purchase options %j', (options) => {
+    expect(cardPaymentOptionsSchema.safeParse(options).success).toBe(false);
+  });
+
   it('defines card/charge and accepts exact cents at both limits', () => {
     expect(cardCharge.name).toBe('card');
     expect(cardCharge.intent).toBe('charge');

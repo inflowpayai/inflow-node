@@ -6,6 +6,7 @@ import type {
   InstrumentType,
   PaymentRequirements,
   PaymentScheme,
+  RequestOptions,
   ResourceInfo,
   X402BuyerSupportedResponse,
 } from '@inflowpayai/x402';
@@ -15,6 +16,20 @@ import type {
  * other nonterminal value without a payload continues waiting. Terminal failure statuses are preserved in errors.
  */
 export type TransactionStatus = 'INITIATED' | (string & {});
+
+/** Payment fields returned by `GET /v1/transactions/{id}`, separate from payload readiness. */
+export interface PaymentStatusResponse {
+  /** Original InFlow transaction identifier. */
+  transactionId: string;
+  /** Server transaction status, such as `PENDING`, `SETTLED` or `GENERAL_ERROR`. */
+  status: TransactionStatus;
+  /** Buyer action available for this payment; absence does not establish settlement. */
+  nextAction?: {
+    type: 'authenticate_card';
+    /** Authenticated dashboard page; not a Stripe client secret. */
+    url: string;
+  };
+}
 
 /**
  * Status of a buyer-side approval. `'APPROVED'` means the server has synchronously signed; `'PENDING'` means the buyer
@@ -114,9 +129,14 @@ export type SignerOptions = (InflowClientOptions | InflowAnonymousClientOptions 
    * {@link InflowClient.createPaymentPayload}. Default `['balance', 'exact']`.
    */
   prefer?: PaymentScheme[];
-  /** Reserved instrument-scheme configuration. */
+  /** Card selection for the instrument scheme. Has no effect on balance or blockchain payments. */
   instrument?: {
+    /**
+     * An owned Instrument ID. When omitted, InFlow uses the buyer's primary card. Invalid selections fail without
+     * fallback.
+     */
     id?: string;
+    /** Reserved; does not filter or select a card. */
     types?: InstrumentType[];
   };
   /** Default poll / timeout / paymentId values applied to every signing call. */
@@ -245,6 +265,7 @@ export interface InflowSigner extends Signer {
    * @internal
    */
   getX402Payload(transactionId: string): Promise<X402PayloadResponse>;
+  getPaymentStatus(transactionId: string, options?: RequestOptions): Promise<PaymentStatusResponse>;
   /**
    * Swallows server-side errors; rethrows auth-callback rejections verbatim.
    *

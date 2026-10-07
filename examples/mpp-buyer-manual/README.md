@@ -21,6 +21,32 @@ pnpm start
 
 Default target is `http://localhost:3000/api/widgets`. Override with `TARGET_URL=...` in `.env`.
 
+## Pay the USD linked-card example
+
+Start `pnpm start:instrument` in `examples/mpp-seller-express`. In your sandbox buyer dashboard, link a test card and
+make it your primary card. Use this buyer account's API key in this example's `.env`, not the seller's key.
+
+```bash
+TARGET_URL=http://localhost:3000/api/report pnpm start
+```
+
+This requests one USD 1.00 purchase. Approve it in InFlow when prompted there, unless an existing policy approves it. An
+empty `INSTRUMENT_ID` uses your primary card. To choose a different linked card, set `INSTRUMENT_ID` in `.env` to that
+card's Instrument ID. An invalid or unavailable selection fails; the server does not choose another card. The script
+passes this selection to InFlow, not to the seller.
+
+The script permits one payment attempt (`maxPaymentRetries: 1`) and prints the seller's response and receipt. It does
+not automate bank verification or recovery. If settlement is pending or the connection fails after approval, do not
+rerun the script to recover: another run can create another purchase. Use the original transaction ID to
+[check payment status and recover its credential](../../packages/mpp/README.md#card-verification-and-payment-status). An
+application that needs this recovery must retain the original transaction ID and credential; use `MppClient` directly
+for that control instead of this minimal `mppx.fetch` example.
+
+`INFLOW_BASE_URL` optionally points both examples at a development InFlow API. Leave it empty for sandbox and use an API
+key from the same environment. The buyer's key must never be sent to `TARGET_URL`.
+
+## Successful output
+
 Output looks like:
 
 ```
