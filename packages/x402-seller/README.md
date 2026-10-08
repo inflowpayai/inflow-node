@@ -31,6 +31,12 @@ unpaid challenges, Permit2 allowance responses, and settlement failures. Success
 handler cache directives. The Next.js proxy marks the settled `NextResponse.next()` continuation as `private`; Next.js
 owns the subsequent merge with the route response.
 
+In `@x402/core` 2.27.0, the cache helper can mistake `private` inside a quoted extension value (for example,
+`example="a, private, b"`) for a real directive and omit the required `private` addition. This upstream limitation is
+tracked in [issue #3747](https://github.com/x402-foundation/x402/issues/3747). For affected handler responses,
+explicitly include an unqualified `private` directive in `Cache-Control`. InFlow uses the upstream helper without
+replacing its parser.
+
 ## Seller Account
 
 This package requires an InFlow **Seller** account and an API key created in its dashboard:
