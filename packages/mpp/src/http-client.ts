@@ -37,8 +37,8 @@ const TIMEOUT_REASON: { readonly inflowTimeout: true } = Object.freeze({ inflowT
 
 /** Options accepted by {@link InflowHttpClient}'s constructor when authenticating with an InFlow API key. */
 export interface InflowClientOptions {
-  /** InFlow API key sent on every request as `X-API-KEY`. */
-  apiKey: string;
+  /** API key or async provider called for each HTTP attempt, sent as `X-API-KEY`. */
+  apiKey: string | (() => Promise<string>);
   /** Selects one of the public environments. Defaults to `'production'`. */
   environment?: Environment;
   /** Override the environment-derived URL. Takes precedence over `environment`. */
@@ -123,6 +123,7 @@ export class InflowHttpClient {
   /** Resolved base URL (no trailing slash). */
   readonly baseUrl: string;
   private readonly apiKey: string | undefined;
+  private readonly getApiKey: (() => Promise<string>) | undefined;
   private readonly getAccessToken: (() => Promise<string>) | undefined;
   private readonly defaultTimeoutMs: number;
   private readonly fetchImpl: typeof fetch;
@@ -139,7 +140,10 @@ export class InflowHttpClient {
   constructor(options: InflowBearerClientOptions);
   constructor(options: InflowClientOptions | InflowAnonymousClientOptions | InflowBearerClientOptions);
   constructor(options: InflowClientOptions | InflowAnonymousClientOptions | InflowBearerClientOptions) {
-    if (options.apiKey !== undefined) {
+    if (typeof options.apiKey === 'function') {
+      this.getApiKey = options.apiKey;
+      this.apiKey = undefined;
+    } else if (options.apiKey !== undefined) {
       if (typeof options.apiKey !== 'string') {
         throw new Error('InflowHttpClient: `apiKey` must be a non-empty string when provided.');
       }
@@ -155,7 +159,7 @@ export class InflowHttpClient {
     // boundary read — runtime narrows the discriminated union
     const bearerProvider = (options as Partial<Record<'getAccessToken', unknown>>).getAccessToken;
     if (bearerProvider !== undefined) {
-      if (this.apiKey !== undefined) {
+      if (this.apiKey !== undefined || this.getApiKey !== undefined) {
         throw new Error('InflowHttpClient: `apiKey` and `getAccessToken` are mutually exclusive.');
       }
       if (typeof bearerProvider !== 'function') {
@@ -257,6 +261,13 @@ export class InflowHttpClient {
   }
 
   private async buildAuthHeaders(): Promise<Record<string, string>> {
+    if (this.getApiKey !== undefined) {
+      const key = await this.getApiKey();
+      if (typeof key !== 'string' || key.trim().length === 0 || /[^\x21-\x7e]/u.test(key.trim())) {
+        throw new Error('InflowHttpClient: API key provider must return a non-empty HTTP header value.');
+      }
+      return { 'X-API-KEY': key.trim() };
+    }
     if (this.apiKey !== undefined) {
       return { 'X-API-KEY': this.apiKey };
     }

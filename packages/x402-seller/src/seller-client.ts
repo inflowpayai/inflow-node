@@ -17,7 +17,7 @@ export interface InflowSellerClientOptions {
   /** Selects one of the public environments. */
   environment: Environment;
   /** InFlow API key sent on every request as `X-API-KEY`. Required. */
-  apiKey: string;
+  apiKey: string | (() => Promise<string>);
   /** Override the environment-derived URL. Takes precedence over `environment`. */
   baseUrl?: string;
 }

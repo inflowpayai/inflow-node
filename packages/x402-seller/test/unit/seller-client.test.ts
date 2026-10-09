@@ -47,7 +47,7 @@ describe('createInflowSellerClient', () => {
     expect(counts.supported).toBe(1);
   });
 
-  it('attaches the API key on outbound requests', async () => {
+  it.each([false, true])('attaches the API key on outbound requests (provider: %s)', async (provider) => {
     let configAuth: string | null = null;
     let supportedAuth: string | null = null;
     server.use(
@@ -60,7 +60,10 @@ describe('createInflowSellerClient', () => {
         return HttpResponse.json(SAMPLE_SUPPORTED);
       }),
     );
-    await createInflowSellerClient({ environment: 'production', apiKey: 'sk_test' });
+    await createInflowSellerClient({
+      environment: 'production',
+      apiKey: provider ? () => Promise.resolve('sk_test') : 'sk_test',
+    });
     expect(configAuth).toBe('sk_test');
     expect(supportedAuth).toBe('sk_test');
   });

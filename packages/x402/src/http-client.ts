@@ -24,8 +24,8 @@ const TIMEOUT_REASON: { readonly inflowTimeout: true } = Object.freeze({ inflowT
  * in the seller and buyer packages.
  */
 export interface InflowClientOptions {
-  /** InFlow API key sent on every request as `X-API-KEY`. */
-  apiKey: string;
+  /** API key or async provider called for each HTTP attempt, sent as `X-API-KEY`. */
+  apiKey: string | (() => Promise<string>);
   /** Selects one of the public environments. Defaults to `'production'`. */
   environment?: Environment;
   /** Override the environment-derived URL. Takes precedence over `environment`. */
@@ -125,16 +125,17 @@ export class InflowHttpClient {
   /** Resolved base URL (no trailing slash). */
   readonly baseUrl: string;
   private readonly apiKey: string | undefined;
+  private readonly getApiKey: (() => Promise<string>) | undefined;
   private readonly getAccessToken: (() => Promise<string>) | undefined;
   private readonly defaultTimeoutMs: number;
   private readonly fetchImpl: typeof fetch;
 
   /**
    * @param options - {@link InflowClientOptions}, {@link InflowAnonymousClientOptions}, or
-   *   {@link InflowBearerClientOptions}. The authed form requires `apiKey` to be a non-empty string; the anonymous form
-   *   omits it entirely and sends no `X-API-KEY` header; the bearer form supplies an async `getAccessToken` callback
-   *   invoked once per HTTP attempt. Anonymous mode is used for public facilitator and external-wallet preparation
-   *   endpoints.
+   *   {@link InflowBearerClientOptions}. The authed form takes an API key or an async API-key provider; the anonymous
+   *   form omits it entirely and sends no `X-API-KEY` header; the bearer form supplies an async `getAccessToken`
+   *   callback invoked once per HTTP attempt. Anonymous mode is used for public facilitator and external-wallet
+   *   preparation endpoints.
    * @throws {Error} When `apiKey` is present but empty, when `apiKey` and `getAccessToken` are both set, or when
    *   `getAccessToken` is set but not a function. (Server-side codes are mapped to {@link InflowApiError}; these are
    *   local precondition failures.)
@@ -147,7 +148,10 @@ export class InflowHttpClient {
   // `createInflowSigner` in `@inflowpayai/x402-buyer`) construct without narrowing at the call site.
   constructor(options: InflowClientOptions | InflowAnonymousClientOptions | InflowBearerClientOptions);
   constructor(options: InflowClientOptions | InflowAnonymousClientOptions | InflowBearerClientOptions) {
-    if (options.apiKey !== undefined) {
+    if (typeof options.apiKey === 'function') {
+      this.getApiKey = options.apiKey;
+      this.apiKey = undefined;
+    } else if (options.apiKey !== undefined) {
       if (typeof options.apiKey !== 'string') {
         throw new Error('InflowHttpClient: `apiKey` must be a non-empty string when provided.');
       }
@@ -163,7 +167,7 @@ export class InflowHttpClient {
     // boundary cast — runtime narrows the discriminated union
     const bearerProvider = (options as Partial<Record<'getAccessToken', unknown>>).getAccessToken;
     if (bearerProvider !== undefined) {
-      if (this.apiKey !== undefined) {
+      if (this.apiKey !== undefined || this.getApiKey !== undefined) {
         throw new Error('InflowHttpClient: `apiKey` and `getAccessToken` are mutually exclusive.');
       }
       if (typeof bearerProvider !== 'function') {
@@ -266,6 +270,13 @@ export class InflowHttpClient {
   }
 
   private async buildAuthHeaders(): Promise<Record<string, string>> {
+    if (this.getApiKey !== undefined) {
+      const key = await this.getApiKey();
+      if (typeof key !== 'string' || key.trim().length === 0 || /[^\x21-\x7e]/u.test(key.trim())) {
+        throw new Error('InflowHttpClient: API key provider must return a non-empty HTTP header value.');
+      }
+      return { 'X-API-KEY': key.trim() };
+    }
     if (this.apiKey !== undefined) {
       return { 'X-API-KEY': this.apiKey };
     }
