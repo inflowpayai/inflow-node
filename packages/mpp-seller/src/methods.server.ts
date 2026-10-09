@@ -6,7 +6,6 @@ import {
   charge as inflowCharge,
   encode,
   MppClient,
-  PROBLEM_TYPES,
   subscription as inflowSubscription,
   tempoCharge,
 } from '@inflowpayai/mpp';
@@ -850,16 +849,16 @@ function sanitizeSellerReceiptExtensionValue(value: unknown, depth: number, budg
 }
 
 /**
- * Synthesise a verification-failed problem for a contract-violating lifecycle response.
+ * A malformed platform response does not establish that payment was rejected.
  *
  * @param operation - Lifecycle operation that returned the malformed response.
  * @returns A minimal RFC 9457 problem.
  */
 function fallbackProblem(operation: 'broadcast' | 'validation'): MppProblemDetail {
   return {
-    type: PROBLEM_TYPES.VERIFICATION_FAILED,
-    title: 'Verification Failed',
-    status: 402,
+    type: 'https://paymentauth.org/problems/internal-payment-error',
+    title: 'Internal Payment Error',
+    status: 500,
     detail: `The PSP ${operation} response was malformed.`,
   };
 }

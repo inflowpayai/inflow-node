@@ -14,6 +14,7 @@ import {
   MppUnsupportedRailError,
 } from '../../src/errors.js';
 import { inflow, tempo } from '../../src/methods.server.js';
+import { paymentHttpTransport } from '../../src/http-transport.js';
 import type {
   InflowSellerParameters,
   InflowSubscriptionSellerParameters,
@@ -178,6 +179,70 @@ function decodeChallengeRequest(response: Response): Record<string, unknown> {
 }
 
 describe('native issuance: currency → rail in the minted 402', () => {
+  it.each(['validation', 'broadcast', 'rejection', 'success'] as const)(
+    'renders %s through the real HTTP transport without changing the payment lifecycle',
+    async (outcome) => {
+      mockConfig();
+      mockValidateSuccess();
+      mockBroadcastSuccess();
+      let broadcasts = 0;
+      if (outcome === 'validation') {
+        server.use(http.post(`${BASE}/v1/mpp/validate`, () => HttpResponse.json({ success: true })));
+      }
+      if (outcome !== 'success') {
+        server.use(
+          http.post(`${BASE}/v1/mpp/broadcast`, () => {
+            broadcasts += 1;
+            return HttpResponse.json(
+              outcome === 'rejection'
+                ? {
+                    problem: {
+                      type: 'https://paymentauth.org/problems/verification-failed',
+                      title: 'Verification Failed',
+                      status: 402,
+                      detail: 'Payment rejected.',
+                    },
+                  }
+                : {},
+            );
+          }),
+        );
+      }
+      const mppx = Mppx.create({
+        methods: [inflow({ apiKey: 'sk_test', baseUrl: BASE })],
+        secretKey: SECRET,
+        realm: REALM,
+        transport: paymentHttpTransport(),
+      });
+      const options = { amount: '10', currency: 'USDC' };
+      const handler = mppx.compose(['inflow/charge', options]);
+      const unpaid = await handler(new Request('https://app.test/r'));
+      if (unpaid.status !== 402) throw new Error('expected challenge');
+      expect(unpaid.challenge.status).toBe(402);
+      const challenge = await mppx.challenge.inflow.charge(options);
+      const authorization = Credential.serialize({
+        challenge,
+        payload: { transactionId: 'tx-error', type: 'balance' },
+      });
+      const result = await handler(new Request('https://app.test/r', { headers: { Authorization: authorization } }));
+      if (outcome === 'success') {
+        if (result.status !== 200) throw new Error('expected receipt');
+        const response = result.withReceipt(new Response('paid'));
+        expect(response.headers.has('Payment-Receipt')).toBe(true);
+        expect(await response.text()).toBe('paid');
+        return;
+      }
+      if (result.status !== 402) throw new Error('expected error response');
+      const response = result.challenge;
+      expect(response.status).toBe(outcome === 'rejection' ? 402 : 500);
+      expect(response.headers.has('WWW-Authenticate')).toBe(outcome === 'rejection');
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+      expect(response.headers.get('Content-Type')).toBe('application/problem+json');
+      expect(await response.json()).toMatchObject({ status: response.status });
+      expect(broadcasts).toBe(outcome === 'validation' ? 0 : 1);
+    },
+  );
+
   it.each(['inflow', 'subscription', 'tempo'] as const)(
     'uses the default API origin for %s without a base URL override',
     async (kind) => {
@@ -1241,7 +1306,7 @@ describe('credential lifecycle', () => {
     expect(body.credential.challenge['opaque']).toBe('eyJvcmRlcklkIjoib3JkZXItMTIzIn0');
   });
 
-  it('throws a verification-failed fallback when broadcast returns neither receipt nor problem', async () => {
+  it('throws an internal-error fallback when broadcast returns neither receipt nor problem', async () => {
     mockConfig();
     mockValidateSuccess();
     server.use(http.post(`${BASE}/v1/mpp/broadcast`, () => HttpResponse.json({})));
@@ -1262,7 +1327,9 @@ describe('credential lifecycle', () => {
         credential: { challenge, payload: { transactionId: 'tx-5' } },
         request: challenge.request,
       } as unknown as VerifyArg),
-    ).rejects.toMatchObject({ problem: { type: 'https://paymentauth.org/problems/verification-failed' } });
+    ).rejects.toMatchObject({
+      problem: { type: 'https://paymentauth.org/problems/internal-payment-error', status: 500 },
+    });
   });
 });
 

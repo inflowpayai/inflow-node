@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { card } from '@inflowpayai/mpp-seller';
+import { card, paymentHttpTransport } from '@inflowpayai/mpp-seller';
 import express from 'express';
 import { Mppx } from 'mppx/express';
 
@@ -9,6 +9,7 @@ const secretKey = process.env['MPP_SECRET_KEY'];
 if (!apiKey || !secretKey) throw new Error('Set INFLOW_API_KEY and MPP_SECRET_KEY in .env.');
 
 const payments = Mppx.create({
+  transport: paymentHttpTransport(),
   methods: [await card({ apiKey, environment: 'sandbox' })],
   secretKey,
 });

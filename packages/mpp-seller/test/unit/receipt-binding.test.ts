@@ -6,6 +6,7 @@ import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { inflow, stripe } from '../../src/methods.server.js';
+import { paymentHttpTransport } from '../../src/http-transport.js';
 
 const BASE = 'https://receipt-binding.test';
 const server = setupServer();
@@ -65,6 +66,7 @@ describe.each(['instrument', 'stripe'] as const)('%s receipt binding', (kind) =>
           ? inflow({ apiKey: 'test-only', baseUrl: BASE })
           : await stripe({ apiKey: 'test-only', baseUrl: BASE });
       const framework = Mppx.create({
+        transport: paymentHttpTransport(),
         methods: [method],
         realm: 'seller.example',
         secretKey: 'test-only-binding-secret-at-least-32-bytes',
@@ -117,8 +119,11 @@ describe.each(['instrument', 'stripe'] as const)('%s receipt binding', (kind) =>
         expect(result.status).toBe(402);
         if (result.status !== 402) throw new Error('Unexpected payment success');
         expect(result.challenge.headers.has('Payment-Receipt')).toBe(false);
+        expect(result.challenge.status).toBe(500);
+        expect(result.challenge.headers.has('WWW-Authenticate')).toBe(false);
         expect(await result.challenge.json()).toMatchObject({
-          type: 'https://paymentauth.org/problems/verification-failed',
+          type: 'https://paymentauth.org/problems/internal-payment-error',
+          status: 500,
         });
       }
     },

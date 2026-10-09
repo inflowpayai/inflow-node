@@ -3,7 +3,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { Mppx } from 'mppx/hono';
 import { Mppx as MppxServer } from 'mppx/server';
-import { inflow, inflowCharges, inflowSubscriptions } from '@inflowpayai/mpp-seller';
+import { inflow, inflowCharges, inflowSubscriptions, paymentHttpTransport } from '@inflowpayai/mpp-seller';
 
 const apiKey = process.env['INFLOW_API_KEY'];
 if (apiKey === undefined || apiKey === '') {
@@ -23,10 +23,14 @@ if (apiKey === undefined || apiKey === '') {
 // would widen it and drop the typed handlers).
 const method = inflow({ apiKey, environment: 'sandbox' });
 const secretKey = process.env['MPP_SECRET_KEY'];
-const mppx = Mppx.create({ methods: [method], secretKey });
-const core = MppxServer.create({ methods: [method], secretKey });
+const mppx = Mppx.create({ methods: [method], secretKey, transport: paymentHttpTransport() });
+const core = MppxServer.create({ methods: [method], secretKey, transport: paymentHttpTransport() });
 const subscriptionMethod = inflow.subscription({ apiKey, environment: 'sandbox' });
-const subscriptionCore = MppxServer.create({ methods: [subscriptionMethod], secretKey });
+const subscriptionCore = MppxServer.create({
+  methods: [subscriptionMethod],
+  secretKey,
+  transport: paymentHttpTransport(),
+});
 const checkout = inflowCharges(core, [
   { amount: '1.0', currency: 'USD' },
   { amount: '0.0095', currency: 'USDC' },

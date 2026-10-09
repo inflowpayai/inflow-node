@@ -1,12 +1,13 @@
 import 'dotenv/config';
 import express from 'express';
 import { Mppx } from 'mppx/express';
-import { inflow } from '@inflowpayai/mpp-seller';
+import { inflow, paymentHttpTransport } from '@inflowpayai/mpp-seller';
 
 const apiKey = process.env['INFLOW_API_KEY'];
 if (apiKey === undefined || apiKey === '') throw new Error('Set INFLOW_API_KEY to a sandbox seller key.');
 const baseUrl = process.env['INFLOW_BASE_URL'];
 const mppx = Mppx.create({
+  transport: paymentHttpTransport(),
   methods: [
     inflow({
       apiKey,
