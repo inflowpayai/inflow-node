@@ -1,6 +1,6 @@
 {
   "name": "@inflowpayai/mpp-seller",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "InFlow MPP seller SDK: local mppx challenges with non-mutating validation and authoritative InFlow settlement for InFlow, Tempo, Stripe, and CARD payments.",
   "type": "module",
   "main": "./dist/index.cjs",
