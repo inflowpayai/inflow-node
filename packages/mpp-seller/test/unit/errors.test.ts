@@ -82,9 +82,9 @@ describe('MppCredentialProblemError', () => {
     const error = new MppCredentialProblemError(malformed);
 
     expect(error.toProblemDetails()).toEqual({
-      type: 'https://paymentauth.org/problems/verification-failed',
-      title: 'Payment Verification Failed',
-      status: 402,
+      type: 'https://paymentauth.org/problems/internal-payment-error',
+      title: 'Internal Payment Error',
+      status: 500,
       detail: 'The PSP credential lifecycle response carried a malformed problem.',
     });
     expect(Object.prototype).not.toHaveProperty('polluted');

@@ -71,6 +71,22 @@ authoritative replay or authorization guard.
 
 ## Configuration
 
+### HTTP error responses and upstream behavior
+
+Pass `transport: paymentHttpTransport()` to `Mppx.create` for HTTP routes. It uses mppx's credential parsing and receipt
+handling, preserves ordinary payment challenges, and renders errors with status 500 or higher as JSON problem bodies
+without `WWW-Authenticate`. The same transport option works with mppx's Express and Hono factories. It is an HTTP
+transport, not an MCP transport.
+
+The mppx 0.8.17 default HTTP transport attaches a payment challenge even to a 500 error. `paymentHttpTransport` corrects
+that response behavior without replacing the payment middleware. Applications importing mppx directly must also pass
+this option; importing an InFlow payment method alone does not replace their transport.
+
+A malformed validation response or a missing or mismatched settlement receipt produces `MppCredentialProblemError` with
+status 500. A valid platform payment rejection retains status 402 and its problem details. After an internal settlement
+failure, do not infer that payment failed or create a replacement purchase: the outcome may be unknown. This correction
+concerns malformed platform responses; mppx's handling of other untyped exceptions remains upstream behavior.
+
 - `apiKey` → `inflow({ apiKey })` — your InFlow API key; authenticates the InFlow REST calls.
 
 `Mppx.create` additionally takes a `secretKey` (or the `MPP_SECRET_KEY` env var). It must contain at least 32 bytes;
@@ -93,9 +109,10 @@ background retry loop. `createConfigClient` exposes the loader directly for insp
 ## Quickstart
 
 ```ts
-import { Mppx, inflow } from '@inflowpayai/mpp-seller';
+import { Mppx, inflow, paymentHttpTransport } from '@inflowpayai/mpp-seller';
 
 const mppx = Mppx.create({
+  transport: paymentHttpTransport(),
   methods: [
     inflow({
       apiKey: process.env.INFLOW_API_KEY!,

@@ -15,7 +15,7 @@ import {
   storedApiKeyGrantType,
 } from '@aep-foundation/service';
 import type { AepServiceCredentialStore } from '@aep-foundation/service';
-import { inflow, inflowSubscriptionsNodeListener } from '@inflowpayai/mpp-seller';
+import { inflow, inflowSubscriptionsNodeListener, paymentHttpTransport } from '@inflowpayai/mpp-seller';
 import express from 'express';
 import type { Request, RequestHandler } from 'express';
 import { Mppx } from 'mppx/express';
@@ -61,12 +61,16 @@ export function createMppAepSellerApp(options: CreateMppAepSellerAppOptions) {
     apiKey: options.apiKey,
     ...(options.baseUrl === undefined ? { environment: 'sandbox' } : { baseUrl: options.baseUrl }),
   });
-  const mppx = Mppx.create({ methods: [method], secretKey: options.mppSecretKey });
+  const mppx = Mppx.create({ methods: [method], secretKey: options.mppSecretKey, transport: paymentHttpTransport() });
   const subscriptionMethod = inflow.subscription({
     apiKey: options.apiKey,
     ...(options.baseUrl === undefined ? { environment: 'sandbox' } : { baseUrl: options.baseUrl }),
   });
-  const subscriptionCore = MppxServer.create({ methods: [subscriptionMethod], secretKey: options.mppSecretKey });
+  const subscriptionCore = MppxServer.create({
+    methods: [subscriptionMethod],
+    secretKey: options.mppSecretKey,
+    transport: paymentHttpTransport(),
+  });
   const subscribe = inflowSubscriptionsNodeListener(subscriptionCore, [
     {
       amount: '1.00',

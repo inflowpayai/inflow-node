@@ -86,7 +86,9 @@ pnpm add @inflowpayai/mpp-seller mppx
 pnpm add @inflowpayai/mpp-buyer mppx
 ```
 
-See the [MPP product docs](./docs/mpp/README.md) for the seller/buyer integration shape.
+See the [MPP product docs](./docs/mpp/README.md) for the seller/buyer integration shape. See the
+[Seller HTTP error-response notes](./packages/mpp-seller/README.md#http-error-responses-and-upstream-behavior) for the
+transport configuration and the mppx behavior it corrects.
 
 Sellers integrate via the foundation V2 middleware (`paymentMiddlewareFromConfig` from `@x402/express`, `@x402/hono`,
 `@x402/fastify`, or `@x402/next`) and pass InFlow's facilitator client into its `facilitatorClients` array. See the

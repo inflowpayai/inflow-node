@@ -13,7 +13,7 @@ import { http, HttpResponse, passthrough } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { card, MppCardUnavailableError } from '../../src/index.js';
+import { card, MppCardUnavailableError, paymentHttpTransport } from '../../src/index.js';
 import type { CardSellerParameters } from '../../src/index.js';
 
 const BASE = 'https://mpp.test';
@@ -337,7 +337,7 @@ describe('CARD seller', () => {
     let close = async () => {};
     if (framework === 'Express') {
       server.use(http.get(/^http:\/\/127\.0\.0\.1:/, () => passthrough()));
-      const payments = ExpressMppx.create({ methods: [method], secretKey: SECRET });
+      const payments = ExpressMppx.create({ methods: [method], secretKey: SECRET, transport: paymentHttpTransport() });
       const app = express();
       for (const path of ['/paid', '/other'])
         app.get(path, payments.charge({ amount: '1.00', scope: `GET ${path}` }), (_request, response) => {
@@ -359,7 +359,7 @@ describe('CARD seller', () => {
         await closed;
       };
     } else {
-      const payments = HonoMppx.create({ methods: [method], secretKey: SECRET });
+      const payments = HonoMppx.create({ methods: [method], secretKey: SECRET, transport: paymentHttpTransport() });
       const app = new Hono();
       for (const path of ['/paid', '/other'])
         app.get(path, payments.charge({ amount: '1.00' }), (context) => {
@@ -391,6 +391,17 @@ describe('CARD seller', () => {
       });
       expect(contentCalls).toBe(1);
       expect(calls.map((call) => call.operation)).toEqual(['validate', 'broadcast']);
+      server.use(http.post(`${BASE}/v1/mpp/broadcast`, () => HttpResponse.json({})));
+      const failed = await request('/paid', authorization);
+      expect(failed.status).toBe(500);
+      expect(failed.headers.has('WWW-Authenticate')).toBe(false);
+      expect(failed.headers.has('Payment-Receipt')).toBe(false);
+      expect(failed.headers.get('Cache-Control')).toBe('no-store');
+      expect(await failed.json()).toMatchObject({
+        status: 500,
+        type: 'https://paymentauth.org/problems/internal-payment-error',
+      });
+      expect(contentCalls).toBe(1);
     } finally {
       await close();
     }

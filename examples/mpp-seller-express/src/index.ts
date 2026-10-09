@@ -2,7 +2,12 @@ import 'dotenv/config';
 import express from 'express';
 import { Mppx } from 'mppx/express';
 import { Mppx as MppxServer } from 'mppx/server';
-import { inflow, inflowChargesNodeListener, inflowSubscriptionsNodeListener } from '@inflowpayai/mpp-seller';
+import {
+  inflow,
+  inflowChargesNodeListener,
+  inflowSubscriptionsNodeListener,
+  paymentHttpTransport,
+} from '@inflowpayai/mpp-seller';
 
 const apiKey = process.env['INFLOW_API_KEY'];
 if (apiKey === undefined || apiKey === '') {
@@ -26,14 +31,18 @@ const method = inflow({
   ...(baseUrl === undefined || baseUrl === '' ? {} : { baseUrl }),
 });
 const secretKey = process.env['MPP_SECRET_KEY'];
-const mppx = Mppx.create({ methods: [method], secretKey });
-const core = MppxServer.create({ methods: [method], secretKey });
+const mppx = Mppx.create({ methods: [method], secretKey, transport: paymentHttpTransport() });
+const core = MppxServer.create({ methods: [method], secretKey, transport: paymentHttpTransport() });
 const subscriptionMethod = inflow.subscription({
   apiKey,
   environment: 'sandbox',
   ...(baseUrl === undefined || baseUrl === '' ? {} : { baseUrl }),
 });
-const subscriptionCore = MppxServer.create({ methods: [subscriptionMethod], secretKey });
+const subscriptionCore = MppxServer.create({
+  methods: [subscriptionMethod],
+  secretKey,
+  transport: paymentHttpTransport(),
+});
 
 const app = express();
 app.use(express.json());

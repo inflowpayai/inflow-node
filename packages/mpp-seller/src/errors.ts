@@ -1,4 +1,4 @@
-import { PROBLEM_TYPES, type MppProblemDetail } from '@inflowpayai/mpp';
+import type { MppProblemDetail } from '@inflowpayai/mpp';
 import { sanitizeMppProblemDetail } from '@inflowpayai/mpp-internal';
 import { Errors } from 'mppx';
 
@@ -16,7 +16,7 @@ export class MppCardUnavailableError extends Error {
  * Thrown when the PSP rejects validation or broadcast. It extends mppx's {@link Errors.PaymentError} so the framework
  * treats it as a payment failure and renders the RFC 9457 problem body with the correct HTTP status, rather than
  * collapsing it into a generic `VerificationFailedError`. Valid server-returned problem fields are preserved after
- * sanitization; malformed responses become a fixed verification-failed problem instead of retaining untrusted raw
+ * sanitization; malformed responses become a fixed internal-payment-error problem instead of retaining untrusted raw
  * data.
  */
 export class MppCredentialProblemError extends Errors.PaymentError {
@@ -25,7 +25,7 @@ export class MppCredentialProblemError extends Errors.PaymentError {
   readonly type: string;
   /** Human-readable summary, taken from the server problem. */
   readonly title: string;
-  /** HTTP status, taken from the server problem (always `402` for MPP payment-flow failures). */
+  /** HTTP status: 402 for a payment rejection, 500 for a malformed platform response. */
   override readonly status: number;
   /** The full server-returned problem detail. */
   readonly problem: MppProblemDetail;
@@ -45,7 +45,7 @@ export class MppCredentialProblemError extends Errors.PaymentError {
    * the challenge id when the framework supplies one.
    *
    * @param challengeId - The challenge id the framework associates with the failure, when known.
-   * @returns The problem-details object the HTTP transport serialises into the 402 body.
+   * @returns The problem-details object for the HTTP response body.
    */
   override toProblemDetails(challengeId?: string): Errors.PaymentError.ProblemDetails {
     return {
@@ -64,9 +64,9 @@ export class MppCredentialProblemError extends Errors.PaymentError {
 /** Return a fixed safe problem when a runtime caller supplies a contract-violating problem object. */
 function malformedProblem(): MppProblemDetail {
   return {
-    type: PROBLEM_TYPES.VERIFICATION_FAILED,
-    title: 'Payment Verification Failed',
-    status: 402,
+    type: 'https://paymentauth.org/problems/internal-payment-error',
+    title: 'Internal Payment Error',
+    status: 500,
     detail: 'The PSP credential lifecycle response carried a malformed problem.',
   };
 }
