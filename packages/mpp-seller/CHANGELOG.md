@@ -1,5 +1,14 @@
 # @inflowpayai/mpp-seller
 
+## 0.10.0
+
+### Minor Changes
+
+- [#100](https://github.com/inflowpayai/inflow-node/pull/100)
+  [`dfc2a2f`](https://github.com/inflowpayai/inflow-node/commit/dfc2a2f17be78d8b16c4e477d61110bf7cbeff4e) Thanks
+  [@nkavian](https://github.com/nkavian)! - Classify malformed platform responses as internal errors rather than payment
+  rejections. Add paymentHttpTransport for JSON server-error responses without a fresh payment challenge.
+
 ## 0.9.0
 
 ### Minor Changes
