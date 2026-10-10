@@ -1,5 +1,14 @@
 # @inflowpayai/x402
 
+## 0.12.0
+
+### Minor Changes
+
+- [#102](https://github.com/inflowpayai/inflow-node/pull/102)
+  [`8942a04`](https://github.com/inflowpayai/inflow-node/commit/8942a04bc2ed4ff08fef7e9e76187b8e57580f42) Thanks
+  [@nkavian](https://github.com/nkavian)! - Allow asynchronous API-key providers to resolve a fresh key for each request
+  attempt.
+
 ## 0.11.0
 
 ### Minor Changes
