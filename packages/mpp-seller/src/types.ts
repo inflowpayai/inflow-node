@@ -20,7 +20,7 @@ import type { Method } from 'mppx';
  */
 export interface InflowSellerParameters {
   /** InFlow API key, sent as `X-API-KEY` on config, validation, and broadcast calls. */
-  apiKey: string;
+  apiKey: string | (() => Promise<string>);
   /** Selects one of the public environments. Defaults to `'production'`. */
   environment?: Environment;
   /** Override the environment-derived API base URL. Takes precedence over `environment`. */
@@ -45,7 +45,7 @@ export interface InflowSubscriptionSellerParameters extends Omit<InflowSellerPar
 /** Constructor parameters for the seller-side Tempo method factory. */
 export interface TempoSellerParameters {
   /** InFlow API key, sent as `X-API-KEY` on validation and broadcast calls. */
-  apiKey: string;
+  apiKey: string | (() => Promise<string>);
   /** Selects one of the public environments. Defaults to `'production'`. */
   environment?: Environment;
   /** Override the environment-derived API base URL. Takes precedence over `environment`. */

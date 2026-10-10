@@ -40,6 +40,14 @@ not set `baseUrl`.
 Create the account and credential in the environment where the integration runs. Sandbox credentials do not authorize
 production requests, and production credentials do not authorize sandbox requests.
 
+### API-key providers
+
+MPP and x402 clients, including their buyer and seller factories, accept `apiKey` as a string or an asynchronous
+function returning a string: `apiKey: async () => loadApiKey()`. The function runs once per HTTP attempt, including
+retries; the client does not cache its result. Provider failures stop the request without retrying. Providers must
+support concurrent calls and manage their own retrieval timeout. Use either `apiKey` or `getAccessToken`, not both.
+Existing string keys and anonymous clients remain supported.
+
 ## What's here
 
 This monorepo houses InFlow's open-source Node.js packages, organized by product. Every package, example, and product

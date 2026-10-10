@@ -83,7 +83,7 @@ type StripeDefaults = {
 /** Constructor parameters for the seller-side Stripe charge method. */
 export interface StripeSellerParameters {
   /** InFlow API key. The seller connects their Stripe account through the InFlow dashboard. */
-  apiKey: string;
+  apiKey: string | (() => Promise<string>);
   /** Selects one of the public environments. Defaults to `'production'`. */
   environment?: Environment;
   /** Override the environment-derived API base URL. Takes precedence over `environment`. */

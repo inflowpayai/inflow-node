@@ -56,6 +56,20 @@ function client(): MppClient {
 }
 
 describe('createConfigClient', () => {
+  it('loads config through an API-key provider', async () => {
+    const apiKey = vi.fn(() => Promise.resolve('provider-key'));
+    server.use(
+      http.get(`${BASE}/v1/mpp/config`, ({ request }) => {
+        expect(request.headers.get('X-API-KEY')).toBe('provider-key');
+        return HttpResponse.json(config());
+      }),
+    );
+    const c = createConfigClient(new MppClient({ apiKey, baseUrl: BASE }));
+    await c.load();
+    await c.load();
+    expect(apiKey).toHaveBeenCalledTimes(1);
+  });
+
   it('loads and exposes the consumed config slice', async () => {
     mockConfig(config());
     const loaded = await createConfigClient(client()).load();

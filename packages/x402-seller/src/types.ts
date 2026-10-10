@@ -13,7 +13,7 @@ export interface InflowFacilitatorOptions {
    * to facilitator-mode — sellers who want the authless path pick {@link createUnauthenticatedInflowFacilitator}
    * explicitly.
    */
-  apiKey: string;
+  apiKey: string | (() => Promise<string>);
   /** Override the environment-derived URL. Takes precedence over `environment`. */
   baseUrl?: string;
 }
