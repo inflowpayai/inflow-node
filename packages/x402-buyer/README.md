@@ -123,10 +123,13 @@ identifier to obtain the response and receipt. Keep those values when payment is
 
 ## Composing with foundation schemes
 
-Permit2 payments always use an external wallet registered with the foundation scheme. They are excluded from InFlow's
-managed signing path, including `prepareInflowPayment`. For EIP-2612 sponsorship, use foundation `@x402/evm` 2.27.0 or
-later and supply the network's `schemeOptions.rpcUrl` for nonce and allowance reads. The seller must declare sponsorship
-for a compatible token; the foundation signs an exact-amount permit when allowance is insufficient.
+This setup is optional. Use it when your application should also sign payments with a wallet it controls, rather than
+requesting signatures from InFlow. Your application supplies a signer: the wallet's address and functions that produce
+signatures. The signer can use a local private key or call a wallet provider.
+
+Registering that signer attaches it to the client in your application. It does not register a wallet with InFlow,
+deposit funds, or send the wallet's private key to InFlow. Applications that only use InFlow-managed payments do not
+need this setup.
 
 `InflowClient` extends `@x402/core`'s `x402Client`, so foundation registration helpers accept it directly:
 
@@ -143,15 +146,58 @@ registerExactSvmScheme(core, { signer: svmKeypair, networks: ['solana:5eykt4UsFv
 const http = new x402HTTPClient(core);
 ```
 
-When the seller's 402 offers a requirement InFlow signs (`balance/inflow:1`, or any `(scheme, network)` advertised by
-the buyer capability cache), the InFlow path wins. Otherwise the foundation's selector routes to whatever EVM or SVM
-scheme the caller registered. The foundation methods (`register`, `registerPolicy`, `onBeforePaymentCreation`, …) are
-return-type narrowed to `this` so chaining preserves the `InflowClient` type.
+In this example, `apiKey` is your InFlow API key; `evmAccount` and `svmKeypair` are signers supplied by your
+application.
 
-Foundation external-wallet payments default to recognized assets and a $1 per-payment cap. Configure the foundation
-client's `setSpendControls` explicitly when accepting other assets or limits; nondefault assets need an explicit atomic
-cap to remain bounded. See the [Solana example](../../examples/x402-buyer-x402-svm) for custom-mint configuration. These
-foundation controls apply to the external-wallet fallback, not InFlow-managed signing or `prepareInflowPayment`.
+The client first looks for a seller offer that InFlow can sign. If one matches, it uses InFlow, even when an external
+signer is registered. If none matches, it asks a registered external signer to sign a compatible offer. Registering a
+signer does not force the client to use that wallet. A failed InFlow payment does not automatically retry with an
+external wallet.
+
+Permit2 payments use the external-wallet path; InFlow-managed signing and `prepareInflowPayment` exclude them. For
+EIP-2612 sponsorship, use `@x402/evm` 2.27.0 or later and supply the network's `schemeOptions.rpcUrl` for nonce and
+allowance reads. The seller must declare sponsorship for a compatible token; the foundation signs an exact-amount permit
+when allowance is insufficient.
+
+### External-wallet spending controls
+
+The foundation's `@x402/core` client applies two defaults before an external signer creates a payment:
+
+- It accepts only tokens recognized by the registered scheme's built-in token list. For EVM payments, recognition uses
+  the network and token contract address, not just the token's name.
+- It limits each payment in those recognized tokens to $1.
+
+These are buyer-client controls, not limits on merchant prices. Your application decides whether to keep, configure, or
+disable them. They do not apply to InFlow-managed signing or `prepareInflowPayment`.
+
+This example registers your EVM signer for Arc mainnet and explicitly configures its USDC without a spending cap:
+
+```ts
+registerExactEvmScheme(core, { signer: evmAccount, networks: ['eip155:5042'] });
+core.setSpendControls({
+  maxAmountPerPayment: false,
+  allowedAssets: [
+    {
+      network: 'eip155:5042',
+      asset: '0x3600000000000000000000000000000000000000',
+    },
+  ],
+});
+```
+
+`maxAmountPerPayment: false` disables the default dollar cap. The token restriction remains: the client accepts its
+built-in recognized tokens plus the listed Arc USDC contract. To cap the Arc entry instead, add
+`maxAmountPerPayment: '25000000'` inside that entry. USDC has six decimal places, so this is a $25 cap. Per-token caps
+use integer atomic amounts; the cap is optional.
+
+To disable both the token restriction and all foundation spending caps:
+
+```ts
+core.setSpendControls(false);
+```
+
+These calls replace the client's spending-control configuration. They do not register a signer or add support for a
+payment scheme. See the [Solana example](../../examples/x402-buyer-x402-svm) for custom-mint configuration.
 
 ## EIP-7702 sponsorship for external wallets
 
