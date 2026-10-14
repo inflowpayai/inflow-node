@@ -11,9 +11,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@aep-foundation/core": "^0.5.1",
-    "@aep-foundation/express": "^0.2.3",
-    "@aep-foundation/service": "^0.3.3",
+    "@aep-foundation/core": "^0.6.0",
+    "@aep-foundation/express": "^0.2.4",
+    "@aep-foundation/service": "^0.3.4",
     "@inflowpayai/mpp-seller": "workspace:^",
     "dotenv": "^16.6.1",
     "express": "^5.2.1",

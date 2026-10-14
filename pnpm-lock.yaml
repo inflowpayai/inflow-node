@@ -78,14 +78,14 @@ importers:
   examples/mpp-aep-seller-express:
     dependencies:
       '@aep-foundation/core':
-        specifier: ^0.5.1
-        version: 0.5.1
+        specifier: ^0.6.0
+        version: 0.6.0
       '@aep-foundation/express':
-        specifier: ^0.2.3
-        version: 0.2.3(express@5.2.1)
+        specifier: ^0.2.4
+        version: 0.2.4(express@5.2.1)
       '@aep-foundation/service':
-        specifier: ^0.3.3
-        version: 0.3.3
+        specifier: ^0.3.4
+        version: 0.3.4
       '@inflowpayai/mpp-seller':
         specifier: workspace:^
         version: link:../../packages/mpp-seller
@@ -695,18 +695,18 @@ packages:
   '@adraffy/ens-normalize@1.11.1':
     resolution: {integrity: sha512-nhCBV3quEgesuf7c7KYfperqSS14T8bYuvJ8PcLJp6znkZpFc0AuW4qBtr8eKVyPPe/8RSr7sglCWPU5eaxwKQ==}
 
-  '@aep-foundation/core@0.5.1':
-    resolution: {integrity: sha512-cYUcd2DSC1E9hlGweVUunauFDt5mkCtNdSh55CvFzSCr6vq2HkWuKQYkcfYJoiO8Ttb+sN03xXBko2mIqO1Hiw==}
+  '@aep-foundation/core@0.6.0':
+    resolution: {integrity: sha512-s2AXdQ5IAyz1w8BKoihOqy+m8LDSMr53Jv1gKoRDoUYoFqbVLHDPzfhjYVcgjgpxwtn7oy0DEMl19kWiG9zUOg==}
     engines: {node: '>=22.0.0'}
 
-  '@aep-foundation/express@0.2.3':
-    resolution: {integrity: sha512-gv7Aef+X3BEe5+glmqSx+W9ILJ0vvTMnAm+Q5CTExRS+jiuWDkDwgCCIiLP0vMNHjWJF0YBe1N5SswpOV+E2qA==}
+  '@aep-foundation/express@0.2.4':
+    resolution: {integrity: sha512-yBXS6Ppx8iIVm9xGErWMsH5mOoyQ+0UHBsEBpey1pkqkCvtTSVm8LoaW9lTHK0UH2AgHzb4ukRLT4DuJt3TZkw==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       express: '>=5'
 
-  '@aep-foundation/service@0.3.3':
-    resolution: {integrity: sha512-qergEAMYbZDqIEe8cHpxmGGMKXTT+QLHrTZ2SHkScK5AObDJe2Jzs+l/TOwx+iozs6Z1JYeUa5jH9PCyIQ7SPg==}
+  '@aep-foundation/service@0.3.4':
+    resolution: {integrity: sha512-aDS0R8uL7wXVCpp4VG9bstU89vf+a9hESvZ3xCq95yvDCxv8++RCXk2Npc5PyR9y+LNdQNJ4y1tmqYIDk0ptUg==}
     engines: {node: '>=22.0.0'}
 
   '@babel/helper-string-parser@7.29.7':
@@ -3202,9 +3202,6 @@ packages:
   jose@5.10.0:
     resolution: {integrity: sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg==}
 
-  jose@6.2.11:
-    resolution: {integrity: sha512-A5NPn7g8EAzGU3IzRs+Yiq8K5n3ypYS75M5+KKiVHdUexfpWK1kP4ZMq7QnTGDoMj6TJ1dtcEJjW60yZDXS4hg==}
-
   jose@6.2.12:
     resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
 
@@ -4539,19 +4536,19 @@ snapshots:
 
   '@adraffy/ens-normalize@1.11.1': {}
 
-  '@aep-foundation/core@0.5.1':
+  '@aep-foundation/core@0.6.0':
     dependencies:
-      jose: 6.2.11
+      jose: 6.2.12
 
-  '@aep-foundation/express@0.2.3(express@5.2.1)':
+  '@aep-foundation/express@0.2.4(express@5.2.1)':
     dependencies:
-      '@aep-foundation/core': 0.5.1
-      '@aep-foundation/service': 0.3.3
+      '@aep-foundation/core': 0.6.0
+      '@aep-foundation/service': 0.3.4
       express: 5.2.1
 
-  '@aep-foundation/service@0.3.3':
+  '@aep-foundation/service@0.3.4':
     dependencies:
-      '@aep-foundation/core': 0.5.1
+      '@aep-foundation/core': 0.6.0
 
   '@babel/helper-string-parser@7.29.7': {}
 
@@ -7018,8 +7015,6 @@ snapshots:
       ws: 8.21.0
 
   jose@5.10.0: {}
-
-  jose@6.2.11: {}
 
   jose@6.2.12: {}
 
