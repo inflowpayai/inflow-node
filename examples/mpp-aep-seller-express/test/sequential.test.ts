@@ -44,8 +44,10 @@ describe('sequential AEP and MPP enforcement', () => {
       const inspect = validateInspectDocument(await inspectResponse.json());
       expect(inspect.ok).toBe(true);
       if (!inspect.ok) throw new Error('The example emitted an invalid AEP Inspect document.');
-      expect(didWebDocumentUrl(inspect.value.service.did).origin).toBe(fixture.url);
-      const didResponse = await fetch(didWebDocumentUrl(inspect.value.service.did));
+      expect(didWebDocumentUrl(inspect.value.service.did).protocol).toBe('https:');
+      const didDocumentUrl = didWebDocumentUrl(inspect.value.service.did, { allowInsecureLoopback: true });
+      expect(didDocumentUrl.origin).toBe(fixture.url);
+      const didResponse = await fetch(didDocumentUrl);
       await expect(didResponse.json()).resolves.toEqual({ id: inspect.value.service.did });
 
       const openApiResponse = await fetch(`${fixture.url}/openapi.json`);
