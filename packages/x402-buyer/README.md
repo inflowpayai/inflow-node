@@ -154,6 +154,10 @@ signer is registered. If none matches, it asks a registered external signer to s
 signer does not force the client to use that wallet. A failed InFlow payment does not automatically retry with an
 external wallet.
 
+Circle Gateway offers (`extra.name: "GatewayWalletBatched"`) are excluded from both InFlow-managed and external-wallet
+selection. If every offer requires Gateway, payment creation fails with `X402AdapterRoutingError` explaining that InFlow
+does not support Circle Gateway. Other offers in the same response remain eligible for selection.
+
 Permit2 payments use the external-wallet path; InFlow-managed signing and `prepareInflowPayment` exclude them. For
 EIP-2612 sponsorship, use `@x402/evm` 2.27.0 or later and supply the network's `schemeOptions.rpcUrl` for nonce and
 allowance reads. The seller must declare sponsorship for a compatible token; the foundation signs an exact-amount permit

@@ -8,9 +8,11 @@ import {
   type OnPaymentCreationFailureHook,
 } from '@x402/core/client';
 import type { PaymentPayload, PaymentRequired, SchemeNetworkClient } from '@x402/core/types';
+import { registerExactEvmScheme } from '@x402/evm/exact/client';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import { InflowApiError } from '@inflowpayai/x402';
 import { PAYMENT_IDENTIFIER } from '@inflowpayai/x402/extensions';
@@ -649,6 +651,144 @@ describe('createInflowClient — construction', () => {
     expect(captured?.get('authorization')).toBe('Bearer bearer-prime-token');
     expect(captured?.get('x-api-key')).toBeNull();
   });
+});
+
+describe('Circle Gateway routing', () => {
+  const ordinary: PaymentRequirements = {
+    ...EVM_REQ,
+    network: 'eip155:8453',
+    asset: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+  };
+  const gateway: PaymentRequirements = {
+    ...ordinary,
+    maxTimeoutSeconds: 604900,
+    extra: { name: 'GatewayWalletBatched', version: '1' },
+  };
+  const message = 'Circle Gateway payments are not supported by InFlow.';
+  const account = privateKeyToAccount('0x0000000000000000000000000000000000000000000000000000000000000001');
+
+  it.each([300, 3600, 604900])(
+    'rejects direct preparation and signing with timeout %s before any POST',
+    async (timeout) => {
+      installSupported();
+      const posted = vi.fn(() => HttpResponse.error());
+      server.use(http.post(`${PROD_BASE}/v1/transactions/x402`, posted));
+      const signer = await createInflowSigner({ apiKey: 'sk_test' });
+      const client = new InflowClient(signer);
+      const requirement = { ...gateway, maxTimeoutSeconds: timeout };
+      const required = paymentRequired([requirement]);
+      expect(signer.supports(requirement)).toBe(false);
+      expect(await client.selectInflowRequirement(required)).toBeNull();
+      for (const attempt of [
+        () => client.prepareInflowPayment(requirement, required),
+        () => signer.prepare(requirement, required),
+        () => signer.sign(requirement, required),
+      ]) {
+        const result = attempt();
+        await expect(result).rejects.toBeInstanceOf(X402AdapterRoutingError);
+        await expect(result).rejects.toThrow(message);
+      }
+      expect(posted).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([false, true])('rejects Gateway-only responses with an external signer registered: %s', async (external) => {
+    installSupported();
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    const signTypedData = vi.spyOn(account, 'signTypedData');
+    try {
+      if (external) registerExactEvmScheme(client, { signer: account, networks: ['eip155:8453'] });
+      const required = paymentRequired([gateway]);
+      const original = structuredClone(required);
+      const result = client.createPaymentPayload(required);
+      await expect(result).rejects.toBeInstanceOf(X402AdapterRoutingError);
+      await expect(result).rejects.toThrow(message);
+      expect(signTypedData).not.toHaveBeenCalled();
+      expect(required).toEqual(original);
+    } finally {
+      signTypedData.mockRestore();
+    }
+  });
+
+  it('selects and pays an ordinary managed offer without modifying the advertised response', async () => {
+    installSupported();
+    let posted: unknown;
+    const signed = { ...makeInflowPayload(), accepted: ordinary };
+    server.use(
+      http.post(`${PROD_BASE}/v1/transactions/x402`, async ({ request }) => {
+        posted = await request.json();
+        return HttpResponse.json({
+          approvalId: 'apr_gateway',
+          transactionId: 'tx_gateway',
+          approvalStatus: 'APPROVED',
+        });
+      }),
+      http.get(`${PROD_BASE}/v1/transactions/tx_gateway/x402`, () =>
+        HttpResponse.json({ status: 'SETTLED', encodedPayload: encodedFor(signed), paymentPayload: signed }),
+      ),
+    );
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    const required = paymentRequired([gateway, ordinary]);
+    const original = structuredClone(required);
+    expect(await client.selectInflowRequirement(required)).toEqual(ordinary);
+    expect((await client.createPaymentPayload(required)).accepted).toEqual(ordinary);
+    expect(posted).toMatchObject({ accept: ordinary });
+    expect(required).toEqual(original);
+  });
+
+  it('filters Gateway before the real foundation external signer and selection policies', async () => {
+    server.use(http.get(`${PROD_BASE}/v1/transactions/x402-supported`, () => HttpResponse.json({ kinds: [] })));
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    registerExactEvmScheme(client, { signer: account, networks: ['eip155:8453'] });
+    const policy = vi.fn<PaymentPolicy>((_version, requirements) => requirements);
+    client.registerPolicy(policy);
+    const required = paymentRequired([gateway, ordinary]);
+    const original = structuredClone(required);
+    const result = await client.createPaymentPayload(required);
+    expect(result.accepted).toEqual(ordinary);
+    expect(result.payload).toHaveProperty('authorization');
+    expect(result.payload).toHaveProperty('signature');
+    expect(policy).toHaveBeenCalledExactlyOnceWith(2, [ordinary]);
+    expect(required).toEqual(original);
+  });
+
+  it('does not describe unrelated unsupported offers or empty responses as Gateway-only', async () => {
+    installSupported();
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    for (const accepts of [[gateway, EVM_REQ], []]) {
+      await expect(client.createPaymentPayload(paymentRequired(accepts))).rejects.toThrow('No client registered');
+    }
+  });
+
+  it('rejects a Gateway offer reintroduced by an external selection policy before signing', async () => {
+    server.use(http.get(`${PROD_BASE}/v1/transactions/x402-supported`, () => HttpResponse.json({ kinds: [] })));
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    registerExactEvmScheme(client, { signer: account, networks: ['eip155:8453'] });
+    client.registerPolicy(() => paymentRequired([gateway]).accepts);
+    const signTypedData = vi.spyOn(account, 'signTypedData');
+    try {
+      await expect(client.createPaymentPayload(paymentRequired([ordinary]))).rejects.toThrow(message);
+      expect(signTypedData).not.toHaveBeenCalled();
+    } finally {
+      signTypedData.mockRestore();
+    }
+  });
+
+  it('rejects a Gateway offer reintroduced by a managed selection policy before creating a transaction', async () => {
+    installSupported();
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    client.registerPolicy(() => paymentRequired([gateway]).accepts);
+    await expect(client.createPaymentPayload(paymentRequired([ordinary]))).rejects.toThrow('no supported InFlow');
+  });
+
+  it.each([{}, { assetName: 'GatewayWalletBatched' }, { name: 'USD Coin' }, { name: 'gatewaywalletbatched' }])(
+    'does not reject non-Gateway metadata %j',
+    async (extra) => {
+      installSupported();
+      const signer = await createInflowSigner({ apiKey: 'sk_test' });
+      expect(signer.supports({ ...ordinary, extra })).toBe(true);
+    },
+  );
 });
 
 describe('Permit2 treasury boundary', () => {

@@ -21,7 +21,7 @@ import { EXTENSION_REGISTRY, getExtension, setExtension, type SignContext } from
 
 import { X402AdapterRoutingError, X402ApprovalCancelledError } from './errors.js';
 import { toFoundationRequirement, toFoundationPayload } from './_foundation-bridge.js';
-import { createInflowSigner } from './signer.js';
+import { createInflowSigner, isCircleGatewayRequirement, rejectCircleGatewayRequirement } from './signer.js';
 import type {
   BuyerLedgerBalance,
   EncodedPayment,
@@ -68,6 +68,11 @@ export class InflowClient extends x402Client {
     super();
     this.inflowSigner = inflowSigner;
     this.preferOrder = inflowSigner.prefer;
+    // Foundation selection policies can replace the filtered offers.
+    super.onBeforePaymentCreation(({ selectedRequirements }) => {
+      rejectCircleGatewayRequirement(selectedRequirements);
+      return Promise.resolve();
+    });
   }
 
   /**
@@ -76,6 +81,10 @@ export class InflowClient extends x402Client {
    * `required: true` extension whose handler returns `null` throws.
    */
   override async createPaymentPayload(paymentRequired: PaymentRequired): Promise<PaymentPayload> {
+    const accepts = paymentRequired.accepts.filter((requirement) => !isCircleGatewayRequirement(requirement));
+    const first = paymentRequired.accepts[0];
+    if (accepts.length === 0 && first !== undefined) rejectCircleGatewayRequirement(first);
+    if (accepts.length !== paymentRequired.accepts.length) paymentRequired = { ...paymentRequired, accepts };
     // All foundation/InFlow type translation goes through ./_foundation-bridge.ts; see that file for the rationale on
     // why these casts are safe under the V2 wire shape.
     const inflowMatch = await this.selectInflowRequirement(paymentRequired);
@@ -143,6 +152,7 @@ export class InflowClient extends x402Client {
     context: SigningContext,
     options?: SignOptions,
   ): Promise<PreparedPayment> {
+    rejectCircleGatewayRequirement(requirement);
     if (!this.inflowSigner.supports(requirement)) {
       throw new X402AdapterRoutingError(requirement.scheme, requirement.network);
     }
