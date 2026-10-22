@@ -50,6 +50,22 @@ const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
 const DEFAULT_PREFER: readonly PaymentScheme[] = ['balance', 'exact'];
 const APPROVAL_APPROVED: ApprovalStatus = 'APPROVED';
 
+/** @internal */
+export function isCircleGatewayRequirement(requirement: PaymentRequirements): boolean {
+  return getExtra(requirement.extra, EXTRA_KEYS.NAME) === 'GatewayWalletBatched';
+}
+
+/** @internal */
+export function rejectCircleGatewayRequirement(requirement: PaymentRequirements): void {
+  if (isCircleGatewayRequirement(requirement)) {
+    throw new X402AdapterRoutingError(
+      requirement.scheme,
+      requirement.network,
+      'Circle Gateway payments are not supported by InFlow.',
+    );
+  }
+}
+
 /**
  * Async factory for {@link InflowSigner}. Primes the buyer-supported cache before resolving so `supports()` is honestly
  * synchronous. Implementation detail of {@link createInflowClient}; not re-exported from the package barrel.
@@ -105,6 +121,7 @@ export async function createInflowSigner(options: SignerOptions): Promise<Inflow
   }
 
   function supports(requirement: PaymentRequirements): boolean {
+    if (isCircleGatewayRequirement(requirement)) return false;
     if (getExtra(requirement.extra, EXTRA_KEYS.ASSET_TRANSFER_METHOD) === ASSET_TRANSFER_METHODS.PERMIT2) return false;
     const cached = supportedCache.value;
     if (cached === undefined) return false;
@@ -137,6 +154,7 @@ export async function createInflowSigner(options: SignerOptions): Promise<Inflow
     context: SigningContext,
     callOptions?: SignOptions,
   ): Promise<PreparedPayment> {
+    rejectCircleGatewayRequirement(requirement);
     if (getExtra(requirement.extra, EXTRA_KEYS.ASSET_TRANSFER_METHOD) === ASSET_TRANSFER_METHODS.PERMIT2) {
       throw new X402AdapterRoutingError(requirement.scheme, requirement.network);
     }

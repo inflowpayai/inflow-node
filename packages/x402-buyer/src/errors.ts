@@ -79,9 +79,8 @@ export class X402PaymentIdFormatError extends Error {
 }
 
 /**
- * Thrown by {@link InflowClient.prepareInflowPayment} when the caller asks the two-phase flow for a requirement the
- * InFlow signer cannot sign. The two-phase flow only exists for InFlow-signed requirements; foundation-signed schemes
- * have no equivalent.
+ * Thrown when a payment requires Circle Gateway or the caller asks the two-phase flow for a requirement the InFlow
+ * signer cannot sign. Foundation-signed schemes have no two-phase equivalent.
  */
 export class X402AdapterRoutingError extends Error {
   /** Scheme of the requirement the adapter could not route. */
@@ -92,12 +91,14 @@ export class X402AdapterRoutingError extends Error {
   /**
    * @param scheme - Scheme of the offending requirement.
    * @param network - Network of the offending requirement.
+   * @param reason - Explanation of why the requirement cannot be routed.
    */
-  constructor(scheme: string, network: string) {
-    super(
-      `InflowClient cannot route requirement (scheme: "${scheme}", network: "${network}"): ` +
-        `not in the InFlow buyer capability cache and no two-phase flow exists for foundation-signed schemes`,
-    );
+  constructor(
+    scheme: string,
+    network: string,
+    reason = 'not in the InFlow buyer capability cache and no two-phase flow exists for foundation-signed schemes',
+  ) {
+    super(`InflowClient cannot route requirement (scheme: "${scheme}", network: "${network}"): ${reason}`);
     this.name = 'X402AdapterRoutingError';
     this.scheme = scheme;
     this.network = network;

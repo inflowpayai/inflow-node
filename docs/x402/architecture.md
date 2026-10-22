@@ -150,6 +150,9 @@ InFlow can't sign. The fallback uses the foundation's own selector against the s
 offers are excluded from managed signing even when the same `(scheme, network)` is in the cache. Foundation schemes
 handle those external-wallet payments.
 
+Circle Gateway offers (`extra.name: "GatewayWalletBatched"`) are excluded from both paths. A response containing only
+Gateway offers fails before transaction creation or external signing; mixed responses retain their other offers.
+
 ## `inflowAccepts` algorithm
 
 Given an `InflowSellerClient` and a `PriceSpec`, `inflowAccepts` produces a foundation `PaymentOption[]`:
