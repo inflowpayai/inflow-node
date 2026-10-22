@@ -1,5 +1,14 @@
 # @inflowpayai/x402-buyer
 
+## 0.11.2
+
+### Patch Changes
+
+- [#108](https://github.com/inflowpayai/inflow-node/pull/108)
+  [`5aa9f37`](https://github.com/inflowpayai/inflow-node/commit/5aa9f37b67370a07beec05788ba7465cb721206c) Thanks
+  [@nkavian](https://github.com/nkavian)! - Exclude Circle Gateway offers from managed and external-wallet payment
+  selection, and reject direct managed preparation before creating an approval.
+
 ## 0.11.1
 
 ### Patch Changes
