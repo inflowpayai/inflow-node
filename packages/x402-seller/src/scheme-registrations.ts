@@ -15,6 +15,7 @@ import type {
 import type { InflowSellerClient } from './seller-client.js';
 import { supportsPermit2 } from './inflow-accepts.js';
 import { uptoSupportedKind } from './upto.js';
+import { supportsUpfront } from './payment-flow.js';
 
 /**
  * Structural shape of the foundation adapters' `SchemeRegistration` interface — `{ network, server }` — declared
@@ -111,7 +112,7 @@ export async function inflowSchemeRegistrations(
     server:
       registration.scheme === SCHEMES.UPTO && uptoServer !== undefined
         ? uptoServer
-        : inflowPassthroughScheme(registration.scheme, registration.assetTransferMethods),
+        : inflowPassthroughScheme(registration.scheme, registration.network, registration.assetTransferMethods),
   }));
 }
 
@@ -123,6 +124,7 @@ export async function inflowSchemeRegistrations(
 // decimals here.
 function inflowPassthroughScheme(
   scheme: string,
+  network: string,
   assetTransferMethods: readonly [string, ...string[]],
 ): SchemeNetworkServer {
   // Foundation resolves this table with direct property access. Keep it
@@ -133,7 +135,12 @@ function inflowPassthroughScheme(
     Object.fromEntries(
       assetTransferMethods.map((assetTransferMethod) => [
         assetTransferMethod,
-        { supported: ['authorization'], default: 'authorization' },
+        {
+          supported: supportsUpfront(scheme, network, assetTransferMethod)
+            ? ['authorization', 'upfront']
+            : ['authorization'],
+          default: 'authorization',
+        },
       ]),
     ),
   );

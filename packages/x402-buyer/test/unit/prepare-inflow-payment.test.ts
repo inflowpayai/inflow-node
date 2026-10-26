@@ -61,6 +61,49 @@ function encodedFor(payload: InflowPaymentPayload): string {
 }
 
 describe('InflowClient.prepareInflowPayment — handle construction', () => {
+  it.each(['balance', 'instrument', 'exact'])(
+    'preserves upfront requirements through %s approval and payload retrieval',
+    async (scheme) => {
+      const requirement = {
+        ...REQUIREMENT,
+        scheme,
+        network: scheme === 'exact' ? 'eip155:8453' : 'inflow:1',
+        asset:
+          scheme === 'instrument'
+            ? 'USD'
+            : scheme === 'balance'
+              ? 'USDC'
+              : '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+        extra: { paymentFlow: 'upfront', assetName: scheme === 'instrument' ? 'USD' : 'USDC' },
+      };
+      const payload = { ...makePayload(), accepted: requirement };
+      const posts: unknown[] = [];
+      server.use(
+        http.get(`${PROD_BASE}/v1/transactions/x402-supported`, () =>
+          HttpResponse.json({
+            kinds: [{ scheme, network: requirement.network, x402Version: 2 }],
+          }),
+        ),
+        http.post(`${PROD_BASE}/v1/transactions/x402`, async ({ request }) => {
+          posts.push(await request.json());
+          return HttpResponse.json({ approvalId: 'a', transactionId: 'tx', approvalStatus: 'APPROVED' });
+        }),
+        http.get(`${PROD_BASE}/v1/transactions/tx/x402`, () =>
+          HttpResponse.json({
+            status: 'PENDING',
+            paymentPayload: payload,
+            encodedPayload: encodedFor(payload),
+          }),
+        ),
+      );
+      const client = await createInflowClient({ apiKey: 'sk_test' });
+      const prepared = await client.prepareInflowPayment(requirement, CONTEXT);
+      const result = await prepared.awaitPayload();
+      expect(posts).toEqual([{ accept: requirement, resource: CONTEXT.resource, x402Version: 2 }]);
+      expect(result.paymentPayload.accepted).toEqual(requirement);
+      expect(result.encodedPayload).toBe(encodedFor(payload));
+    },
+  );
   it.each([
     ['instrument', '00000000-0000-0000-0000-000000000123'],
     ['instrument', undefined],

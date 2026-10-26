@@ -107,7 +107,10 @@ describe('inflowRoute', () => {
     const registrations = await inflowSchemeRegistrations(client);
     expect(
       registrations.find((registration) => registration.network === 'eip155:8453')?.server.paymentFlows,
-    ).toHaveProperty(ASSET_TRANSFER_METHODS.PERMIT2, { supported: ['authorization'], default: 'authorization' });
+    ).toHaveProperty(ASSET_TRANSFER_METHODS.PERMIT2, {
+      supported: ['authorization', 'upfront'],
+      default: 'authorization',
+    });
     expect(config).toEqual(before);
   });
 
@@ -225,7 +228,7 @@ describe('inflowRoute', () => {
 const FOUNDATION_NETWORK = 'eip155:8453';
 const FOUNDATION_BUYER = '0x2222222222222222222222222222222222222222';
 
-async function foundationComposition(inflowFirst = true) {
+async function foundationComposition(inflowFirst = true, paymentFlow: 'authorization' | 'upfront' = 'authorization') {
   const { client, config, asset } = fixture({
     assetTransferMethod: 'eip3009',
     assetId: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
@@ -236,6 +239,7 @@ async function foundationComposition(inflowFirst = true) {
     schemes: ['exact'],
     networks: [FOUNDATION_NETWORK],
     assetTransferMethod: 'permit2',
+    paymentFlow,
   });
   const inflowVerify = vi.fn(() => Promise.resolve({ isValid: true, payer: FOUNDATION_BUYER }));
   const otherVerify = vi.fn(() => Promise.resolve({ isValid: true, payer: FOUNDATION_BUYER }));
@@ -293,6 +297,14 @@ function foundationBuyer(allowance: bigint) {
 }
 
 describe('inflowRoute with the foundation EVM client', () => {
+  it('preserves upfront selection and Permit2 sponsorship through the real foundation client', async () => {
+    const { required } = await foundationComposition(true, 'upfront');
+    const { buyer, signTypedData } = foundationBuyer(0n);
+    const payload = await buyer.createPaymentPayload(required);
+    expect(payload.accepted).toEqual(required.accepts[0]);
+    expect(payload.accepted.extra['paymentFlow']).toBe('upfront');
+    expect(signTypedData.mock.calls.map(([data]) => data.primaryType)).toEqual(['PermitWitnessTransferFrom', 'Permit']);
+  });
   it('signs an exact-amount EIP-2612 permit from the actual 402 route declaration', async () => {
     const { required } = await foundationComposition();
     const { buyer, signTypedData, readContract } = foundationBuyer(0n);

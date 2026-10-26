@@ -201,9 +201,18 @@ paymentMiddlewareFromConfig(routes, [inflowFacilitator /* others */], await infl
 The registrations are passthrough — they don't sign or settle anything themselves; the InFlow facilitator handles both.
 They satisfy the middleware's scheme-knowledge check at boot and declare the foundation's lifecycle contract. For each
 `(scheme, network)`, the helper aggregates the `assetTransferMethod` values emitted by config and Permit2 alternatives
-with a configured canonical proxy. Methods that omit that field use the foundation's SDK-only `default` sentinel. Every
-resulting entry supports only the `authorization` flow, preserving verify-before-handler and settle-after-handler
-behavior. The helper never enables `upfront` or `escrow` implicitly.
+with a configured canonical proxy. Methods that omit that field use the foundation's SDK-only `default` sentinel.
+Authorization remains the default: verify before the handler, then settle after successful execution. Fixed-price EVM
+exact (EIP-3009 and Permit2), Solana exact, InFlow balance, and Instrument registrations also accept an explicit
+`paymentFlow: 'upfront'` in `inflowAccepts` or `inflowRoute`. The helper writes `extra.paymentFlow` into those offers;
+the foundation middleware settles before allowing the handler to execute and does not settle again afterward. Metered
+`upto` and unknown transfer methods do not accept upfront. No helper implicitly selects upfront or escrow.
+
+Buyer preparation forwards the complete requirements, including `extra.paymentFlow`, to InFlow. The server binds
+settlement to those requirements. Upfront skips the standalone verification call, not settlement validation. Failed,
+pending, or uncertain settlement stops execution. A handler failure after confirmed payment retains its receipt and does
+not imply a refund. Facilitator payment deduplication does not deduplicate application work; see
+[seller retry and failure handling](../../packages/x402-seller/README.md#authorization-or-upfront-payment).
 
 Metered routes pass the same explicit `schemes` selection to `inflowSchemeRegistrations(client, { schemes })`. For
 qualifying `upto` networks, the helper loads `UptoEvmScheme` from the optional `@x402/evm/upto/server` peer; fixed-price

@@ -791,6 +791,23 @@ describe('Circle Gateway routing', () => {
   );
 });
 
+describe('upfront external signing', () => {
+  it('retains upfront requirements through the real foundation EIP-3009 signer', async () => {
+    server.use(http.get(`${PROD_BASE}/v1/transactions/x402-supported`, () => HttpResponse.json({ kinds: [] })));
+    const client = await createInflowClient({ apiKey: 'sk_test' });
+    const account = privateKeyToAccount('0x0000000000000000000000000000000000000000000000000000000000000001');
+    registerExactEvmScheme(client, { signer: account, networks: ['eip155:1'] });
+    const requirement = { ...EVM_REQ, extra: { ...EVM_REQ.extra, paymentFlow: 'upfront' } };
+    const required = paymentRequired([requirement]);
+    const original = structuredClone(required);
+    const result = await client.createPaymentPayload(required);
+    expect(result.accepted).toEqual(requirement);
+    expect(result.payload).toHaveProperty('signature');
+    expect(result.payload).toHaveProperty('authorization');
+    expect(required).toEqual(original);
+  });
+});
+
 describe('Permit2 treasury boundary', () => {
   const requirement: PaymentRequirements = {
     ...EVM_REQ,

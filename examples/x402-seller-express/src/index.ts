@@ -56,6 +56,11 @@ app.use(
           schemes: ['balance', 'exact'],
         }),
       },
+      'GET /api/report': await inflowRoute(seller, {
+        price: '0.10 USDC',
+        schemes: ['balance', 'exact'],
+        paymentFlow: 'upfront',
+      }),
     },
     [inflow],
     await inflowSchemeRegistrations(seller),
@@ -74,6 +79,12 @@ app.post('/api/upload', (_req, res) => {
   res.json({ status: 'received' });
 });
 
+// Payment has settled before this handler runs. A failed report is still paid;
+// production job creation needs application idempotency and a recovery policy.
+app.get('/api/report', (_req, res) => {
+  res.json({ report: { title: 'Sample sales report', totalOrders: 42 } });
+});
+
 app.get('/free', (_req, res) => {
   res.json({ ok: true, note: 'no payment required' });
 });
@@ -83,5 +94,6 @@ app.listen(port, () => {
   console.log(`x402 seller listening on http://localhost:${port.toString()}`);
   console.log(`  GET  /api/widgets  ($0.01)`);
   console.log(`  POST /api/upload   (0.10 USDC)`);
+  console.log(`  GET  /api/report   (0.10 USDC, upfront)`);
   console.log(`  GET  /free         (no payment)`);
 });

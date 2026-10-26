@@ -7,10 +7,12 @@ import type {
   X402WalletInfo,
 } from '@inflowpayai/x402';
 import type { PaymentOption } from '@x402/core/http';
+import { getExtra } from '@inflowpayai/x402/extras';
 
 import { X402PriceParseError } from './errors.js';
 import type { InflowSellerClient } from './seller-client.js';
 import { uptoSupportedKind } from './upto.js';
+import { supportsUpfront } from './payment-flow.js';
 
 const DEFAULT_MAX_TIMEOUT_SECONDS = 300;
 
@@ -43,6 +45,8 @@ export interface PriceSpec {
 
 /** Options accepted by {@link inflowAccepts}. */
 export interface InflowAcceptsOptions {
+  /** Upfront settles before the handler; authorization settles after successful execution. Defaults to authorization. */
+  paymentFlow?: 'authorization' | 'upfront';
   /**
    * Price for the protected resource. Either a {@link PriceSpec} or a string in any of the three forms accepted by
    * {@link PriceSpec.amount}.
@@ -89,6 +93,10 @@ export function buildInflowAccepts(
   options: InflowAcceptsOptions,
   assetTransferMethod?: 'permit2',
 ): PaymentOption[] {
+  const paymentFlow: unknown = options.paymentFlow;
+  if (paymentFlow !== undefined && paymentFlow !== 'authorization' && paymentFlow !== 'upfront') {
+    throw new Error('paymentFlow must be authorization or upfront');
+  }
   const maxTimeoutSeconds = options.maxTimeoutSeconds ?? DEFAULT_MAX_TIMEOUT_SECONDS;
   const priceSpec = normalizePrice(options.price);
   const { amount: parsedAmount, currency: targetCurrency } = parsePriceSpec(priceSpec);
@@ -159,6 +167,16 @@ export function buildInflowAccepts(
     }
   }
 
+  if (options.paymentFlow === 'upfront') {
+    for (const entry of entries) {
+      if (
+        !supportsUpfront(entry.scheme, entry.network, getExtra<unknown>(entry.extra, EXTRA_KEYS.ASSET_TRANSFER_METHOD))
+      ) {
+        throw new Error(`Upfront payment is unsupported for ${entry.scheme} on ${entry.network}`);
+      }
+      entry.extra = { ...entry.extra, paymentFlow: 'upfront' };
+    }
+  }
   return entries;
 }
 
