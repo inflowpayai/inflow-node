@@ -64,10 +64,50 @@ cannot load Seller configuration; `createInflowSellerClient()` rejects with an `
 - `inflowRoute(client, options)` — builds `accepts` and compatible sponsorship declarations. See below for explicit
   Permit2 selection.
 - `inflowSchemeRegistrations(client, options?)` — async helper. Reads the seller's `/v1/x402/config` and returns one
-  `SchemeRegistration` per selected `(scheme, network)` pair, with authorization-only payment flows. Fixed-price
-  registrations are passthrough; explicitly selected `upto` uses the foundation EVM server. Pass these through the
-  adapter's `schemes` argument; the foundation refuses to boot without registrations covering every advertised scheme.
+  `SchemeRegistration` per selected `(scheme, network)` pair, with authorization as the default payment flow.
+  Fixed-price registrations are passthrough; explicitly selected `upto` uses the foundation EVM server. Pass these
+  through the adapter's `schemes` argument; the foundation refuses to boot without registrations covering every
+  advertised scheme.
 - `X402PriceParseError` — typed error thrown by `inflowAccepts` when a price string doesn't parse.
+
+### Authorization or upfront payment
+
+Set `paymentFlow` on `inflowAccepts` or `inflowRoute`. Omitting it selects `authorization`.
+
+| Flow                      | Execution order                                                                      | When to choose it                                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `authorization` (default) | Verify payment → run the handler → settle → release the successful response          | The handler can fail without collecting payment, and the service can tolerate work being performed before settlement is confirmed. |
+| `upfront`                 | Settle successfully → run the handler → return its response with the payment receipt | Running the handler incurs a cost that must be paid before execution, such as generating a report.                                 |
+
+```ts
+const reportRoute = await inflowRoute(seller, {
+  price: '0.10 USDC',
+  schemes: ['exact', 'balance'],
+  paymentFlow: 'upfront',
+});
+```
+
+Use that route with the foundation middleware and `inflowSchemeRegistrations(seller)`, just like the quickstart below.
+Upfront supports configured EVM exact payments using EIP-3009 or Permit2, Solana exact payments, InFlow balance, and
+explicitly selected Instrument payments. It does not support metered `upto` payments or unknown transfer methods; the
+helper rejects those combinations. Selecting upfront does not add networks or payment methods to the seller's
+configuration. InFlow-managed buyers cannot sign Permit2 payments; those require an external wallet in either flow.
+
+Upfront settlement includes payment validation. The middleware does not call the separate verification endpoint first.
+Missing or invalid payment, rejected settlement, a still-pending payment, or an uncertain transport outcome prevents the
+handler from running. Existing bounded pending-settlement retries retain the same payment identifier.
+
+**A successful upfront payment remains paid if the handler fails.** The middleware retains the payment receipt on an
+error response; it does not settle again or refund automatically. Plan how your application will recover a failed job or
+provide a refund. Do not tell a buyer to create a new payment merely because the response was lost or the handler
+failed.
+
+Payment deduplication is not fulfillment deduplication. Reusing a payment can return its existing successful settlement
+and run the handler again. For order creation, job submission, or other durable side effects, persist an application
+idempotency key and the result so retries do not repeat that work. With authorization, a successful handler can also be
+followed by a failed settlement; the middleware withholds its successful response, but cannot undo application changes.
+
+See the runnable [Express report route](../../examples/x402-seller-express) for an explicit upfront configuration.
 
 ### Price formats
 

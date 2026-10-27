@@ -108,26 +108,26 @@ describe('inflowSchemeRegistrations', () => {
     }
   });
 
-  it('declares authorization-only payment flows for exactly the transfer methods emitted by seller config', async () => {
+  it('supports upfront for fixed-price transfers while keeping authorization as the default', async () => {
     const registrations = await inflowSchemeRegistrations(fakeSellerClient());
 
     const base = registrationFor(registrations, 'exact', 'eip155:8453');
     expect(base.server.defaultAssetTransferMethod).toBe('eip3009');
     expect(base.server.paymentFlows).toEqual({
-      eip3009: { supported: ['authorization'], default: 'authorization' },
-      permit2: { supported: ['authorization'], default: 'authorization' },
+      eip3009: { supported: ['authorization', 'upfront'], default: 'authorization' },
+      permit2: { supported: ['authorization', 'upfront'], default: 'authorization' },
     });
 
     const solana = registrationFor(registrations, 'exact', 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp');
     expect(solana.server.defaultAssetTransferMethod).toBe('solana');
     expect(solana.server.paymentFlows).toEqual({
-      solana: { supported: ['authorization'], default: 'authorization' },
+      solana: { supported: ['authorization', 'upfront'], default: 'authorization' },
     });
 
     const balance = registrationFor(registrations, 'balance', 'inflow:1');
     expect(balance.server.defaultAssetTransferMethod).toBe('default');
     expect(balance.server.paymentFlows).toEqual({
-      default: { supported: ['authorization'], default: 'authorization' },
+      default: { supported: ['authorization', 'upfront'], default: 'authorization' },
     });
   });
 

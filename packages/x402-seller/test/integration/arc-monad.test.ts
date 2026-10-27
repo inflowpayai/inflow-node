@@ -94,9 +94,9 @@ describe('Arc and Monad exact payments through foundation Express', () => {
       const registrations = await inflowSchemeRegistrations(seller);
       expect(registrations).toHaveLength(1);
       expect(registrations[0]?.server.paymentFlows).toEqual({
-        eip3009: { supported: ['authorization'], default: 'authorization' },
+        eip3009: { supported: ['authorization', 'upfront'], default: 'authorization' },
         ...(chain.blockchain === 'MONAD'
-          ? { permit2: { supported: ['authorization'], default: 'authorization' } }
+          ? { permit2: { supported: ['authorization', 'upfront'], default: 'authorization' } }
           : {}),
       });
       app.use(paymentMiddlewareFromConfig({ 'GET /report': route }, [createInflowFacilitator(options)], registrations));

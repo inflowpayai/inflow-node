@@ -22,13 +22,15 @@ pnpm install
 pnpm dev
 ```
 
-The server listens on `http://localhost:3000` and serves three routes:
+The server listens on `http://localhost:3000`:
 
-| Route              | Price       | Notes                                   |
-| ------------------ | ----------- | --------------------------------------- |
-| `GET /api/widgets` | `$0.01`     | All schemes the facilitator advertises. |
-| `POST /api/upload` | `0.10 USDC` | Balance + exact schemes only.           |
-| `GET /free`        | —           | Not protected; passes through.          |
+| Route                | Price       | Notes                                                         |
+| -------------------- | ----------- | ------------------------------------------------------------- |
+| `GET /api/widgets`   | `$0.01`     | Exact payments; authorization flow.                           |
+| `GET /api/sponsored` | `0.01 USDC` | Base Sepolia Permit2; authorization flow.                     |
+| `POST /api/upload`   | `0.10 USDC` | Balance + exact schemes only.                                 |
+| `GET /api/report`    | `0.10 USDC` | Balance + exact; upfront settlement before report generation. |
+| `GET /free`          | —           | Not protected; passes through.                                |
 
 Hit it with the matching buyer example or any other x402 client:
 

@@ -115,7 +115,8 @@ Cache-Control: no-store
 
 A compliant buyer pays with exactly one protocol, so dispatch is deterministic:
 
-- `PAYMENT-SIGNATURE` present → **x402** path: decode → `verify` → run handler → `settle` → set `PAYMENT-RESPONSE`.
+- `PAYMENT-SIGNATURE` present → **x402** path only. Authorization verifies → runs the handler → settles; upfront settles
+  → runs the handler. Both return `PAYMENT-RESPONSE`.
 - `Authorization: Payment` present → **MPP** path: `mppx.verifyCredential(...)` → run handler → set `Payment-Receipt`.
 - **Both** present → reject as ambiguous (`400`). Don't try to honor both — that risks a double charge.
 - **Neither** present → re-issue the dual `402` from §5.1.
@@ -123,6 +124,19 @@ A compliant buyer pays with exactly one protocol, so dispatch is deterministic:
 ---
 
 ## 6. A reusable wrapper
+
+The illustrative manual wrapper below is **authorization-only**. Do not add `paymentFlow: 'upfront'` to its offers: its
+manually coded verify/handler/settle sequence does not implement that flow. For upfront, dispatch the x402 request to
+the foundation payment middleware configured with `inflowAccepts(..., { paymentFlow: 'upfront' })` and the InFlow scheme
+registrations. Let that middleware own settlement, handler execution, and receipt headers. Dispatch an MPP request only
+to the MPP handler; do not place both payment middleware functions in a consecutive chain.
+
+For a lower-level integration, `x402HTTPResourceServer.processHTTPRequest` performs upfront settlement before returning
+`payment-verified`. Retain its `beforeHandlerSettlement` when calling `processSettlement` after the handler so the
+receipt is echoed rather than charging again. Use `createFailurePathSettlementHeaders` on handler failure to preserve
+the already-paid receipt. Payment errors must end the request without running either application handler. The
+[seller flow guide](../../packages/x402-seller/README.md#authorization-or-upfront-payment) explains paid failures and
+application idempotency. None of these choices alter MPP's payment lifecycle.
 
 The dispatch logic above is identical for every protected route — only the price and the business logic change. Factor
 the common parts into one wrapper built once, then apply it to as many routes as you like.
