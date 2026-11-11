@@ -52,6 +52,7 @@ const RECEIPT_EXTENSION_KEYS: ReadonlySet<string> = new Set([
   'challengeId',
   'challenge',
   'extensions',
+  'inflowTransactionId',
   'method',
   'reference',
   'settlement',
@@ -814,6 +815,11 @@ function toMppxReceipt(receipt: MppReceipt): Receipt.from.Parameters {
   return {
     ...(receipt.challengeId !== undefined ? { challengeId: receipt.challengeId } : {}),
     ...(receipt.externalId !== undefined ? { externalId: receipt.externalId } : {}),
+    ...(typeof receipt.inflowTransactionId === 'string' &&
+    receipt.inflowTransactionId.length === 36 &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(receipt.inflowTransactionId)
+      ? { inflowTransactionId: receipt.inflowTransactionId }
+      : {}),
     method: receipt.method,
     reference: receipt.reference,
     ...(receipt.settlement !== undefined ? { settlement: receipt.settlement } : {}),

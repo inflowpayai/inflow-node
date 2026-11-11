@@ -271,17 +271,21 @@ describe('credential / receipt codecs', () => {
     expect(() => decodeCredential(encode({ challenge, payload: 'proof' }))).toThrow(MppCodecError);
   });
 
-  it('decodes a receipt', () => {
-    const receipt: MppReceipt = {
-      challengeId: 'qB3w',
-      method: 'inflow',
-      reference: 'ref-1',
-      settlement: { amount: '10.5', currency: 'USDC' },
-      status: 'success',
-      timestamp: '2025-01-15T12:05:00Z',
-    };
-    expect(decodeReceipt(encode(receipt))).toEqual(receipt);
-  });
+  it.each([undefined, '22222222-2222-4222-8222-222222222222'])(
+    'decodes a receipt with correlation %s',
+    (inflowTransactionId) => {
+      const receipt: MppReceipt = {
+        ...(inflowTransactionId === undefined ? {} : { inflowTransactionId }),
+        challengeId: 'qB3w',
+        method: 'inflow',
+        reference: 'ref-1',
+        settlement: { amount: '10.5', currency: 'USDC' },
+        status: 'success',
+        timestamp: '2025-01-15T12:05:00Z',
+      };
+      expect(decodeReceipt(encode(receipt))).toEqual(receipt);
+    },
+  );
 
   it('decodes a core receipt without method-specific extensions', () => {
     const receipt = {
