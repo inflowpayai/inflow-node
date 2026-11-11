@@ -11,7 +11,7 @@ export {
   inflowSubscriptions,
   inflowSubscriptionsNodeListener,
 } from './compose.server.js';
-export type { InflowChargePrice, InflowSubscriptionPlan } from './compose.server.js';
+export type { InflowChargePrice, InflowChargePrices, InflowSubscriptionPlan } from './compose.server.js';
 
 export { createConfigClient } from './config-client.js';
 export { paymentHttpTransport } from './http-transport.js';

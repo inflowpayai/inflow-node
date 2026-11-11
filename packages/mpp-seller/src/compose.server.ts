@@ -1,4 +1,5 @@
 import { Mppx } from 'mppx/server';
+import type { IncomingMessage } from 'node:http';
 
 /**
  * One accepted price for a multi-currency route: an `amount` denominated in `currency`. The rail is not specified here
@@ -11,6 +12,10 @@ export interface InflowChargePrice {
   /** Currency code, e.g. `'USD'` (→ instrument rail) or `'USDC'` (→ balance rail). */
   currency: string;
 }
+
+export type InflowChargePrices<Input = Request> = (
+  input: Input,
+) => readonly InflowChargePrice[] | Promise<readonly InflowChargePrice[]>;
 
 /** The `compose` entry shape for the `inflow` charge method: a `[methodKey, options]` tuple. */
 type InflowChargeEntry = readonly ['inflow/charge', { amount: string; currency: string }];
@@ -67,11 +72,28 @@ function toEntries(prices: readonly InflowChargePrice[]): InflowChargeEntry[] {
  * request time as `MppUnsupportedCurrencyError`, exactly as with `charge`.
  *
  * @param mppx - A core `Mppx.create({ methods: [inflow(...)] })` instance.
- * @param prices - One `{ amount, currency }` per currency to accept.
+ * @param prices - Fixed prices or a callback evaluated once per request. Callback errors propagate without payment.
  * @returns The composed Web-fetch handler.
  * @throws {@link Error} On an empty list, a duplicate currency, or an empty `amount`/`currency`.
  */
-export function inflowCharges<Handler>(mppx: InflowComposable<Handler>, prices: readonly InflowChargePrice[]): Handler {
+export function inflowCharges(
+  mppx: InflowComposable<InflowFetchHandler>,
+  prices: InflowChargePrices,
+): InflowFetchHandler;
+export function inflowCharges<Handler>(mppx: InflowComposable<Handler>, prices: readonly InflowChargePrice[]): Handler;
+export function inflowCharges(
+  mppx: InflowComposable<InflowFetchHandler>,
+  prices: readonly InflowChargePrice[] | InflowChargePrices,
+): InflowFetchHandler {
+  if (typeof prices === 'function') {
+    return async (request) => {
+      const input =
+        request.bodyUsed || request.body?.locked
+          ? new Request(request.url, { method: request.method, headers: request.headers, signal: request.signal })
+          : request.clone();
+      return mppx.compose(...toEntries(await prices(input)))(request);
+    };
+  }
   return mppx.compose(...toEntries(prices));
 }
 
@@ -81,14 +103,20 @@ export function inflowCharges<Handler>(mppx: InflowComposable<Handler>, prices: 
  * resolves `{ status: 402 }`; on a 200 the `Payment-Receipt` header is set and the caller writes the body.
  *
  * @param mppx - A core `Mppx.create({ methods: [inflow(...)] })` instance.
- * @param prices - One `{ amount, currency }` per currency to accept.
+ * @param prices - Fixed prices or a callback receiving the incoming Node request, before response handling.
  * @returns A Node `(req, res) => Promise<...>` listener.
  * @throws {@link Error} On an empty list, a duplicate currency, or an empty `amount`/`currency`.
  */
 export function inflowChargesNodeListener(
   mppx: InflowComposable<InflowFetchHandler>,
-  prices: readonly InflowChargePrice[],
+  prices: readonly InflowChargePrice[] | InflowChargePrices<IncomingMessage>,
 ): ReturnType<typeof Mppx.toNodeListener> {
+  if (typeof prices === 'function') {
+    return async (request, response) => {
+      const handler = inflowCharges(mppx, await prices(request));
+      return Mppx.toNodeListener(handler)(request, response);
+    };
+  }
   return Mppx.toNodeListener(inflowCharges(mppx, prices));
 }
 

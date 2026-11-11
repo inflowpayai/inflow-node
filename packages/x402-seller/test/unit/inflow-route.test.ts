@@ -4,13 +4,21 @@ import {
   declareInflowEip7702GasSponsoringExtension,
 } from '@inflowpayai/x402/extensions';
 import { x402Client } from '@x402/core/client';
-import { decodePaymentRequiredHeader, x402HTTPResourceServer, type HTTPAdapter } from '@x402/core/http';
+import {
+  decodePaymentRequiredHeader,
+  encodePaymentSignatureHeader,
+  x402HTTPResourceServer,
+  type HTTPAdapter,
+  type HTTPRequestContext,
+} from '@x402/core/http';
 import { x402ResourceServer, type FacilitatorClient } from '@x402/core/server';
 import { registerExactEvmScheme, type EvmClientConfig } from '@x402/evm/exact/client';
 import { declareEip2612GasSponsoringExtension, EIP2612_GAS_SPONSORING } from '@x402/extensions';
 import { describe, expect, it, vi } from 'vitest';
 
 import { inflowAccepts } from '../../src/inflow-accepts.js';
+import { createInflowResourceServer } from '../../src/resource-server.js';
+import { createInflowHTTPResourceServer } from '../../src/http-resource-server.js';
 import { inflowRoute, type InflowRouteOptions } from '../../src/inflow-route.js';
 import { inflowSchemeRegistrations } from '../../src/scheme-registrations.js';
 import { SAMPLE_CONFIG, SAMPLE_SUPPORTED } from '../fixtures/config-response.js';
@@ -42,6 +50,91 @@ function fixture(assetOverrides: Partial<X402AssetInfo> = {}) {
 }
 
 describe('inflowRoute', () => {
+  it('selects sponsorship per request without mutating routes or losing declarations during settlement', async () => {
+    const { client, config, asset, supported } = fixture();
+    config.assets.push(
+      { ...asset, assetId: '0x2222222222222222222222222222222222222222', currency: 'USDT', supportsEip2612: false },
+      {
+        ...asset,
+        assetId: '0x3333333333333333333333333333333333333333',
+        currency: 'DAI',
+        supportsEip2612: false,
+        supportsEip7702: true,
+      },
+    );
+    supported.extensions.push(INFLOW_EIP7702_GAS_SPONSORING);
+    supported.kinds = [{ x402Version: 2, scheme: 'exact', network: 'eip155:8453', extra: { supportsEip7702: true } }];
+    const price = vi.fn(async (context: { adapter: HTTPAdapter }) => {
+      const currency = context.adapter.getQueryParam?.('currency');
+      await Promise.resolve();
+      return { amount: '1', currency: typeof currency === 'string' ? currency : 'USDC' };
+    });
+    const resolve = await inflowRoute(client, { price, schemes: ['exact'], assetTransferMethod: 'permit2' });
+    const route = async (context: HTTPRequestContext) => {
+      const resolved = await resolve(context);
+      return { ...resolved, extensions: { ...resolved.extensions, resolve: { info: { keep: true } } } };
+    };
+    const resource = await createInflowResourceServer(client, {
+      getSupported: () =>
+        Promise.resolve({
+          kinds: [{ x402Version: 2, scheme: 'exact', network: 'eip155:8453' }],
+          extensions: supported.extensions,
+          signers: {},
+        }),
+      verify: () => Promise.resolve({ isValid: true }),
+      settle: () => Promise.resolve({ success: true, network: 'eip155:8453', transaction: 'test-payment' }),
+    });
+    const verified: unknown[] = [];
+    const settled: unknown[] = [];
+    resource.onBeforeVerify((context) => {
+      verified.push(structuredClone(context.declaredExtensions));
+      return Promise.resolve();
+    });
+    resource.onBeforeSettle((context) => {
+      settled.push(structuredClone(context.declaredExtensions));
+      return Promise.resolve();
+    });
+    const http = createInflowHTTPResourceServer(resource, { 'GET /paid': route });
+    await http.initialize();
+    const request = (currency: string, payment?: string) => {
+      const adapter: HTTPAdapter = {
+        getHeader: (name) => (name.toLowerCase() === 'payment-signature' ? payment : undefined),
+        getMethod: () => 'GET',
+        getPath: () => '/paid',
+        getUrl: () => 'https://seller.example/paid?currency=' + currency,
+        getQueryParam: () => currency,
+        getAcceptHeader: () => 'application/json',
+        getUserAgent: () => 'test',
+      };
+      return http.processHTTPRequest({ adapter, path: '/paid', method: 'GET' });
+    };
+    const currencies = ['USDC', 'USDT', 'DAI', 'USD'];
+    const challenges = await Promise.all(currencies.map((currency) => request(currency)));
+    expect(client.refreshSupported).toHaveBeenCalledTimes(1);
+    for (const [index, currency] of currencies.entries()) {
+      const challenge = challenges[index];
+      if (challenge?.type !== 'payment-error') throw new Error('Expected challenge');
+      const header = challenge.response.headers['PAYMENT-REQUIRED'];
+      if (header === undefined) throw new Error('Missing challenge header');
+      const required = decodePaymentRequiredHeader(header);
+      const fixed = await inflowRoute(client, {
+        price: `1 ${currency}`,
+        schemes: ['exact'],
+        assetTransferMethod: 'permit2',
+      });
+      expect(required.extensions).toEqual({ ...fixed.extensions, resolve: { info: { keep: true } } });
+      const accepted = required.accepts[0];
+      if (accepted === undefined) throw new Error('Missing offer');
+      const paid = await request(currency, encodePaymentSignatureHeader({ x402Version: 2, accepted, payload: {} }));
+      if (paid.type !== 'payment-verified') throw new Error('Expected verification');
+      expect(verified.at(-1)).toEqual(required.extensions);
+      expect(paid.declaredExtensions).toEqual(required.extensions);
+      await http.processSettlement(paid.paymentPayload, paid.paymentRequirements, paid.declaredExtensions);
+      expect(settled.at(-1)).toEqual(required.extensions);
+    }
+    expect(price).toHaveBeenCalledTimes(8);
+  });
+
   function eip7702Fixture() {
     const f = fixture({ supportsEip2612: false, supportsEip7702: true });
     f.supported.extensions.push(INFLOW_EIP7702_GAS_SPONSORING);

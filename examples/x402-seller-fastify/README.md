@@ -1,9 +1,8 @@
 # Example — x402 seller on Fastify
 
 A minimal Fastify app that accepts x402 payments via InFlow. Uses the foundation V2 middleware
-(`paymentMiddlewareFromConfig` from `@x402/fastify`) with InFlow's facilitator client + seller client + `inflowAccepts`
-helper. `@x402/fastify` mutates the Fastify instance in place rather than returning a middleware function — that's the
-only shape difference from the Express and Hono variants.
+(`paymentMiddlewareFromHTTPServer` from `@x402/fastify`) with InFlow's request-time routes and `inflowAccepts` helper.
+Prices use query parameters: Fastify's payment hook runs before body parsing, leaving the body for the route handler.
 
 ## Prerequisite
 
@@ -25,11 +24,11 @@ pnpm dev
 
 The server listens on `http://localhost:3000` and serves three routes:
 
-| Route              | Price       | Notes                          |
-| ------------------ | ----------- | ------------------------------ |
-| `GET /api/widgets` | `$0.01`     | Exact scheme only.             |
-| `POST /api/upload` | `0.10 USDC` | Balance + exact schemes only.  |
-| `GET /free`        | —           | Not protected; passes through. |
+| Route              | Price                                      | Notes                          |
+| ------------------ | ------------------------------------------ | ------------------------------ |
+| `GET /api/widgets` | `$0.01`; `?tier=premium`: `$0.02`          | Exact scheme only.             |
+| `POST /api/upload` | `0.10 USDC`; `?priority=high`: `0.20 USDC` | Balance + exact schemes only.  |
+| `GET /free`        | —                                          | Not protected; passes through. |
 
 Hit it with the matching buyer example:
 

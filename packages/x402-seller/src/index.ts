@@ -8,9 +8,13 @@ export { inflowAccepts } from './inflow-accepts.js';
 export type { InflowAcceptsOptions, PriceSpec } from './inflow-accepts.js';
 
 export { inflowRoute } from './inflow-route.js';
-export type { InflowRouteOptions } from './inflow-route.js';
+export type { InflowRouteOptions, InflowDynamicPrice } from './inflow-route.js';
 
 export { inflowSchemeRegistrations } from './scheme-registrations.js';
 export type { InflowSchemeRegistration, InflowSchemeRegistrationsOptions } from './scheme-registrations.js';
+
+export { createInflowResourceServer } from './resource-server.js';
+export { createInflowHTTPResourceServer } from './http-resource-server.js';
+export type { InflowRouteResolver, InflowRoutesConfig } from './http-resource-server.js';
 
 export { X402PriceParseError } from './errors.js';

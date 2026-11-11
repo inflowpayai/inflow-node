@@ -1,8 +1,8 @@
 # Example — MPP seller on Hono
 
-A minimal Hono app that accepts MPP payments via InFlow. Uses `mppx`'s own Hono adapter (`Mppx` from `mppx/hono`) with
-InFlow's `inflow` seller method, served on Node via `@hono/node-server`. `Mppx.create` mints and HMAC-binds the
-challenge locally with `secretKey`; the `inflow` method's `verify` redeems and settles through the InFlow PSP.
+A minimal Hono app that accepts MPP payments via InFlow. Uses `mppx/server` with InFlow's `inflowCharges` request-time
+pricing helper and `inflow` seller method, served on Node via `@hono/node-server`. `Mppx.create` mints and HMAC-binds
+the challenge locally with `secretKey`; the `inflow` method's `verify` redeems and settles through the InFlow PSP.
 
 ## Prerequisite
 
@@ -24,17 +24,15 @@ pnpm dev
 
 The server listens on `http://localhost:3000` and serves these routes:
 
-| Route                | Price                      | Notes                                                                           |
-| -------------------- | -------------------------- | ------------------------------------------------------------------------------- |
-| `GET /api/widgets`   | `0.01 USDC`                | Single currency via the Hono adapter's `charge`. Crypto → `balance` rail.       |
-| `POST /api/upload`   | `0.10 USDC`                | Single currency via `charge`. Crypto → `balance` rail.                          |
-| `GET /api/subscribe` | `1.00 USDC` monthly        | Recurring subscription on the `balance` rail.                                   |
-| `GET /api/checkout`  | `1.0 USD` or `0.0095 USDC` | Multi-currency: one challenge per price (USD → `instrument`, USDC → `balance`). |
-| `GET /free`          | —                          | Not gated; passes through.                                                      |
+| Route                | Price                                                                   | Notes                                         |
+| -------------------- | ----------------------------------------------------------------------- | --------------------------------------------- |
+| `GET /api/widgets`   | `0.01 USDC`; `?bundle=large`: `0.05 USDC`                               | `balance` rail.                               |
+| `POST /api/upload`   | `0.10 USDC`; `?priority=high`: `0.20 USDC`                              | `balance` rail.                               |
+| `GET /api/subscribe` | `1.00 USDC` monthly                                                     | Recurring subscription on the `balance` rail. |
+| `GET /api/checkout`  | `1.0 USD` or `0.0095 USDC`; `?bundle=large`: `2.0 USD` or `0.0190 USDC` | USD on `instrument`; USDC on `balance`.       |
+| `GET /free`          | —                                                                       | Not gated; passes through.                    |
 
-The Hono adapter (`mppx/hono`) exposes only the single-currency `charge` — it strips `compose`. The multi-currency
-`GET /api/checkout` and `GET /api/subscribe` therefore use core `mppx/server` instances; Hono drives the InFlow
-Web-fetch handlers directly from `c.req.raw`.
+Hono passes `c.req.raw` to the InFlow Web-fetch handlers, returning the challenge or adding the receipt to the response.
 
 Hit it with the matching buyer example:
 

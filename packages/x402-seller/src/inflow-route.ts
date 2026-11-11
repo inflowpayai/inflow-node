@@ -3,11 +3,16 @@ import {
   declareInflowEip7702GasSponsoringExtension,
   INFLOW_EIP7702_GAS_SPONSORING,
 } from '@inflowpayai/x402/extensions';
-import type { RouteConfig } from '@x402/core/http';
+import type { HTTPRequestContext, PaymentOption, RouteConfig } from '@x402/core/http';
 import { declareEip2612GasSponsoringExtension, EIP2612_GAS_SPONSORING } from '@x402/extensions';
 
 import { buildInflowAccepts, type InflowAcceptsOptions } from './inflow-accepts.js';
 import type { InflowSellerClient } from './seller-client.js';
+import type { InflowRouteResolver } from './http-resource-server.js';
+
+export type InflowDynamicPrice = (
+  context: HTTPRequestContext,
+) => InflowAcceptsOptions['price'] | Promise<InflowAcceptsOptions['price']>;
 
 export interface InflowRouteOptions extends InflowAcceptsOptions {
   /**
@@ -23,9 +28,42 @@ export interface InflowRouteOptions extends InflowAcceptsOptions {
  * External wallets sign sponsorship authorizations. InFlow-managed buyers cannot sign Permit2 payments. The middleware
  * must route sponsored pairs to this client's InFlow facilitator; put it before competing facilitators.
  */
-export async function inflowRoute(client: InflowSellerClient, options: InflowRouteOptions): Promise<RouteConfig> {
+export function inflowRoute(
+  client: InflowSellerClient,
+  options: Omit<InflowRouteOptions, 'price'> & { price: InflowDynamicPrice },
+): Promise<InflowRouteResolver>;
+export function inflowRoute(client: InflowSellerClient, options: InflowRouteOptions): Promise<RouteConfig>;
+export async function inflowRoute(
+  client: InflowSellerClient,
+  options: Omit<InflowRouteOptions, 'price'> & { price: InflowRouteOptions['price'] | InflowDynamicPrice },
+): Promise<RouteConfig | InflowRouteResolver> {
   const config = await client.config();
-  const accepts = buildInflowAccepts(config, options, options.assetTransferMethod);
+  const { price, ...rest } = options;
+  if (typeof price === 'function') {
+    const snapshot = structuredClone(config);
+    const fixed = structuredClone(rest);
+    const supported = await client.refreshSupported();
+    return async (context) => {
+      const accepts = buildInflowAccepts(
+        snapshot,
+        { ...fixed, price: await price(context) },
+        fixed.assetTransferMethod,
+      );
+      const extensions = sponsorship(accepts, supported);
+      return Object.keys(extensions).length === 0 ? { accepts } : { accepts, extensions };
+    };
+  }
+  const accepts = buildInflowAccepts(config, { ...rest, price }, options.assetTransferMethod);
+  const eligible = sponsorship(accepts);
+  if (Object.keys(eligible).length === 0) return { accepts };
+  const extensions = sponsorship(accepts, await client.refreshSupported());
+  return Object.keys(extensions).length === 0 ? { accepts } : { accepts, extensions };
+}
+
+function sponsorship(
+  accepts: Pick<PaymentOption, 'scheme' | 'network' | 'extra'>[],
+  supported?: Awaited<ReturnType<InflowSellerClient['refreshSupported']>>,
+): Record<string, unknown> {
   const permit2Offers = accepts.filter(
     (offer) => offer.extra?.[EXTRA_KEYS.ASSET_TRANSFER_METHOD] === ASSET_TRANSFER_METHODS.PERMIT2,
   );
@@ -41,7 +79,7 @@ export async function inflowRoute(client: InflowSellerClient, options: InflowRou
       );
     })
   )
-    return { accepts };
+    return {};
 
   const eip2612 = permit2Offers.every((offer) => {
     const name = offer.extra?.[EXTRA_KEYS.NAME];
@@ -55,8 +93,9 @@ export async function inflowRoute(client: InflowSellerClient, options: InflowRou
     );
   });
   const eip7702 = permit2Offers.every((offer) => offer.extra?.[EXTRA_KEYS.SUPPORTS_EIP7702] === true);
-  if (!eip2612 && !eip7702) return { accepts };
-  const supported = await client.refreshSupported();
+  if (!eip2612 && !eip7702) return {};
+  if (supported === undefined)
+    return eip2612 ? declareEip2612GasSponsoringExtension() : declareInflowEip7702GasSponsoringExtension();
   const supportsKinds = (requireEip7702: boolean) =>
     permit2Offers.every((offer) =>
       supported.kinds.some(
@@ -68,10 +107,10 @@ export async function inflowRoute(client: InflowSellerClient, options: InflowRou
       ),
     );
   if (eip2612 && supported.extensions?.includes(EIP2612_GAS_SPONSORING.key) === true && supportsKinds(false)) {
-    return { accepts, extensions: declareEip2612GasSponsoringExtension() };
+    return declareEip2612GasSponsoringExtension();
   }
   if (eip7702 && supported.extensions?.includes(INFLOW_EIP7702_GAS_SPONSORING) === true && supportsKinds(true)) {
-    return { accepts, extensions: declareInflowEip7702GasSponsoringExtension() };
+    return declareInflowEip7702GasSponsoringExtension();
   }
-  return { accepts };
+  return {};
 }

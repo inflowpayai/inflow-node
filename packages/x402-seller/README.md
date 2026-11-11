@@ -63,6 +63,10 @@ cannot load Seller configuration; `createInflowSellerClient()` rejects with an `
   `accepts` field. The prices are pre-resolved to `AssetAmount` form (asset contract address + atomic-unit amount).
 - `inflowRoute(client, options)` — builds `accepts` and compatible sponsorship declarations. See below for explicit
   Permit2 selection.
+- `createInflowResourceServer(client, facilitators, options?)` — creates the foundation resource server and registers
+  the seller's configured payment schemes.
+- `createInflowHTTPResourceServer(server, routes, options?)` — accepts fixed routes or request-time route callbacks;
+  pass the result to the foundation adapter's `paymentMiddlewareFromHTTPServer`.
 - `inflowSchemeRegistrations(client, options?)` — async helper. Reads the seller's `/v1/x402/config` and returns one
   `SchemeRegistration` per selected `(scheme, network)` pair, with authorization as the default payment flow.
   Fixed-price registrations are passthrough; explicitly selected `upto` uses the foundation EVM server. Pass these
@@ -124,6 +128,54 @@ that matches configured stablecoins for balance/blockchain offers. For an explic
 fiat USD, not a stablecoin.
 
 ## Quickstart
+
+### Request-time pricing
+
+Resolve the price inside a route callback, then build and optionally filter the concrete offers:
+
+```ts
+import { paymentMiddlewareFromHTTPServer } from '@x402/express';
+import {
+  createInflowResourceServer,
+  createInflowHTTPResourceServer,
+  inflowAccepts,
+  inflowRoute,
+} from '@inflowpayai/x402-seller';
+
+const server = await createInflowResourceServer(client, [inflow]);
+const httpServer = createInflowHTTPResourceServer(server, {
+  'GET /api/widgets': async (context) => ({
+    accepts: await inflowAccepts(client, {
+      price: context.adapter.getQueryParam?.('bundle') === 'large' ? '$0.05' : '$0.01',
+      schemes: ['exact', 'balance'],
+    }),
+  }),
+});
+app.use(paymentMiddlewareFromHTTPServer(httpServer));
+```
+
+The callback runs once per matching request, including paid retries. Return the same price for the same purchase.
+Callbacks may be synchronous or asynchronous; errors and empty offer lists stop the request before payment processing or
+the application handler.
+
+For sponsorship, pass a price callback to `inflowRoute` during setup. It captures the seller configuration and
+facilitator capabilities once, then selects compatible sponsorship declarations for each request's offers:
+
+```ts
+const sponsored = await inflowRoute(client, {
+  price: (context) => (context.adapter.getQueryParam?.('detail') === 'full' ? '0.02 USDC' : '0.01 USDC'),
+  schemes: ['exact'],
+  assetTransferMethod: 'permit2',
+});
+const sponsoredServer = createInflowHTTPResourceServer(server, { 'GET /api/sponsored': sponsored });
+```
+
+Express body-based pricing requires its body parser before payment middleware. Fastify's upstream middleware runs before
+body parsing: use headers, the path, or query parameters for pricing. With Fastify, supply its exported
+`x402ResourceServer` as the resource factory's `resourceServer` option and its `x402HTTPResourceServer` as the HTTP
+factory's `httpServer` option. For Next.js route handlers, use `withX402FromHTTPServer`.
+
+### Fixed prices
 
 ```ts
 import { paymentMiddlewareFromConfig } from '@x402/express';

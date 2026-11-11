@@ -29,6 +29,13 @@ that encrypted payload. The seller checks the credential against its challenge a
 This is the exact analog of the x402 facilitator boundary documented in
 [../x402/architecture.md](../x402/architecture.md).
 
+For request-time `inflow/charge` prices, pass a synchronous or asynchronous callback to `inflowCharges` or
+`inflowChargesNodeListener` instead of a fixed price list. The callback receives a Web `Request` or Node
+`IncomingMessage`, respectively, and returns the same `{ amount, currency }` entries. It runs once per request,
+including paid retries. Keep the price stable for the same purchase: a credential for a different amount or currency
+does not authorize the request. Configuration lookup, rail selection, challenge binding, and receipt handling remain
+with the existing helpers and method. See the [Express example](../../examples/mpp-seller-express/src/index.ts).
+
 ## Package layering
 
 ```

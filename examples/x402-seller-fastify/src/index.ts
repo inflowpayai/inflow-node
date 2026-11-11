@@ -1,11 +1,12 @@
 import 'dotenv/config';
-import { paymentMiddlewareFromConfig } from '@x402/fastify';
+import { paymentMiddlewareFromHTTPServer, x402ResourceServer, x402HTTPResourceServer } from '@x402/fastify';
 import Fastify from 'fastify';
 import {
   createInflowFacilitator,
   createInflowSellerClient,
   inflowAccepts,
-  inflowSchemeRegistrations,
+  createInflowResourceServer,
+  createInflowHTTPResourceServer,
 } from '@inflowpayai/x402-seller';
 
 const apiKey = process.env['INFLOW_API_KEY'];
@@ -26,34 +27,28 @@ const seller = await createInflowSellerClient({ environment: 'sandbox', apiKey }
 
 const app = Fastify();
 
-// 3. Foundation middleware + InFlow-built `PaymentOption[]` entries.
-//    `@x402/fastify`'s `paymentMiddlewareFromConfig` mutates the Fastify
-//    instance in place; it registers the preHandler hook and a
-//    handle-404 hook for unprotected routes. `inflowAccepts` expands the
-//    seller's config into AssetAmount-form `accepts[]` (atomic amount +
-//    asset contract address pre-resolved). `inflowSchemeRegistrations`
-//    ships passthrough scheme servers so `x402HTTPResourceServer.initialize()`
-//    sees a registered scheme for every `(scheme, network)` the seller
-//    can emit — without these the foundation aborts at boot with
-//    `RouteConfigurationError`.
-paymentMiddlewareFromConfig(
+// Use the adapter's resource-server class so its x402 types stay aligned.
+const resourceServer = await createInflowResourceServer(seller, inflow, { resourceServer: x402ResourceServer });
+paymentMiddlewareFromHTTPServer(
   app,
-  {
-    'GET /api/widgets': {
-      accepts: await inflowAccepts(seller, {
-        price: '$0.01',
-        schemes: ['exact'],
+  createInflowHTTPResourceServer(
+    resourceServer,
+    {
+      'GET /api/widgets': async (context) => ({
+        accepts: await inflowAccepts(seller, {
+          price: context.adapter.getQueryParam?.('tier') === 'premium' ? '$0.02' : '$0.01',
+          schemes: ['exact'],
+        }),
+      }),
+      'POST /api/upload': async (context) => ({
+        accepts: await inflowAccepts(seller, {
+          price: context.adapter.getQueryParam?.('priority') === 'high' ? '0.20 USDC' : '0.10 USDC',
+          schemes: ['balance', 'exact'],
+        }),
       }),
     },
-    'POST /api/upload': {
-      accepts: await inflowAccepts(seller, {
-        price: '0.10 USDC',
-        schemes: ['balance', 'exact'],
-      }),
-    },
-  },
-  [inflow],
-  await inflowSchemeRegistrations(seller),
+    { httpServer: x402HTTPResourceServer },
+  ),
 );
 
 app.get('/api/widgets', async () => ({ widgets: [1, 2, 3] }));
@@ -63,6 +58,6 @@ app.get('/free', async () => ({ ok: true, note: 'no payment required' }));
 const port = Number(process.env['PORT'] ?? 3000);
 await app.listen({ port });
 console.log(`x402 seller listening on http://localhost:${port.toString()}`);
-console.log(`  GET  /api/widgets  ($0.01)`);
-console.log(`  POST /api/upload   (0.10 USDC)`);
+console.log(`  GET  /api/widgets  ($0.01; ?tier=premium: $0.02)`);
+console.log(`  POST /api/upload   (0.10 USDC; ?priority=high: 0.20 USDC)`);
 console.log(`  GET  /free         (no payment)`);

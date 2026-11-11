@@ -1,12 +1,13 @@
 import 'dotenv/config';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
-import { paymentMiddlewareFromConfig } from '@x402/hono';
+import { paymentMiddlewareFromHTTPServer } from '@x402/hono';
 import {
   createInflowFacilitator,
   createInflowSellerClient,
   inflowAccepts,
-  inflowSchemeRegistrations,
+  createInflowResourceServer,
+  createInflowHTTPResourceServer,
 } from '@inflowpayai/x402-seller';
 
 const apiKey = process.env['INFLOW_API_KEY'];
@@ -25,26 +26,23 @@ const seller = await createInflowSellerClient({ environment: 'sandbox', apiKey }
 
 const app = new Hono();
 
-// `inflowSchemeRegistrations` ships passthrough scheme servers so
-// `x402HTTPResourceServer.initialize()` sees a registered scheme for
-// every `(scheme, network)` the seller can emit — without these the
-// foundation aborts at boot with `RouteConfigurationError`.
+const resourceServer = await createInflowResourceServer(seller, inflow);
 app.use(
   '*',
-  paymentMiddlewareFromConfig(
-    {
-      'GET /api/widgets': {
-        accepts: await inflowAccepts(seller, { price: '$0.01' }),
-      },
-      'POST /api/upload': {
+  paymentMiddlewareFromHTTPServer(
+    createInflowHTTPResourceServer(resourceServer, {
+      'GET /api/widgets': async (context) => ({
         accepts: await inflowAccepts(seller, {
-          price: '0.10 USDC',
+          price: context.adapter.getQueryParam?.('bundle') === 'large' ? '$0.05' : '$0.01',
+        }),
+      }),
+      'POST /api/upload': async (context) => ({
+        accepts: await inflowAccepts(seller, {
+          price: context.adapter.getQueryParam?.('priority') === 'high' ? '0.20 USDC' : '0.10 USDC',
           schemes: ['balance', 'exact'],
         }),
-      },
-    },
-    [inflow],
-    await inflowSchemeRegistrations(seller),
+      }),
+    }),
   ),
 );
 
@@ -55,7 +53,7 @@ app.get('/free', (c) => c.json({ ok: true, note: 'no payment required' }));
 const port = Number(process.env['PORT'] ?? 3000);
 serve({ fetch: app.fetch, port }, () => {
   console.log(`x402 seller listening on http://localhost:${port.toString()}`);
-  console.log(`  GET  /api/widgets  ($0.01)`);
-  console.log(`  POST /api/upload   (0.10 USDC)`);
+  console.log(`  GET  /api/widgets  ($0.01; ?bundle=large: $0.05)`);
+  console.log(`  POST /api/upload   (0.10 USDC; ?priority=high: 0.20 USDC)`);
   console.log(`  GET  /free         (no payment)`);
 });
