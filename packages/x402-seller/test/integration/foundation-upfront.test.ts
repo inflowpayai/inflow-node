@@ -1,6 +1,7 @@
 import { EventEmitter, once } from 'node:events';
 import { setTimeout } from 'node:timers/promises';
 
+import { getInflowTransactionId } from '@inflowpayai/x402/extensions';
 import {
   decodePaymentRequiredHeader,
   decodePaymentResponseHeader,
@@ -22,6 +23,19 @@ interface PaymentRequest {
 
 type Outcome = 'success' | 'rejected' | 'pending' | 'pending-success' | 'disconnected';
 
+const sellerTransactionId = '22222222-2222-4222-8222-222222222222';
+const settlementExtensions = {
+  'test-existing': { info: { preserved: true } },
+  'inflow-transaction': {
+    info: { transactionId: sellerTransactionId },
+    schema: {
+      type: 'object',
+      properties: { transactionId: { type: 'string', format: 'uuid' } },
+      required: ['transactionId'],
+    },
+  },
+};
+
 async function fixture(
   options: {
     flow?: 'authorization' | 'upfront';
@@ -30,6 +44,7 @@ async function fixture(
     scheme?: 'exact' | 'balance' | 'instrument';
     network?: string;
     currency?: string;
+    correlation?: boolean;
     beforeSettlement?: () => Promise<void>;
   } = {},
 ) {
@@ -70,6 +85,7 @@ async function fixture(
         ...(options.outcome === 'rejected' ? { errorReason: 'settlement_failed' } : {}),
         network: request.body.paymentRequirements.network,
         transaction: 'fixture-settlement',
+        ...(options.correlation === true && options.outcome !== 'rejected' ? { extensions: settlementExtensions } : {}),
       });
     }
   });
@@ -128,6 +144,33 @@ async function challenge(harness: Awaited<ReturnType<typeof fixture>>) {
 }
 
 describe('real Express middleware and InFlow facilitator client upfront lifecycle', () => {
+  describe.each(['authorization', 'upfront'] as const)('%s transaction correlation', (flow) => {
+    it.each([
+      { scheme: 'instrument' as const },
+      { scheme: 'balance' as const },
+      { scheme: 'exact' as const, network: 'eip155:8453', currency: 'USDC' },
+      { scheme: 'exact' as const, network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp' },
+    ])('preserves seller correlation for $scheme $network', async (offer) => {
+      const harness = await fixture({ ...offer, flow, correlation: true });
+      try {
+        const { payment } = await challenge(harness);
+        const response = await harness.request(payment);
+        expect(response.status).toBe(200);
+        await response.arrayBuffer();
+        expect(harness.events).toEqual(flow === 'upfront' ? ['settle', 'handler'] : ['verify', 'handler', 'settle']);
+        const header = response.headers.get('payment-response');
+        if (header === null) throw new Error('Missing receipt');
+        const result = decodePaymentResponseHeader(header);
+        expect(result.extensions).toEqual(settlementExtensions);
+        expect(result.transaction).toBe('fixture-settlement');
+        expect(getInflowTransactionId(result)).toBe(sellerTransactionId);
+        expect(harness.settlements[0]?.paymentPayload.extensions).not.toHaveProperty('inflow-transaction');
+      } finally {
+        await harness.close();
+      }
+    });
+  });
+
   it.each(['success', 'rejected'] as const)(
     'waits for the settlement response before deciding on %s',
     async (outcome) => {
@@ -190,6 +233,7 @@ describe('real Express middleware and InFlow facilitator client upfront lifecycl
       const receipt = response.headers.get('payment-response');
       if (receipt === null) throw new Error('Missing receipt');
       expect(decodePaymentResponseHeader(receipt)).toMatchObject({ success: true, transaction: 'fixture-settlement' });
+      expect(getInflowTransactionId(decodePaymentResponseHeader(receipt))).toBeUndefined();
     } finally {
       await harness.close();
     }

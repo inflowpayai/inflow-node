@@ -6,6 +6,7 @@ export type { InflowEip7702GasSponsoringDeclaration, InflowEip7702GasSponsoringI
 
 export type { DeclarationContext, ExtensionHandler, SignContext } from './types.js';
 export { getExtension, setExtension } from './access.js';
+export { INFLOW_TRANSACTION, getInflowTransactionId } from './transaction.js';
 export {
   EXTENSION_PAYMENT_IDENTIFIER,
   PAYMENT_ID_DEFAULT_PREFIX,

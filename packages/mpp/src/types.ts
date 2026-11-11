@@ -180,6 +180,8 @@ export interface MppReceipt {
   challengeId?: string;
   /** Seller-provided reconciliation reference, including CARD and subscription settlements. */
   externalId?: string;
+  /** Seller-accessible InFlow Transaction UUID, when recorded. Separate from the method-specific reference. */
+  inflowTransactionId?: string;
   /** Payment method identifier (e.g. `'inflow'`). Required. */
   method: MppMethodLabel;
   /** Method-specific reference (tx hash, PaymentIntent id, ledger entry id, etc.). Required. */

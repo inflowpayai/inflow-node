@@ -743,8 +743,10 @@ describe('credential lifecycle', () => {
       challengeId: undefined,
       first: 'a'.repeat(8000),
       second: 'b'.repeat(8000),
+      padding: 'p'.repeat(300),
       oversized: 'c'.repeat(1000),
       last: 'retained',
+      inflowTransactionId: UUID,
     });
     const { mppx } = makeMppx();
     const challenge = await mppx.challenge.inflow.charge({ amount: '10', currency: 'USDC' });
@@ -762,7 +764,13 @@ describe('credential lifecycle', () => {
     const header = result.withReceipt(new Response('ok')).headers.get('Payment-Receipt');
     if (header === null) throw new Error('expected receipt');
     const receipt = decodeReceipt(header);
-    expect(receipt).toMatchObject({ first: 'a'.repeat(8000), second: 'b'.repeat(8000), last: 'retained' });
+    expect(receipt).toMatchObject({
+      first: 'a'.repeat(8000),
+      second: 'b'.repeat(8000),
+      padding: 'p'.repeat(300),
+      last: 'retained',
+      inflowTransactionId: UUID,
+    });
     expect(receipt).not.toHaveProperty('oversized');
     expect(receipt).not.toHaveProperty('challengeId');
   });
@@ -1125,7 +1133,7 @@ describe('credential lifecycle', () => {
   it('does not convert a Tempo transactionId into its operation-scoped HTTP idempotency key', async () => {
     mockConfig();
     mockValidateSuccess();
-    const broadcast = mockBroadcastSuccess('tempo');
+    const broadcast = mockBroadcastSuccess('tempo', { inflowTransactionId: UUID, reference: '0xsettlement' });
     const { mppx } = makeTempoMppx();
 
     const challenge = await mppx.challenge.tempo.charge({ amount: '100' });
@@ -1145,6 +1153,9 @@ describe('credential lifecycle', () => {
     expect(broadcast.idempotencyKey()).not.toBe('tx-tempo');
     const body = broadcast.body() as { credential: { payload: Record<string, unknown> } };
     expect(body.credential.payload['transactionId']).toBe('tx-tempo');
+    const receipt = decodeReceipt(r.withReceipt(new Response('ok')).headers.get('Payment-Receipt') ?? '');
+    expect(receipt.inflowTransactionId).toBe(UUID);
+    expect(receipt.reference).toBe('0xsettlement');
   });
 
   it('uses operation-scoped HTTP idempotency for an external Tempo credential without a server correlation id', async () => {
@@ -1479,6 +1490,7 @@ describe('inflow subscription: issuance, binding, verify', () => {
             status: 'success',
             timestamp: '2027-01-01T00:00:00Z',
             subscriptionId: 'sub_abc',
+            inflowTransactionId: UUID,
           },
         });
       }),
@@ -1498,7 +1510,11 @@ describe('inflow subscription: issuance, binding, verify', () => {
     const settled = r.withReceipt(new Response('ok'));
     const header = settled.headers.get('Payment-Receipt');
     if (header === null) throw new Error('expected Payment-Receipt header');
-    expect(decodeReceipt(header)).toMatchObject({ externalId: 'seller-plan-42', subscriptionId: 'sub_abc' });
+    expect(decodeReceipt(header)).toMatchObject({
+      externalId: 'seller-plan-42',
+      subscriptionId: 'sub_abc',
+      inflowTransactionId: UUID,
+    });
     expect(idempotencyKeys[0]).toMatch(/^[0-9a-f-]{36}$/);
 
     const replay = await mppx.compose(['inflow/subscription', SUB])(

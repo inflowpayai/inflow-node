@@ -73,13 +73,17 @@ jobs:
           pnpm --dir ../contract-pinned install --frozen-lockfile
           pnpm --dir ../contract-current install --frozen-lockfile
 
-      - name: Override @x402/* foundation packages to latest 2.x
+      - name: Override @x402/* to latest 2.x with Solana Kit 8.6.0
         if: matrix.x402-foundation == 'latest'
         run: |
+          overrides=$(pnpm config get --json overrides)
+          pnpm config set --location=project --json overrides \
+            "$(node -p 'JSON.stringify({...JSON.parse(process.argv[1]), "zod@^4": "4.4.3", vitest: "5.0.0"})' "$overrides")"
           pnpm -r update \
             '@x402/core@^2.27.0' '@x402/evm@^2.27.0' '@x402/express@^2.27.0' \
             '@x402/extensions@^2.27.0' '@x402/fastify@^2.27.0' '@x402/hono@^2.27.0' \
-            '@x402/next@^2.27.0' '@x402/paywall@^2.27.0' '@x402/svm@^2.27.0'
+            '@x402/next@^2.27.0' '@x402/paywall@^2.27.0' '@x402/svm@^2.27.0' \
+            '@solana/kit@8.6.0'
 
       - name: Build SDK packages
         id: build

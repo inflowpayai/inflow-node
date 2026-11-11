@@ -330,7 +330,8 @@ describe('CARD seller', () => {
 
   it.each(['Express', 'Hono'] as const)('gates a real %s handler and attaches its receipt', async (framework) => {
     mockConfig();
-    const calls = lifecycle();
+    const inflowTransactionId = '22222222-2222-4222-8222-222222222222';
+    const calls = lifecycle({ inflowTransactionId });
     const method = await card({ apiKey: 'seller-key', baseUrl: BASE });
     let contentCalls = 0;
     let request: (path: string, authorization?: string) => Promise<Response>;
@@ -388,6 +389,7 @@ describe('CARD seller', () => {
       expect(decodeReceipt(paid.headers.get('Payment-Receipt') ?? '')).toMatchObject({
         challengeId: challenge.id,
         method: 'card',
+        inflowTransactionId,
       });
       expect(contentCalls).toBe(1);
       expect(calls.map((call) => call.operation)).toEqual(['validate', 'broadcast']);

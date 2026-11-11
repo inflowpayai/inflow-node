@@ -1,3 +1,4 @@
+import { getInflowTransactionId } from '@inflowpayai/x402/extensions';
 import {
   decodePaymentRequiredHeader,
   decodePaymentResponseHeader,
@@ -37,6 +38,16 @@ describe.each(['Fastify', 'Hono', 'Next'] as const)('%s upfront execution', (ada
             success: outcome !== 'rejected',
             network: 'eip155:8453',
             transaction: 'fixture',
+            extensions: {
+              'inflow-transaction': {
+                info: { transactionId: '22222222-2222-4222-8222-222222222222' },
+                schema: {
+                  type: 'object',
+                  properties: { transactionId: { type: 'string', format: 'uuid' } },
+                  required: ['transactionId'],
+                },
+              },
+            },
             ...(outcome === 'rejected' ? { errorReason: 'settlement_failed' } : {}),
           });
         },
@@ -113,6 +124,9 @@ describe.each(['Fastify', 'Hono', 'Next'] as const)('%s upfront execution', (ada
         const receipt = response.headers.get('payment-response');
         if (receipt === null) throw new Error('Missing settlement receipt');
         expect(decodePaymentResponseHeader(receipt).success).toBe(outcome !== 'rejected');
+        expect(getInflowTransactionId(decodePaymentResponseHeader(receipt))).toBe(
+          outcome === 'rejected' ? undefined : '22222222-2222-4222-8222-222222222222',
+        );
       } finally {
         await close();
       }
