@@ -20,7 +20,7 @@ doc folder takes a product prefix (`x402-`, `mpp-`, …) so products coexist wit
 - `docs/<product>/` — product docs (overview, architecture, wire format, extensions).
 - `docs/monorepo/` — repo-level docs: `contributing.md`, `tooling.md`, `publishing.md`, `documentation.md`.
 - `scripts/` — repo-level dev/CI scripts (export checks, publish verification).
-- `.changeset/` — pending version bumps. PRs touching `packages/**` need an entry.
+- `.changeset/` — pending version bumps. Package changes need an entry, except development-dependency-only updates.
 
 Load-bearing root files — touch with care: `tsconfig.base.json`, `turbo.json`, `eslint.config.js`,
 `.changeset/config.json`, `typedoc.json`, `.prettierrc.json`, `pnpm-workspace.yaml`.
@@ -117,7 +117,8 @@ it before any non-trivial doc PR.
 
 - Short-lived branches off `main`. Conventional Commits, scoped by package: `feat(x402-seller): …`. Full convention in
   `docs/monorepo/contributing.md`.
-- PRs touching `packages/**` need a Changeset (`pnpm changeset`). CI fails without one.
+- PRs touching `packages/**` need a Changeset (`pnpm changeset`), except updates limited to `devDependencies`, examples,
+  and the lockfile. CI checks the diff, not the PR author.
 - Release flow uses `changesets/action@v1` from `.github/workflows/release.yml`. Full flow in
   `docs/monorepo/publishing.md`.
 
