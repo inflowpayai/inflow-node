@@ -72,7 +72,8 @@ git push -u origin feat/x402-buyer-better-retry
 gh pr create --base main
 ```
 
-PRs that touch `packages/**` need a Changeset entry. CI fails the PR without one.
+PRs that touch `packages/**` need a Changeset entry. Updates limited to `devDependencies`, examples, and the lockfile
+are exempt. Runtime dependency, peer dependency, and source changes still require a Changeset.
 
 ```bash
 pnpm changeset
