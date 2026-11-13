@@ -15,7 +15,7 @@ resolution via declaration order. InFlow plugs into that with these factories an
 | `createUnauthenticatedInflowFacilitator` | foundation `FacilitatorClient`  | same — for facilitator-only deployments                                                                |
 | `createInflowSellerClient`               | `InflowSellerClient`            | drives `inflowAccepts`                                                                                 |
 | `inflowAccepts(client, options)`         | foundation `PaymentOption[]`    | a route's `accepts` field in `RoutesConfig`                                                            |
-| `inflowRoute(client, options)`           | foundation `RouteConfig`        | a route's offers and token-gated sponsorship declarations                                              |
+| `inflowRoute(client, options)`           | `RouteConfig` or route resolver | a route's offers and token-gated sponsorship declarations                                              |
 | `inflowSchemeRegistrations(client)`      | `Promise<SchemeRegistration[]>` | a foundation adapter's `schemes` argument — the foundation refuses to boot without these registrations |
 
 The buyer side ships `InflowClient`, a subclass of the foundation's `x402Client`. The buyer composes by passing the
@@ -83,8 +83,26 @@ buyer                   foundation middleware              InFlow facilitator   
 
 The seller fetches `/v1/x402/config` once at startup (via `createInflowSellerClient`), expands it into `PaymentOption[]`
 via `inflowAccepts`, and hands the result to the foundation middleware in each route's `accepts` field. The foundation
-middleware never calls `/v1/x402/config` itself — it consumes `PaymentOption[]` shapes that already have `payTo`,
-`asset`, and atomic `amount` resolved.
+middleware never calls `/v1/x402/config` itself. Fixed prices have `payTo`, `asset`, and atomic `amount` resolved at
+startup. Request-time route callbacks call the same helpers with the price for the current purchase.
+
+`createInflowHTTPResourceServer(server, routes)` accepts fixed route objects and callbacks that receive the foundation's
+`HTTPRequestContext` and return a concrete `RouteConfig`. Each matching callback runs once per request, before HTTP
+protected-request hooks receive the resolved route. It can await pricing, call `inflowAccepts`, and filter, reorder, or
+edit the resulting offers. The HTTP server uses upstream routing and delegates payment processing to a request-local
+upstream HTTP server. The shared resource server retains its registered schemes, facilitators, and hooks. Settlement
+uses the same resolved route as verification. Initialization is shared; a failed initialization can be retried. Callback
+routes are validated at request time. Pricing errors and empty resolved offer lists stop the request before
+verification, settlement, or the protected handler. See the
+[request-priced Express example](../../examples/x402-seller-express/src/index.ts).
+
+Callbacks run again on paid retries; keep the price stable for the same purchase. Fixed prices remain compatible with
+`paymentMiddlewareFromConfig`. Other facilitators and fixed options can share the resource server. For body-based
+pricing, Express needs its body parser before payment middleware. Hono and Next provide body access through their
+request adapters. Fastify's payment middleware runs before body parsing; use query, path, or header inputs there. For
+Fastify, import `x402ResourceServer` from `@x402/fastify` and pass `{ resourceServer: x402ResourceServer }` to
+`createInflowResourceServer`. Likewise pass its `x402HTTPResourceServer` as the `httpServer` option to
+`createInflowHTTPResourceServer`. This keeps the returned servers compatible with the adapter's own x402 core version.
 
 ## Buyer side — request lifecycle
 
@@ -184,7 +202,9 @@ Permit2 settlement operation; the facilitator broadcasts only at settlement. Del
 failure.
 
 `inflowRoute`'s optional `assetTransferMethod: 'permit2'` selects configured Permit2 alternatives without changing
-ordinary offers. `FacilitatorClient.getSupported().extensions` advertises capability names, not route declarations.
+ordinary offers. `FacilitatorClient.getSupported().extensions` advertises capability names, not route declarations. With
+a price callback, `inflowRoute` returns a route resolver after capturing seller configuration and facilitator support
+during setup. Sponsorship uses each request's resolved offers and the same capability checks as fixed prices.
 
 ## `inflowSchemeRegistrations`
 

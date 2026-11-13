@@ -1,8 +1,7 @@
 # Example — x402 seller on Express
 
-A minimal Express app that accepts x402 payments via InFlow. Uses the foundation V2 middleware
-(`paymentMiddlewareFromConfig` from `@x402/express`) with InFlow's facilitator client + seller client + `inflowAccepts`
-helper.
+A minimal Express app that accepts x402 payments via InFlow. Uses the foundation V2 middleware (`paymentMiddleware` from
+`@x402/express`) with `createInflowHTTPResourceServer` and request-time routes built using `inflowAccepts`.
 
 ## Prerequisite
 
@@ -24,13 +23,20 @@ pnpm dev
 
 The server listens on `http://localhost:3000`:
 
-| Route                | Price       | Notes                                                         |
-| -------------------- | ----------- | ------------------------------------------------------------- |
-| `GET /api/widgets`   | `$0.01`     | Exact payments; authorization flow.                           |
-| `GET /api/sponsored` | `0.01 USDC` | Base Sepolia Permit2; authorization flow.                     |
-| `POST /api/upload`   | `0.10 USDC` | Balance + exact schemes only.                                 |
-| `GET /api/report`    | `0.10 USDC` | Balance + exact; upfront settlement before report generation. |
-| `GET /free`          | —           | Not protected; passes through.                                |
+| Route                | Price                 | Notes                                                          |
+| -------------------- | --------------------- | -------------------------------------------------------------- |
+| `GET /api/widgets`   | `$0.01` or `$0.05`    | `?bundle=large` selects the larger bundle; exact payments.     |
+| `GET /api/sponsored` | `0.01 USDC`           | Base Sepolia Permit2; authorization flow.                      |
+| `POST /api/upload`   | `0.10` or `0.20 USDC` | `?priority=high` selects priority processing; balance + exact. |
+| `GET /api/report`    | `0.10` or `0.25 USDC` | `?detail=full` selects the full report; upfront settlement.    |
+| `GET /api/search`    | `0.10` or `0.25`      | Request-time amount and currency via `inflowAccepts`.          |
+| `GET /free`          | —                     | Not protected; passes through.                                 |
+
+For `/api/search`, `?detail=full` selects 0.25 instead of 0.10; `?currency=USDT` selects USDT instead of USDC. The
+callback returns the seller's price for the requested service. Networks without the selected currency are omitted; `$`
+prices expand to configured stablecoins. A request with no matching payment options fails rather than becoming free.
+Prices must remain stable between the unpaid request and its paid retry. Fixed prices are also supported; the sponsored
+route demonstrates fixed pricing with `inflowRoute`.
 
 Hit it with the matching buyer example or any other x402 client:
 

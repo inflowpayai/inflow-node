@@ -1,8 +1,7 @@
 # Example — x402 seller on Hono
 
 A minimal Hono app that accepts x402 payments via InFlow. Uses the foundation V2 middleware
-(`paymentMiddlewareFromConfig` from `@x402/hono`) with InFlow's facilitator client + seller client + `inflowAccepts`
-helper.
+(`paymentMiddlewareFromHTTPServer` from `@x402/hono`) with InFlow's request-time routes and `inflowAccepts` helper.
 
 ## Prerequisite
 
@@ -24,11 +23,11 @@ pnpm dev
 
 The server listens on `http://localhost:3000` and serves three routes:
 
-| Route              | Price       | Notes                                   |
-| ------------------ | ----------- | --------------------------------------- |
-| `GET /api/widgets` | `$0.01`     | All schemes the facilitator advertises. |
-| `POST /api/upload` | `0.10 USDC` | Balance + exact schemes only.           |
-| `GET /free`        | —           | Not protected; passes through.          |
+| Route              | Price                                      | Notes                          |
+| ------------------ | ------------------------------------------ | ------------------------------ |
+| `GET /api/widgets` | `$0.01`; `?bundle=large`: `$0.05`          | Balance + exact schemes.       |
+| `POST /api/upload` | `0.10 USDC`; `?priority=high`: `0.20 USDC` | Balance + exact schemes.       |
+| `GET /free`        | —                                          | Not protected; passes through. |
 
 Hit it with the matching buyer example:
 

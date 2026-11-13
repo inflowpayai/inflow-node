@@ -43,6 +43,29 @@ const USD = { amount: '1.0', currency: 'USD' };
 const USDC = { amount: '0.0095', currency: 'USDC' };
 
 describe('inflowCharges', () => {
+  it('accepts a synchronous callback without mutating its prices', async () => {
+    const mppx = stubMppx();
+    const prices = Object.freeze([Object.freeze({ amount: '1', currency: 'USDC' })]);
+    const request = new Request('https://seller.test/paid');
+    const handler = inflowCharges(mppx, (input) => {
+      expect(input).not.toBe(request);
+      expect(input.url).toBe(request.url);
+      return prices;
+    });
+    await handler(request);
+    expect(mppx.calls[0]).toEqual([['inflow/charge', { amount: '1', currency: 'USDC' }]]);
+  });
+
+  it('propagates synchronous callback failures before composing a payment', async () => {
+    const mppx = stubMppx();
+    const error = new Error('pricing failed');
+    const handler = inflowCharges(mppx, () => {
+      throw error;
+    });
+    await expect(handler(new Request('https://seller.test/paid'))).rejects.toBe(error);
+    expect(mppx.calls).toEqual([]);
+  });
+
   it('builds one inflow/charge compose entry per price, in order', () => {
     const mppx = stubMppx();
 

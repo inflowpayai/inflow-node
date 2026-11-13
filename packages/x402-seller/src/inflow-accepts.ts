@@ -7,6 +7,8 @@ import type {
   X402WalletInfo,
 } from '@inflowpayai/x402';
 import type { PaymentOption } from '@x402/core/http';
+import type { AssetAmount, Price } from '@x402/core/types';
+import { parseMoney } from '@x402/core/utils';
 import { getExtra } from '@inflowpayai/x402/extras';
 
 import { X402PriceParseError } from './errors.js';
@@ -43,15 +45,13 @@ export interface PriceSpec {
   currency?: 'USD' | 'USDC' | 'USDT' | 'PYUSD' | (string & {});
 }
 
+type ResolvedPaymentOption = Omit<PaymentOption, 'price'> & { price: AssetAmount };
+
 /** Options accepted by {@link inflowAccepts}. */
 export interface InflowAcceptsOptions {
   /** Upfront settles before the handler; authorization settles after successful execution. Defaults to authorization. */
   paymentFlow?: 'authorization' | 'upfront';
-  /**
-   * Price for the protected resource. Either a {@link PriceSpec} or a string in any of the three forms accepted by
-   * {@link PriceSpec.amount}.
-   */
-  price: PriceSpec | string;
+  price: PriceSpec | Price;
   /**
    * Maximum lifetime (seconds) attached to each emitted entry. Defaults to `300` — matches the server-side
    * `X402Constants.INFLOW_MAX_TIMEOUT_SECONDS` constant.
@@ -72,9 +72,8 @@ export interface InflowAcceptsOptions {
 }
 
 /**
- * Build the `RouteConfig.accepts` array from the seller's cached `/v1/x402/config`. Each entry's `price` is
- * pre-resolved to `AssetAmount` form (asset contract address + atomic-unit amount), so the foundation middleware never
- * needs to consult the config itself. See
+ * Build the `RouteConfig.accepts` array from the seller's cached `/v1/x402/config`. Each entry's `price` is resolved to
+ * `AssetAmount` form (asset contract address + atomic-unit amount). See
  * {@link https://github.com/inflowpayai/inflow-node/blob/main/docs/x402/architecture.md#inflowaccepts-algorithm | the architecture doc}
  * for the full emission and ordering rules.
  *
@@ -93,6 +92,19 @@ export function buildInflowAccepts(
   options: InflowAcceptsOptions,
   assetTransferMethod?: 'permit2',
 ): PaymentOption[] {
+  if (typeof options.price === 'object' && 'asset' in options.price) {
+    return buildAtomicAccepts(config, options.price, options, assetTransferMethod);
+  }
+  const price =
+    typeof options.price === 'number' ? { amount: parseMoney(options.price).amount, currency: 'USD' } : options.price;
+  return structuredClone(buildStaticAccepts(config, { ...options, price }, assetTransferMethod));
+}
+
+function buildStaticAccepts(
+  config: X402ConfigResponse,
+  options: Omit<InflowAcceptsOptions, 'price'> & { price: PriceSpec | string },
+  assetTransferMethod?: 'permit2',
+): ResolvedPaymentOption[] {
   const paymentFlow: unknown = options.paymentFlow;
   if (paymentFlow !== undefined && paymentFlow !== 'authorization' && paymentFlow !== 'upfront') {
     throw new Error('paymentFlow must be authorization or upfront');
@@ -100,7 +112,7 @@ export function buildInflowAccepts(
   const maxTimeoutSeconds = options.maxTimeoutSeconds ?? DEFAULT_MAX_TIMEOUT_SECONDS;
   const priceSpec = normalizePrice(options.price);
   const { amount: parsedAmount, currency: targetCurrency } = parsePriceSpec(priceSpec);
-  const entries: PaymentOption[] = [];
+  const entries: ResolvedPaymentOption[] = [];
 
   // On-chain entries: one per (wallet, matching-asset, transfer-method).
   for (const wallet of config.wallets) {
@@ -180,6 +192,44 @@ export function buildInflowAccepts(
   return entries;
 }
 
+function buildAtomicAccepts(
+  config: X402ConfigResponse,
+  resolved: AssetAmount,
+  options: InflowAcceptsOptions,
+  assetTransferMethod?: 'permit2',
+): PaymentOption[] {
+  const candidates = buildStaticAccepts(config, { ...options, price: '$1' }, assetTransferMethod);
+  const matches = candidates.filter((candidate) => sameAsset(candidate.network, candidate.price.asset, resolved.asset));
+  requireOffers(matches);
+  return matches.map((selected) => {
+    if (selected.scheme === SCHEMES.INSTRUMENT) {
+      // Candidates were built with $1, so this amount is exactly one dollar in atomic units.
+      const scale = BigInt(selected.price.amount);
+      const minimum = 50n * scale;
+      if (!/^\d+$/u.test(resolved.amount)) throw new X402PriceParseError(resolved.amount);
+      const cents = BigInt(resolved.amount) * 100n;
+      if (cents < minimum || cents % scale !== 0n || cents / scale > 9223372036854775807n) {
+        throw new X402PriceParseError(
+          `${resolved.amount} (card payments require USD 0.50–92233720368547758.07 in whole cents)`,
+        );
+      }
+    }
+    return {
+      ...selected,
+      price: { asset: resolved.asset, amount: resolved.amount },
+      extra: structuredClone({ ...selected.extra, ...resolved.extra }),
+    };
+  });
+}
+
+function sameAsset(network: string, left: string, right: string): boolean {
+  return network.startsWith('eip155:') ? left.toLowerCase() === right.toLowerCase() : left === right;
+}
+
+function requireOffers(offers: ResolvedPaymentOption[]): void {
+  if (offers.length === 0) throw new X402PriceParseError('No payment options match the requested price and filters');
+}
+
 /**
  * Stablecoins the seller's config advertises for non-blockchain methods. 'USD' expands to every distinct currency
  * present in `config.assets`; any other target returns just that currency.
@@ -207,7 +257,7 @@ interface OnChainOptionArgs {
   schemeExtra?: Record<string, unknown> | undefined;
 }
 
-function buildOnChainOption(args: OnChainOptionArgs): PaymentOption {
+function buildOnChainOption(args: OnChainOptionArgs): ResolvedPaymentOption {
   const { wallet, asset, method, amount, maxTimeoutSeconds } = args;
   const extra: Record<string, unknown> = {};
   // Human-readable currency name. Emitted on every entry regardless of network so callers can render the currency without parsing `assetId`.
@@ -251,9 +301,9 @@ interface PaymentMethodOptionArgs {
   maxTimeoutSeconds: number;
 }
 
-function buildPaymentMethodOption(args: PaymentMethodOptionArgs): PaymentOption {
+function buildPaymentMethodOption(args: PaymentMethodOptionArgs): ResolvedPaymentOption {
   const { method, currency, amount, maxTimeoutSeconds } = args;
-  const base: PaymentOption = {
+  const base: ResolvedPaymentOption = {
     scheme: method.scheme,
     // CAIP-2 string (`'inflow:1'` for InFlow balance and Instrument payments).
     network: method.network as PaymentOption['network'],

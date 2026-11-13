@@ -1,7 +1,7 @@
 # Example — MPP seller on Express
 
-A minimal Express app that accepts MPP payments via InFlow. Uses `mppx`'s own Express adapter (`Mppx` from
-`mppx/express`) with InFlow's `inflow` seller method. `Mppx.create` mints and HMAC-binds the challenge locally with
+A minimal Express app that accepts MPP payments via InFlow. Uses `inflowChargesNodeListener` with request-time pricing
+and InFlow's `inflow` seller method on `mppx/server`. `Mppx.create` mints and HMAC-binds the challenge locally with
 `secretKey`; the `inflow` method's `verify` redeems and settles through the InFlow PSP.
 
 ## Prerequisite
@@ -52,17 +52,18 @@ seller must use the same environment. Send API keys only to an InFlow API you tr
 
 The server listens on `http://localhost:3000` and serves these routes:
 
-| Route                | Price                      | Notes                                                                           |
-| -------------------- | -------------------------- | ------------------------------------------------------------------------------- |
-| `GET /api/widgets`   | `0.01 USDC`                | Single currency via the Express adapter's `charge`. Crypto → `balance` rail.    |
-| `POST /api/upload`   | `0.10 USDC`                | Single currency via `charge`. Crypto → `balance` rail.                          |
-| `GET /api/subscribe` | `1.00 USDC` monthly        | Recurring subscription on the `balance` rail.                                   |
-| `GET /api/checkout`  | `1.0 USD` or `0.0095 USDC` | Multi-currency: one challenge per price (USD → `instrument`, USDC → `balance`). |
-| `GET /free`          | —                          | Not gated; passes through.                                                      |
+| Route                | Price                       | Notes                                                                          |
+| -------------------- | --------------------------- | ------------------------------------------------------------------------------ |
+| `GET /api/widgets`   | `0.01` or `0.05 USDC`       | `?bundle=large` selects the larger bundle; balance rail.                       |
+| `POST /api/upload`   | `0.10` or `0.20 USDC`       | `?priority=high` selects priority processing; balance rail.                    |
+| `GET /api/subscribe` | `1.00 USDC` monthly         | Recurring subscription on the `balance` rail.                                  |
+| `GET /api/checkout`  | `1.00 USD` or `0.0095 USDC` | `?bundle=large` doubles both prices (USD → `instrument`, USDC → `balance`).    |
+| `GET /api/search`    | Request-priced USD or USDC  | `?detail=full` selects USD 1.00 or USDC 0.25; otherwise USD 0.50 or USDC 0.10. |
+| `GET /free`          | —                           | Not gated; passes through.                                                     |
 
-The Express adapter (`mppx/express`) exposes only the single-currency `charge` — it strips `compose`. The multi-currency
-`GET /api/checkout` and `GET /api/subscribe` therefore use core `mppx/server` instances, bridged into Express with
-InFlow's Node listener helpers.
+Each charge callback reads the request and returns the seller's prices; it does not accept a buyer-supplied amount. The
+helper handles both single- and multi-currency routes. Prices must remain stable between the unpaid request and its paid
+retry. Fixed price lists are also supported. Subscriptions use a separate helper with fixed plan terms.
 
 Hit it with the matching buyer example or any other MPP client:
 

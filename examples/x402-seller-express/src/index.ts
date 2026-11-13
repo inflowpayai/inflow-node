@@ -1,12 +1,13 @@
 import 'dotenv/config';
-import { paymentMiddlewareFromConfig } from '@x402/express';
+import { paymentMiddlewareFromHTTPServer } from '@x402/express';
 import express from 'express';
 import {
   createInflowFacilitator,
   createInflowSellerClient,
+  createInflowResourceServer,
+  createInflowHTTPResourceServer,
   inflowAccepts,
   inflowRoute,
-  inflowSchemeRegistrations,
 } from '@inflowpayai/x402-seller';
 
 const apiKey = process.env['INFLOW_API_KEY'];
@@ -28,47 +29,58 @@ const seller = await createInflowSellerClient({ environment: 'sandbox', apiKey }
 const app = express();
 app.use(express.json());
 
-// 3. Foundation middleware + InFlow-built `PaymentOption[]` entries.
-//    `inflowAccepts` expands the seller's config into AssetAmount-form
-//    `accepts[]` (atomic amount + asset contract address pre-resolved).
-//    `inflowSchemeRegistrations` ships passthrough scheme servers so
-//    `x402HTTPResourceServer.initialize()` sees a registered scheme for
-//    every `(scheme, network)` the seller can emit — without these the
-//    foundation aborts at boot with `RouteConfigurationError`.
+// Prices come from the seller's price list, not an amount supplied by the buyer.
+const server = await createInflowResourceServer(seller, [inflow]);
 app.use(
-  paymentMiddlewareFromConfig(
-    {
+  paymentMiddlewareFromHTTPServer(
+    createInflowHTTPResourceServer(server, {
+      'GET /api/widgets': async (context) => ({
+        accepts: await inflowAccepts(seller, {
+          price: context.adapter.getQueryParam?.('bundle') === 'large' ? '$0.05' : '$0.01',
+          schemes: ['exact'],
+        }),
+      }),
+      'GET /api/search': async (context) => ({
+        accepts: await inflowAccepts(seller, {
+          schemes: ['exact', 'balance'],
+          price: {
+            amount: context.adapter.getQueryParam?.('detail') === 'full' ? '0.25' : '0.10',
+            currency: context.adapter.getQueryParam?.('currency') === 'USDT' ? 'USDT' : 'USDC',
+          },
+        }),
+      }),
+      'POST /api/upload': async (context) => ({
+        accepts: await inflowAccepts(seller, {
+          price: {
+            amount: context.adapter.getQueryParam?.('priority') === 'high' ? '0.20' : '0.10',
+            currency: 'USDC',
+          },
+          schemes: ['balance', 'exact'],
+        }),
+      }),
+      'GET /api/report': async (context) => ({
+        accepts: await inflowAccepts(seller, {
+          price: context.adapter.getQueryParam?.('detail') === 'full' ? '0.25 USDC' : '0.10 USDC',
+          schemes: ['balance', 'exact'],
+          paymentFlow: 'upfront',
+        }),
+      }),
       'GET /api/sponsored': await inflowRoute(seller, {
-        price: '0.01 USDC',
+        price: (context) => (context.adapter.getQueryParam?.('detail') === 'full' ? '0.02 USDC' : '0.01 USDC'),
         schemes: ['exact'],
         networks: ['eip155:84532'],
         assetTransferMethod: 'permit2',
       }),
-      'GET /api/widgets': {
-        accepts: await inflowAccepts(seller, {
-          price: '$0.01',
-          schemes: ['exact'],
-        }),
-      },
-      'POST /api/upload': {
-        accepts: await inflowAccepts(seller, {
-          price: '0.10 USDC',
-          schemes: ['balance', 'exact'],
-        }),
-      },
-      'GET /api/report': await inflowRoute(seller, {
-        price: '0.10 USDC',
-        schemes: ['balance', 'exact'],
-        paymentFlow: 'upfront',
-      }),
-    },
-    [inflow],
-    await inflowSchemeRegistrations(seller),
+    }),
   ),
 );
 
 app.get('/api/widgets', (_req, res) => {
   res.json({ widgets: [1, 2, 3] });
+});
+
+app.get('/api/search', (_req, res) => {
+  res.json({ results: ['Sample search result'] });
 });
 
 app.get('/api/sponsored', (_req, res) => {
@@ -92,8 +104,9 @@ app.get('/free', (_req, res) => {
 const port = Number(process.env['PORT'] ?? 3000);
 app.listen(port, () => {
   console.log(`x402 seller listening on http://localhost:${port.toString()}`);
-  console.log(`  GET  /api/widgets  ($0.01)`);
-  console.log(`  POST /api/upload   (0.10 USDC)`);
-  console.log(`  GET  /api/report   (0.10 USDC, upfront)`);
+  console.log(`  GET  /api/widgets  ($0.01; ?bundle=large costs $0.05)`);
+  console.log(`  GET  /api/search?detail=full&currency=USDT (request-time pricing; currencies must be configured)`);
+  console.log(`  POST /api/upload   (0.10 USDC; ?priority=high costs 0.20 USDC)`);
+  console.log(`  GET  /api/report   (0.10 USDC; ?detail=full costs 0.25 USDC, upfront)`);
   console.log(`  GET  /free         (no payment)`);
 });
