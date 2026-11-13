@@ -52,7 +52,7 @@
     "@types/express": "^5.0.6",
     "@vitest/coverage-v8": "^5.0.0",
     "express": "^5.2.1",
-    "hono": "^4.13.7",
+    "hono": "^4.13.16",
     "mppx": "^0.8.17",
     "msw": "^2.15.0"
   },
