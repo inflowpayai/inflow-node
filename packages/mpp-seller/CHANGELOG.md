@@ -1,5 +1,27 @@
 # @inflowpayai/mpp-seller
 
+## 0.12.0
+
+### Minor Changes
+
+- [#117](https://github.com/inflowpayai/inflow-node/pull/117)
+  [`34c55fd`](https://github.com/inflowpayai/inflow-node/commit/34c55fd3d158dfcebc4cc7977868b20b2d5b34cb) Thanks
+  [@nkavian](https://github.com/nkavian)! - Support request-time pricing in seller helpers, including configured
+  currency selection and synchronous or asynchronous callbacks. Preserve fixed-price integrations and delegate payment
+  processing to the existing upstream handlers.
+
+### Patch Changes
+
+- [#115](https://github.com/inflowpayai/inflow-node/pull/115)
+  [`393f50c`](https://github.com/inflowpayai/inflow-node/commit/393f50c8126e58a104731f447e4f04b6b410dad0) Thanks
+  [@nkavian](https://github.com/nkavian)! - Expose the optional seller-accessible InFlow transaction ID in MPP receipts
+  and provide `getInflowTransactionId` for x402 settlement extensions. Preserve MPP correlation through receipt
+  conversion even when unrelated extensions reach their size limit. Existing settlement references and payment behavior
+  are unchanged, and receipts without correlation remain supported.
+- Updated dependencies
+  [[`393f50c`](https://github.com/inflowpayai/inflow-node/commit/393f50c8126e58a104731f447e4f04b6b410dad0)]:
+  - @inflowpayai/mpp@0.13.0
+
 ## 0.11.0
 
 ### Minor Changes
