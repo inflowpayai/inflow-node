@@ -1,5 +1,34 @@
 # @inflowpayai/x402
 
+## 0.13.0
+
+### Minor Changes
+
+- [#121](https://github.com/inflowpayai/inflow-node/pull/121)
+  [`fde5ecb`](https://github.com/inflowpayai/inflow-node/commit/fde5ecba327424a1aaef4dbfba5d41f1d6c69d94) Thanks
+  [@nkavian](https://github.com/nkavian)! - Upgrade the supported MPP and x402 foundations. Add optional method-specific
+  MPP buyer limits checked during offer selection and before requesting payment credentials.
+
+  Support explicit per-request cancellation through MPP buyer context signals without sending them to the payment server
+  or cancelling other requests sharing the method.
+
+  Expose request-local HTTP response headers and forward facilitator extension-response metadata to seller hooks without
+  including it in buyer payment receipts.
+
+  Preserve the facilitator's advertised Solana transaction versions in seller payment requirements.
+
+  Preserve alternate MPP credential headers through challenge parsing and buyer/seller forwarding so payment credentials
+  can coexist with application authorization.
+
+  Expose upstream payment-header codecs and their wire types through `@inflowpayai/x402/http`.
+
+- [#115](https://github.com/inflowpayai/inflow-node/pull/115)
+  [`393f50c`](https://github.com/inflowpayai/inflow-node/commit/393f50c8126e58a104731f447e4f04b6b410dad0) Thanks
+  [@nkavian](https://github.com/nkavian)! - Expose the optional seller-accessible InFlow transaction ID in MPP receipts
+  and provide `getInflowTransactionId` for x402 settlement extensions. Preserve MPP correlation through receipt
+  conversion even when unrelated extensions reach their size limit. Existing settlement references and payment behavior
+  are unchanged, and receipts without correlation remain supported.
+
 ## 0.12.0
 
 ### Minor Changes
