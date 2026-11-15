@@ -128,6 +128,11 @@ function buildStaticAccepts(
             : [];
       for (const method of methods) {
         if (!includeEntry(options, SCHEMES.EXACT, asset.network)) continue;
+        const transactionVersions = asset.network.startsWith('solana:')
+          ? config.supported.find((kind) => kind.scheme === SCHEMES.EXACT && kind.network === asset.network)?.extra?.[
+              'transactionVersions'
+            ]
+          : undefined;
         entries.push(
           buildOnChainOption({
             wallet,
@@ -135,6 +140,7 @@ function buildStaticAccepts(
             method,
             amount: factorParsed(parsedAmount, asset.decimals, priceSpec.amount),
             maxTimeoutSeconds,
+            ...(transactionVersions === undefined ? {} : { schemeExtra: { transactionVersions } }),
           }),
         );
       }

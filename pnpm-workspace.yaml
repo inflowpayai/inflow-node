@@ -5,7 +5,17 @@ packages:
 engineStrict: true
 
 overrides:
+  # Paywall's connectors 5 require this core version; wagmi keeps its own core dependency.
+  '@x402/paywall@2.31.0>@wagmi/core': 2.21.2
   esbuild: ^0.28.2
+  # Valtio's pinned store helper predates React 19 support.
+  'valtio@1.13.2>use-sync-external-store': 1.4.0
+
+packageExtensions:
+  # This viem version's ABI parser requires Zod 3, independently of the workspace's Zod 4 consumers.
+  'viem@2.23.2':
+    dependencies:
+      zod: ^3.25.76
 
 publicHoistPattern:
   - '*eslint*'
@@ -13,9 +23,12 @@ publicHoistPattern:
   - '*types*'
 
 allowBuilds:
+  bufferutil: true
   esbuild: true
+  keccak: true
   msw: true
   sharp: true
+  utf-8-validate: true
 
 minimumReleaseAgeExclude:
   - '@aep-foundation/core@0.5.1'

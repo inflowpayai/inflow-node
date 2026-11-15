@@ -1298,6 +1298,7 @@ describe('credential lifecycle', () => {
     const challenge = {
       ...minted,
       digest: 'sha-256=Zm9vYmFy',
+      header: 'X-Payment',
       expires: '2026-05-31T12:00:00Z',
       description: 'pay',
       opaque: 'eyJvcmRlcklkIjoib3JkZXItMTIzIn0',
@@ -1314,6 +1315,7 @@ describe('credential lifecycle', () => {
     expect(body.credential.challenge['expires']).toBe('2026-05-31T12:00:00Z');
     expect(body.credential.challenge['description']).toBe('pay');
     expect(body.credential.challenge['digest']).toBe('sha-256=Zm9vYmFy');
+    expect(body.credential.challenge['header']).toBe('X-Payment');
     expect(body.credential.challenge['opaque']).toBe('eyJvcmRlcklkIjoib3JkZXItMTIzIn0');
   });
 

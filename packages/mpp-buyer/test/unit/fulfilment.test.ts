@@ -54,7 +54,13 @@ function method(overrides: Partial<InflowClientOptions & { pollIntervalMs?: numb
 
 describe('fulfilment lifecycle', () => {
   it('preserves every optional challenge field and leaves caller data unchanged', async () => {
-    const input = { ...challenge(), description: 'Buy a report', digest: 'sha-256=:digest:', opaque: 'binding' };
+    const input = {
+      ...challenge(),
+      description: 'Buy a report',
+      digest: 'sha-256=:digest:',
+      header: 'X-Payment',
+      opaque: 'binding',
+    };
     const options = { instrumentId: RECIPIENT };
     const before = structuredClone({ input, options });
     let received: unknown;

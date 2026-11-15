@@ -194,6 +194,8 @@ export function isInstrumentPayload(
  * empty string on failure. Check `success` before treating the value as a real reference.
  */
 export interface SettleResponse {
+  /** Facilitator-to-seller metadata, excluded from buyer payment receipts. */
+  extensionResponses?: Record<string, unknown>;
   success: boolean;
   errorReason?: string;
   errorMessage?: string;

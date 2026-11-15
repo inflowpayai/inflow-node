@@ -80,6 +80,10 @@ async function fixture(
       response.setHeader('Retry-After', '0');
       response.status(409).json({ success: false, errorReason: 'idempotency_pending' });
     } else {
+      response.setHeader(
+        'EXTENSION-RESPONSES',
+        Buffer.from(JSON.stringify({ internal: { status: 'recorded' } })).toString('base64'),
+      );
       response.json({
         success: options.outcome !== 'rejected',
         ...(options.outcome === 'rejected' ? { errorReason: 'settlement_failed' } : {}),
@@ -162,6 +166,8 @@ describe('real Express middleware and InFlow facilitator client upfront lifecycl
         if (header === null) throw new Error('Missing receipt');
         const result = decodePaymentResponseHeader(header);
         expect(result.extensions).toEqual(settlementExtensions);
+        expect(result).not.toHaveProperty('extensionResponses');
+        expect(response.headers.has('extension-responses')).toBe(false);
         expect(result.transaction).toBe('fixture-settlement');
         expect(getInflowTransactionId(result)).toBe(sellerTransactionId);
         expect(harness.settlements[0]?.paymentPayload.extensions).not.toHaveProperty('inflow-transaction');

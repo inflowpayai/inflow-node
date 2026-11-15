@@ -204,25 +204,28 @@ describe('tempo context schema', () => {
 });
 
 describe('tempo method', () => {
-  it('forwards a Tempo challenge with empty options and returns the server credential', async () => {
-    let sentBody: unknown;
-    server.use(
-      http.post(`${BASE}/v1/transactions/mpp`, async ({ request }) => {
-        sentBody = await request.json();
-        return HttpResponse.json({ state: 'ready', credential: readyCredential('tempo') });
-      }),
-    );
+  it.each([undefined, new AbortController().signal])(
+    'keeps the Tempo signal local and returns the server credential (%s)',
+    async (signal) => {
+      let sentBody: unknown;
+      server.use(
+        http.post(`${BASE}/v1/transactions/mpp`, async ({ request }) => {
+          sentBody = await request.json();
+          return HttpResponse.json({ state: 'ready', credential: readyCredential('tempo') });
+        }),
+      );
 
-    const authorization = await tempo({ apiKey: 'k', baseUrl: BASE }).createCredential({
-      challenge: tempoChallenge(),
-      context: {},
-    });
+      const authorization = await tempo({ apiKey: 'k', baseUrl: BASE }).createCredential({
+        challenge: tempoChallenge(),
+        context: signal === undefined ? {} : { signal },
+      });
 
-    const body = sentBody as { challenge: { method: string; request: string }; options?: Record<string, unknown> };
-    expect(body.challenge.method).toBe('tempo');
-    expect(body.options).toEqual({});
-    expect(authorization).toMatch(/^Payment\s+/);
-  });
+      const body = sentBody as { challenge: { method: string; request: string }; options?: Record<string, unknown> };
+      expect(body.challenge.method).toBe('tempo');
+      expect(body.options).toEqual({});
+      expect(authorization).toMatch(/^Payment\s+/);
+    },
+  );
 
   it('cleanup() aborts in-flight polls and cancelApproval() POSTs the cancel endpoint', async () => {
     let cancelUrl: string | undefined;

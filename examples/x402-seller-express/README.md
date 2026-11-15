@@ -45,6 +45,17 @@ cd ../x402-buyer-fetch
 INFLOW_API_KEY=$INFLOW_API_KEY TARGET_URL=http://localhost:3000/api/widgets pnpm start
 ```
 
+## Browser paywall
+
+Run `pnpm start:paywall` and open `http://localhost:3000/report` in a browser. This example uses the native
+`@x402/paywall` EVM checkout with one Base Sepolia exact USDC offer. Opening the page does not pay; completing checkout
+requires an external wallet with test USDC. It does not offer InFlow balance or linked-card payments. A client asking
+for JSON still receives the ordinary x402 challenge rather than the browser page.
+
+The route uses the default authorization flow: verify the payment, run the handler, then settle before returning its
+successful response. Keep the example's offer restricted to the checkout's supported mechanism. A network-matching
+paywall provider does not establish support for every scheme on that network.
+
 ## Linked-card route
 
 Connect a Stripe account in your sandbox Seller dashboard, then run `pnpm start:instrument`. This separate example

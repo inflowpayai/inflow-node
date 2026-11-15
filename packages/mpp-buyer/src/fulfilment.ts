@@ -79,16 +79,21 @@ export function createFulfiller(parameters: InflowBuyerParameters): Fulfiller {
     }
   }
 
-  async function authorizeSubscription(subscriptionId: string, challenge: FulfilChallenge): Promise<MppCredential> {
+  async function authorizeSubscription(
+    subscriptionId: string,
+    challenge: FulfilChallenge,
+    callOptions?: FulfilOptions,
+  ): Promise<MppCredential> {
     const controller = new AbortController();
     active.add(controller);
+    const signal = composeSignals(callOptions?.signal, controller.signal);
     try {
       const response = await client.authorizeSubscription(
         subscriptionId,
         { challenge: toWireChallenge(challenge) },
-        { retries: 0, signal: controller.signal },
+        { retries: 0, signal },
       );
-      throwIfPaymentCancelled(controller.signal, undefined);
+      throwIfPaymentCancelled(signal, undefined);
       if (response.problem !== undefined) throw new MppPaymentFailedError(response.problem);
       if (response.credential === undefined) {
         throw new MppMalformedCredentialError('subscription authorization response carried no credential');
@@ -99,7 +104,7 @@ export function createFulfiller(parameters: InflowBuyerParameters): Fulfiller {
         throw new MppMalformedCredentialError('failed to decode the subscription authorization credential', err);
       }
     } catch (err) {
-      throwIfPaymentCancelled(controller.signal, undefined);
+      throwIfPaymentCancelled(signal, undefined);
       throw err;
     } finally {
       active.delete(controller);
@@ -208,6 +213,7 @@ export function toWireChallenge(challenge: FulfilChallenge): MppChallenge {
     ...(challenge.expires !== undefined ? { expires: challenge.expires } : {}),
     ...(challenge.description !== undefined ? { description: challenge.description } : {}),
     ...(challenge.digest !== undefined ? { digest: challenge.digest } : {}),
+    ...(challenge.header !== undefined ? { header: challenge.header } : {}),
     ...(challenge.opaque !== undefined ? { opaque: challenge.opaque } : {}),
   };
 }

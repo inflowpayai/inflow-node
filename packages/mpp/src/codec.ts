@@ -413,6 +413,7 @@ export function renderChallengeHeader(challenge: MppChallenge): string {
   appendParam(parts, 'expires', challenge.expires);
   appendParam(parts, 'description', challenge.description);
   appendParam(parts, 'digest', challenge.digest);
+  appendParam(parts, 'header', challenge.header);
   appendParam(parts, 'opaque', challenge.opaque);
   return SCHEME_PREFIX + parts.join(', ');
 }
@@ -457,6 +458,9 @@ export function parseChallengeHeader(headerValue: string): MppChallenge {
       case 'expires':
         fields.expires = parseChallengeValue(value, quoted, key);
         break;
+      case 'header':
+        fields.header = parseChallengeValue(value, quoted, key);
+        break;
       case 'id':
         fields.id = parseChallengeValue(value, quoted, 'id');
         break;
@@ -496,6 +500,7 @@ export function parseChallengeHeader(headerValue: string): MppChallenge {
   if (fields.expires !== undefined) challenge.expires = fields.expires;
   if (fields.description !== undefined) challenge.description = fields.description;
   if (fields.digest !== undefined) challenge.digest = fields.digest;
+  if (fields.header !== undefined) challenge.header = fields.header;
   if (fields.opaque !== undefined) challenge.opaque = fields.opaque;
   return challenge;
 }

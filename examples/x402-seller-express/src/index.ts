@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { paymentMiddlewareFromHTTPServer } from '@x402/express';
+import { declareDiscoveryExtension } from '@x402/extensions/bazaar';
 import express from 'express';
 import {
   createInflowFacilitator,
@@ -38,6 +39,11 @@ app.use(
         accepts: await inflowAccepts(seller, {
           price: context.adapter.getQueryParam?.('bundle') === 'large' ? '$0.05' : '$0.01',
           schemes: ['exact'],
+        }),
+        // Bazaar describes this HTTP operation; it does not publish an ODP catalog.
+        extensions: declareDiscoveryExtension({
+          input: { bundle: 'small' },
+          output: { example: { widgets: [1, 2, 3] } },
         }),
       }),
       'GET /api/search': async (context) => ({

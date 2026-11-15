@@ -57,8 +57,8 @@
     "bs58": "^6.0.0"
   },
   "peerDependencies": {
-    "@x402/core": "^2.27.0",
-    "@x402/evm": "^2.27.0",
+    "@x402/core": "^2.31.0",
+    "@x402/evm": "^2.31.0",
     "viem": "^2.56.3"
   },
   "peerDependenciesMeta": {
@@ -73,12 +73,15 @@
     }
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^5.0.0",
-    "@x402/core": "^2.27.0",
-    "@x402/evm": "^2.27.0",
+    "@solana/kit": "^8.6.0",
+    "@vitest/coverage-v8": "^5.1.0",
+    "@x402/core": "^2.31.0",
+    "@x402/evm": "^2.31.0",
+    "@x402/extensions": "^2.31.0",
+    "@x402/svm": "^2.31.0",
     "fast-check": "^3.23.2",
     "msw": "^2.15.0",
-    "viem": "^2.56.3"
+    "viem": "^2.57.19"
   },
   "publishConfig": {
     "access": "public",

@@ -73,6 +73,15 @@ interface StripeConfig {
 }
 
 type StripeRequest = z.input<typeof StripeMethods.charge.schema.request>;
+type ConfiguredStripeMethod = Omit<typeof StripeMethods.charge, 'schema'> & {
+  schema: {
+    credential: typeof StripeMethods.charge.schema.credential;
+    request: z.ZodMiniPipe<
+      z.ZodMiniTransform<StripeRequest, StripeRequest>,
+      typeof StripeMethods.charge.schema.request
+    >;
+  };
+};
 
 type StripeDefaults = {
   currency: 'usd';
@@ -469,7 +478,9 @@ export async function card(parameters: CardSellerParameters) {
  * @returns The configured Stripe server method to pass into `Mppx.create`.
  * @throws {@link MppStripeUnavailableError} When this seller has no verified Stripe profile capability.
  */
-export async function stripe(parameters: StripeSellerParameters) {
+export async function stripe(
+  parameters: StripeSellerParameters,
+): Promise<Method.Server<ConfiguredStripeMethod, StripeDefaults>> {
   const client = new MppClient({
     apiKey: parameters.apiKey,
     ...(parameters.environment !== undefined ? { environment: parameters.environment } : {}),
@@ -794,6 +805,7 @@ function toWireCredential(credential: Credential.Credential<Record<string, unkno
     ...(source.expires !== undefined ? { expires: source.expires } : {}),
     ...(source.description !== undefined ? { description: source.description } : {}),
     ...(source.digest !== undefined ? { digest: source.digest } : {}),
+    ...(source.header !== undefined ? { header: source.header } : {}),
     ...(source.opaque !== undefined ? { opaque: source.opaque } : {}),
   };
   return {

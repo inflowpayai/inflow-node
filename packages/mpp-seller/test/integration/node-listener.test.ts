@@ -7,9 +7,14 @@ import { expect, it } from 'vitest';
 
 import { inflow, inflowChargesNodeListener, inflowSubscriptionsNodeListener, Mppx } from '../../src/index.js';
 
-it.each(['charge', 'subscription'] as const)(
-  'recovers config and completes %s through the Node listener',
-  async (intent) => {
+it.each([
+  { intent: 'charge', requiresAuth: false },
+  { intent: 'subscription', requiresAuth: false },
+  { intent: 'charge', requiresAuth: true },
+  { intent: 'subscription', requiresAuth: true },
+] as const)(
+  'recovers config and completes $intent through the Node listener (requiresAuth=$requiresAuth)',
+  async ({ intent, requiresAuth }) => {
     const sellerId = '22222222-2222-2222-2222-222222222222';
     let configHits = 0;
     const lifecycle: string[] = [];
@@ -48,6 +53,7 @@ it.each(['charge', 'subscription'] as const)(
       request.on('end', () => {
         // This local platform fixture receives only the SDK's serialized credential requests.
         const { credential } = JSON.parse(body) as { credential: MppCredential };
+        expect(credential.challenge.header).toBe(requiresAuth ? 'Payment-Authorization' : undefined);
         if (request.url === '/v1/mpp/validate') {
           response.end(
             JSON.stringify({
@@ -90,7 +96,7 @@ it.each(['charge', 'subscription'] as const)(
       },
     };
     const price = { amount: '1', currency: 'USDC' };
-    const framework = { secretKey: 'seller-binding-secret-at-least-32-bytes', realm: 'seller.test' };
+    const framework = { secretKey: 'seller-binding-secret-at-least-32-bytes', realm: 'seller.test', requiresAuth };
     const listener =
       intent === 'charge'
         ? inflowChargesNodeListener(Mppx.create({ ...framework, methods: [inflow(options)] }), [price])
@@ -124,6 +130,7 @@ it.each(['charge', 'subscription'] as const)(
       const offered = await fetch(url, { headers: { 'x-allow-offer': 'yes' } });
       expect(offered.status).toBe(402);
       const challenge = Challenge.fromResponse(offered);
+      expect(challenge.header).toBe(requiresAuth ? 'Payment-Authorization' : undefined);
       await offered.text();
       expect(configHits).toBe(2);
       expect(lifecycle).toEqual([]);
@@ -131,10 +138,27 @@ it.each(['charge', 'subscription'] as const)(
       expect(gated.status).toBe(503);
       expect(gated.headers.has('WWW-Authenticate')).toBe(false);
       await gated.text();
+      if (requiresAuth) {
+        const tampered = await fetch(url, {
+          headers: {
+            'x-allow-offer': 'yes',
+            Authorization: 'Bearer application-token',
+            'Payment-Authorization': Credential.serialize({
+              challenge: { ...challenge, header: 'X-Tampered' },
+              source: 'did:inflow:buyer',
+              payload: { transactionId: 'synthetic-transaction' },
+            }),
+          },
+        });
+        expect(tampered.status).toBe(402);
+        await tampered.text();
+        expect(lifecycle).toEqual([]);
+      }
       const gatesBeforePayment = gateCalls;
       const paid = await fetch(url, {
         headers: {
-          Authorization: Credential.serialize({
+          ...(requiresAuth ? { Authorization: 'Bearer application-token' } : {}),
+          [Challenge.credentialHeader(challenge)]: Credential.serialize({
             challenge,
             source: 'did:inflow:buyer',
             payload: { transactionId: 'synthetic-transaction' },

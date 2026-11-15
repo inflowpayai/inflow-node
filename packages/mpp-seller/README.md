@@ -78,9 +78,9 @@ handling, preserves ordinary payment challenges, and renders errors with status 
 without `WWW-Authenticate`. The same transport option works with mppx's Express and Hono factories. It is an HTTP
 transport, not an MCP transport.
 
-The mppx 0.8.17 default HTTP transport attaches a payment challenge even to a 500 error. `paymentHttpTransport` corrects
-that response behavior without replacing the payment middleware. Applications importing mppx directly must also pass
-this option; importing an InFlow payment method alone does not replace their transport.
+The mppx default HTTP transport attaches a payment challenge even to a 500 error. `paymentHttpTransport` corrects that
+response behavior without replacing the payment middleware. Applications importing mppx directly must also pass this
+option; importing an InFlow payment method alone does not replace their transport.
 
 A malformed validation response or a missing or mismatched settlement receipt produces `MppCredentialProblemError` with
 status 500. A valid platform payment rejection retains status 402 and its problem details. After an internal settlement
@@ -91,6 +91,16 @@ concerns malformed platform responses; mppx's handling of other untyped exceptio
 
 `Mppx.create` additionally takes a `secretKey` (or the `MPP_SECRET_KEY` env var). It must contain at least 32 bytes;
 generate one with `openssl rand -base64 32`. See the [`mppx`](https://github.com/wevm/mppx) docs for how it is used.
+
+## Application authentication and payment headers
+
+Set `requiresAuth: true` in `Mppx.create({ methods, secretKey, requiresAuth: true })` when the route uses
+`Authorization` for application authentication. The native HTTP transport advertises `Payment-Authorization` for the
+payment credential. Without this option, payment uses `Authorization`.
+
+This option selects a header; it does not authenticate the application user. Keep your authentication middleware in
+place. The challenge binds the selected payment header, and the SDK preserves it when forwarding the credential for
+validation and settlement. Managed payments require an InFlow service that supports the alternate-header contract.
 
 ## Rails — derived from the charge currency
 
@@ -183,9 +193,9 @@ Connect your Stripe account through the InFlow dashboard and ensure the account 
 before enabling Stripe payments. Your application needs an InFlow Seller API key, not a Stripe secret key. InFlow uses
 its platform credentials and your connected-account ID to process payments on your Stripe account.
 
-Stripe challenges use the official `mppx@^0.8.17` `stripe/charge` schema. The seller SDK reads your Stripe
-business-profile ID (`networkId`) and allowed payment methods from `GET /v1/mpp/config`. For that reason, `stripe(...)`
-is asynchronous and fails at initialization if the required Stripe profile is unavailable.
+Stripe challenges use the official mppx `stripe/charge` schema. The seller SDK reads your Stripe business-profile ID
+(`networkId`) and allowed payment methods from `GET /v1/mpp/config`. For that reason, `stripe(...)` is asynchronous and
+fails at initialization if the required Stripe profile is unavailable.
 
 ```ts
 import { Mppx, stripe } from '@inflowpayai/mpp-seller';

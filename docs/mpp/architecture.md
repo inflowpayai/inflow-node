@@ -24,7 +24,9 @@ that encrypted payload. The seller checks the credential against its challenge a
   recovery, and settlement. The seller application supplies only an InFlow API key.
 - The **buyer** package's `Method.toClient.createCredential` methods do not sign locally. They forward the parsed
   challenge to `POST /v1/transactions/mpp`, poll `GET /v1/transactions/{id}/mpp` through the `pending → ready`
-  lifecycle, and return the server-produced credential, re-serialised for the `Authorization: Payment` header.
+  lifecycle, and return the server-produced credential. The native HTTP transport sends it in the challenge's advertised
+  `header`, defaulting to `Authorization`. Sellers using `requiresAuth: true` advertise `Payment-Authorization` so
+  application authentication can keep using `Authorization`.
 
 This is the exact analog of the x402 facilitator boundary documented in
 [../x402/architecture.md](../x402/architecture.md).

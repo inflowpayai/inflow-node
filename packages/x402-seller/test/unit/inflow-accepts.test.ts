@@ -33,6 +33,36 @@ const INSTRUMENT_METHOD = {
   decimals: 18,
 };
 
+describe('Solana transaction versions', () => {
+  it.each([undefined, [0], [1], [0, 1]])(
+    'preserves server-advertised versions %j without inventing support',
+    async (versions) => {
+      const network = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+      const config = {
+        ...SAMPLE_CONFIG,
+        supported: SAMPLE_CONFIG.supported.map((kind) =>
+          kind.network === network
+            ? { ...kind, extra: versions === undefined ? {} : { transactionVersions: versions } }
+            : kind,
+        ),
+      };
+      const client = await makeClient(config);
+      const before = structuredClone(await client.config());
+      const [offer] = await inflowAccepts(client, { price: '1 USDC', networks: [network] });
+      expect(offer?.extra?.['transactionVersions']).toEqual(versions);
+      expect(offer?.extra?.['feePayer']).toBe(SAMPLE_CONFIG.wallets[1]?.feePayer);
+      const [atomic] = await inflowAccepts(client, {
+        price: { asset: 'SoLaNaUSDCMint00000000000000000000000000d', amount: '1000000' },
+        networks: [network],
+      });
+      expect(atomic?.extra?.['transactionVersions']).toEqual(versions);
+      const others = await inflowAccepts(client, { price: '1 USDC', networks: ['eip155:8453', 'inflow:1'] });
+      expect(others.every((entry) => entry.extra?.['transactionVersions'] === undefined)).toBe(true);
+      expect(await client.config()).toEqual(before);
+    },
+  );
+});
+
 describe('Instrument offers', () => {
   it('preserves default offers when the server advertises Instrument', async () => {
     const client = await makeClient({

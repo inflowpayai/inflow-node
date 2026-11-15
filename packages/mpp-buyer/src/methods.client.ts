@@ -1,26 +1,38 @@
 import * as Methods from '@inflowpayai/mpp';
 import { z } from '@inflowpayai/mpp';
 import { Credential, Method } from 'mppx';
+import { accepts, cardControls, inflowControls, tempoControls } from './controls.js';
 
 import { MppMalformedCredentialError } from './errors.js';
 import { createFulfiller, toWireChallenge } from './fulfilment.js';
-import type { FulfilChallenge, InflowBuyerParameters } from './types.js';
+import type {
+  CardBuyerParameters,
+  FulfilChallenge,
+  InflowBuyerParameters,
+  InflowChargeBuyerParameters,
+  TempoBuyerParameters,
+} from './types.js';
 
-export const cardContextSchema = Methods.cardPaymentOptionsSchema;
+const cancellationContext = { signal: z.optional(z.instanceof(AbortSignal)) };
+
+export const cardContextSchema = z.extend(Methods.cardPaymentOptionsSchema, cancellationContext);
 
 /** Uses a linked Visa card and its VIC allowance; the server issues the encrypted purchase credential. */
-export function card(parameters: InflowBuyerParameters) {
-  const fulfiller = createFulfiller(parameters);
+export function card(parameters: CardBuyerParameters) {
+  const check = cardControls(parameters);
+  const { maxAmount: _maxAmount, maxAtomicAmount: _maxAtomicAmount, ...clientParameters } = parameters;
+  const fulfiller = createFulfiller(clientParameters);
   const method = Method.toClient(Methods.cardCharge, {
     context: cardContextSchema,
-    canHandleChallenge: ({ challenge }) => Methods.cardChargeRequestSchema.safeParse(challenge.request).success,
+    canHandleChallenge: ({ challenge }) =>
+      accepts(() => check(Methods.cardChargeRequestSchema.parse(challenge.request))),
     async createCredential({ challenge, context }) {
-      const options = cardContextSchema.parse(context);
-      Methods.cardChargeRequestSchema.parse(challenge.request);
+      const { signal, ...options } = cardContextSchema.parse(context);
+      check(Methods.cardChargeRequestSchema.parse(challenge.request));
       // mppx permits explicit undefined on optional fields; the wire encoder omits those fields.
       const parsed = challenge as FulfilChallenge;
       const expectedChallenge = Methods.encode(toWireChallenge(parsed));
-      const credential = await fulfiller.fulfil(parsed, options);
+      const credential = await fulfiller.fulfil(parsed, options, signal === undefined ? undefined : { signal });
       if (Methods.encode(credential.challenge) !== expectedChallenge) {
         throw new MppMalformedCredentialError('CARD credential does not match the requested challenge');
       }
@@ -46,19 +58,21 @@ export function card(parameters: InflowBuyerParameters) {
  * only buyer-supplied selector is `instrumentId` for instrument-rail challenges. There is no `blockchain` field.
  */
 export const inflowContextSchema = z.object({
+  ...cancellationContext,
   instrumentId: z.optional(z.guid()),
 });
 
 export const inflowSubscriptionContextSchema = z.object({
+  ...cancellationContext,
   subscriptionId: z.optional(z.guid()),
 });
 
 /**
  * Per-call payment options for the `tempo` method. The Tempo charge carries no buyer-supplied selectors — the asset,
  * chain, and recipient are fixed by the seller's challenge and the on-chain credential is produced server-side — so the
- * context is an empty object.
+ * context contains only the optional local cancellation signal.
  */
-export const tempoContextSchema = z.object({});
+export const tempoContextSchema = z.object(cancellationContext);
 
 /**
  * The buyer-side `inflow` client method. Attaches `Method.toClient` behaviour to the shared `inflow` definition from
@@ -73,15 +87,28 @@ export const tempoContextSchema = z.object({});
  * @param parameters - Auth, environment, and polling knobs ({@link InflowBuyerParameters}).
  * @returns The `inflow` client method augmented with `cleanup` / `cancelApproval`.
  */
-function inflowChargeClient(parameters: InflowBuyerParameters) {
-  const fulfiller = createFulfiller(parameters);
+function inflowChargeClient(parameters: InflowChargeBuyerParameters) {
+  const check = inflowControls(parameters);
+  const {
+    currencies: _currencies,
+    maxAmount: _maxAmount,
+    expectedRecipients: _expectedRecipients,
+    ...clientParameters
+  } = parameters;
+  const fulfiller = createFulfiller(clientParameters);
 
   const method = Method.toClient(Methods.charge, {
     context: inflowContextSchema,
-    async createCredential({ challenge, context }) {
-      // `context` is the validated per-call options (`{ instrumentId? }`), forwarded as the InFlow payment options.
-      const options: Record<string, unknown> = { ...context };
-      const credential = await fulfiller.fulfil(challenge as FulfilChallenge, options);
+    canHandleChallenge: ({ challenge }) =>
+      accepts(() => check(Methods.inflowChargeRequestSchema.parse(challenge.request))),
+    async createCredential({ challenge, context = {} }) {
+      check(challenge.request);
+      const { signal, ...options } = context;
+      const credential = await fulfiller.fulfil(
+        challenge as FulfilChallenge,
+        options,
+        signal === undefined ? undefined : { signal },
+      );
       // Re-serialize for the wire. mppx re-encodes `challenge.request` from the parsed object; `payload` (carrying the
       // server-stamped `transactionId`) and `source` are forwarded exactly as the server produced them.
       return Credential.serialize({
@@ -123,10 +150,11 @@ function inflowSubscriptionClient(parameters: InflowBuyerParameters) {
     context: inflowSubscriptionContextSchema,
     async createCredential({ challenge, context = {} }) {
       const parsed = challenge as FulfilChallenge;
+      const callOptions = context.signal === undefined ? undefined : { signal: context.signal };
       const credential =
         context.subscriptionId === undefined
-          ? await fulfiller.fulfil(parsed, {})
-          : await fulfiller.authorizeSubscription(context.subscriptionId, parsed);
+          ? await fulfiller.fulfil(parsed, {}, callOptions)
+          : await fulfiller.authorizeSubscription(context.subscriptionId, parsed, callOptions);
       return Credential.serialize({
         challenge,
         payload: credential.payload,
@@ -171,15 +199,31 @@ export const inflow = Object.assign(inflowChargeClient, {
  * @param parameters - Auth, environment, and polling knobs ({@link InflowBuyerParameters}).
  * @returns The `tempo` client method augmented with `cleanup` / `cancelApproval`.
  */
-export function tempo(parameters: InflowBuyerParameters) {
-  const fulfiller = createFulfiller(parameters);
+export function tempo(parameters: TempoBuyerParameters) {
+  const check = tempoControls(parameters);
+  const {
+    currencies: _currencies,
+    decimals: _decimals,
+    maxAmount: _maxAmount,
+    maxAtomicAmount: _maxAtomicAmount,
+    allowedChainIds: _allowedChainIds,
+    expectedRecipients: _expectedRecipients,
+    ...clientParameters
+  } = parameters;
+  const fulfiller = createFulfiller(clientParameters);
 
   const method = Method.toClient(Methods.tempoCharge, {
     context: tempoContextSchema,
-    async createCredential({ challenge, context }) {
-      // Tempo takes no per-call options today; spread the (empty) validated context for forward compatibility.
-      const options: Record<string, unknown> = { ...context };
-      const credential = await fulfiller.fulfil(challenge as FulfilChallenge, options);
+    canHandleChallenge: ({ challenge }) =>
+      accepts(() => check(Methods.tempoChargeRequestSchema.parse(challenge.request))),
+    async createCredential({ challenge, context = {} }) {
+      check(challenge.request);
+      const { signal, ...options } = context;
+      const credential = await fulfiller.fulfil(
+        challenge as FulfilChallenge,
+        options,
+        signal === undefined ? undefined : { signal },
+      );
       // Re-serialize for the wire. `payload` (carrying the server-stamped `transactionId`) and `source` are forwarded
       // exactly as the server produced them.
       return Credential.serialize({

@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { Mppx, inflow, Receipt } from '@inflowpayai/mpp-buyer';
+import { Fetch } from 'mppx/client';
 
 const apiKey = process.env['INFLOW_API_KEY'];
 if (apiKey === undefined || apiKey === '') {
@@ -10,6 +11,7 @@ if (apiKey === undefined || apiKey === '') {
 const target = process.env['TARGET_URL'] ?? 'http://localhost:3000/api/widgets';
 const baseUrl = process.env['INFLOW_BASE_URL'];
 const instrumentId = process.env['INSTRUMENT_ID'];
+const inspectOnly = process.argv.includes('--inspect');
 
 // `polyfill: false` leaves `globalThis.fetch` untouched; payment happens only through the returned `mppx.fetch`.
 const mppx = Mppx.create({
@@ -21,16 +23,19 @@ const mppx = Mppx.create({
 });
 
 console.log(`GET ${target}`);
-const res = await mppx.fetch(target, {
-  context: instrumentId === undefined || instrumentId === '' ? {} : { instrumentId },
-});
+const res = await mppx.fetch(
+  target,
+  inspectOnly
+    ? Fetch.withoutPayment()
+    : { context: instrumentId === undefined || instrumentId === '' ? {} : { instrumentId } },
+);
 console.log(`  status: ${res.status.toString()}`);
 console.log(`  body: ${await res.text()}`);
 
-// `Receipt.fromResponse` throws when no `Payment-Receipt` header is present, so only read it on a paid response.
-if (res.ok) {
+// A successful free response has no payment receipt.
+if (res.ok && res.headers.has('Payment-Receipt')) {
   const receipt = Receipt.fromResponse(res);
   console.log(`  paid via ${receipt.method}: ${receipt.reference}`);
-} else {
+} else if (!inspectOnly && !res.ok) {
   process.exitCode = 1;
 }

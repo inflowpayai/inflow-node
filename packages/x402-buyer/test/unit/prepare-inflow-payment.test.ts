@@ -61,6 +61,44 @@ function encodedFor(payload: InflowPaymentPayload): string {
 }
 
 describe('InflowClient.prepareInflowPayment — handle construction', () => {
+  it.each([undefined, [0], [1], [0, 1]])(
+    'forwards Solana transaction versions %j unchanged to the wallet',
+    async (versions) => {
+      const requirement = {
+        ...REQUIREMENT,
+        scheme: 'exact',
+        network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
+        extra: { feePayer: 'fixture-fee-payer', ...(versions === undefined ? {} : { transactionVersions: versions }) },
+      };
+      const payload = { ...makePayload(), accepted: requirement };
+      const posts: unknown[] = [];
+      server.use(
+        http.get(`${PROD_BASE}/v1/transactions/x402-supported`, () =>
+          HttpResponse.json({
+            kinds: [{ scheme: 'exact', network: requirement.network, x402Version: 2 }],
+          }),
+        ),
+        http.post(`${PROD_BASE}/v1/transactions/x402`, async ({ request }) => {
+          posts.push(await request.json());
+          return HttpResponse.json({ approvalId: 'a', transactionId: 'tx', approvalStatus: 'APPROVED' });
+        }),
+        http.get(`${PROD_BASE}/v1/transactions/tx/x402`, () =>
+          HttpResponse.json({
+            status: 'PENDING',
+            paymentPayload: payload,
+            encodedPayload: encodedFor(payload),
+          }),
+        ),
+      );
+      const client = await createInflowClient({ apiKey: 'sk_test' });
+      const prepared = await client.prepareInflowPayment(requirement, CONTEXT);
+      const result = await prepared.awaitPayload();
+      expect(posts).toEqual([{ accept: requirement, resource: CONTEXT.resource, x402Version: 2 }]);
+      expect(result.paymentPayload.accepted).toEqual(requirement);
+      expect(result.encodedPayload).toBe(encodedFor(payload));
+    },
+  );
+
   it.each(['balance', 'instrument', 'exact'])(
     'preserves upfront requirements through %s approval and payload retrieval',
     async (scheme) => {
