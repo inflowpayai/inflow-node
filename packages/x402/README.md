@@ -17,6 +17,12 @@ missing.
 
 ## What's exported
 
+### HTTP codecs — `@inflowpayai/x402/http`
+
+Import `encodePaymentRequiredHeader`, `decodePaymentRequiredHeader`, `encodePaymentResponseHeader`, and
+`decodePaymentResponseHeader` from this entry point. It also exports their upstream wire types: `PaymentRequired`,
+`PaymentRequirements`, and `SettleResponse`. These are direct upstream exports, without additional parsing rules.
+
 ### Main entry — `@inflowpayai/x402`
 
 - `InflowHttpClient` — the HTTP client used by the x402 buyer and seller packages. Carries `X-API-KEY` injection, JSON

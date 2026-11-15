@@ -77,10 +77,7 @@ console.log(
   `payment mint pin: ${paymentMint}${process.env['SOLANA_PAYMENT_MINT'] === undefined ? ' (default Circle devnet USDC)' : ' (from SOLANA_PAYMENT_MINT)'}`,
 );
 
-// `paidFetch`: issue the request, parse the 402, sign, retry with the
-// `X-PAYMENT` header. `getPaymentRequiredResponse` reads the `accepts[]`
-// from the response headers (v2 of the protocol; the optional `body`
-// arg is for v1 compatibility only).
+// The native HTTP client selects the payment header for the challenge's protocol version.
 async function paidFetch(url: string, init?: RequestInit): Promise<Response> {
   const first = await fetch(url, init);
   if (first.status !== 402) return first;
@@ -97,7 +94,7 @@ console.log(`  status: ${response.status.toString()}`);
 const body = (await response.json()) as unknown;
 console.log(`  body: ${JSON.stringify(body)}`);
 
-const settleHeader = response.headers.get('x-payment-response');
+const settleHeader = response.headers.get('payment-response') ?? response.headers.get('x-payment-response');
 if (settleHeader !== null && settleHeader !== '') {
   console.log(`  paid: ${settleHeader}`);
 }

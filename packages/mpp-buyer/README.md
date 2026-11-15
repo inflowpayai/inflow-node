@@ -16,6 +16,74 @@ pnpm add @inflowpayai/mpp-buyer mppx
 [`mppx`](https://github.com/wevm/mppx) is a peer dependency — co-install it so package managers warn loudly when it's
 missing. `@inflowpayai/mpp` comes along as a normal dependency.
 
+## Optional payment limits
+
+Limits belong to the configured method and apply before requesting a payment credential. Offers outside those limits are
+skipped during selection; direct `createCredential` calls are checked too. Omitting limits imposes no SDK cap and does
+not bypass InFlow's approval or account policies.
+
+```ts
+import { inflow } from '@inflowpayai/mpp-buyer';
+
+const method = inflow({
+  apiKey: 'YOUR_API_KEY',
+  currencies: ['USD'],
+  maxAmount: '5.00',
+});
+```
+
+| Method   | Controls                                                                                          | Amount units                                                                  |
+| -------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `inflow` | `currencies`, `maxAmount`, `expectedRecipients`                                                   | Decimal units of the named currency. Recipients are InFlow recipient IDs.     |
+| `tempo`  | `currencies`, `decimals`, `maxAmount`, `maxAtomicAmount`, `allowedChainIds`, `expectedRecipients` | `maxAmount` uses token display units; `maxAtomicAmount` uses raw token units. |
+| `card`   | `maxAmount`, `maxAtomicAmount`                                                                    | Dollars and integer cents, respectively, for the USD CARD profile.            |
+
+For InFlow and Tempo, an amount cap requires `currencies`. Tempo accepts upstream currency addresses or token objects;
+address-only currencies also require `decimals` when using `maxAmount`. Amounts are compared exactly, without rounding.
+When both amount limits are supplied, both must pass. Empty allowlists reject all offers.
+
+Tempo recipient restrictions cover the primary recipient and every split recipient. An explicit chain restriction
+requires the challenge to name an allowed chain: the SDK cannot infer the server's signing chain from a local wallet.
+These are per-charge limits, not cumulative spending budgets. They do not configure recurring subscription renewals.
+
+## Request-level payment choices
+
+Use the native `mppx` controls with InFlow methods. `orderChallenges` receives supported offers that passed the method's
+limits. Return them in preference order, or return an empty array to reject them all before requesting an approval. A
+request's `orderChallenges` overrides the client's ordering callback for that request; it does not relax the method's
+limits. `paymentPreferences` assigns preferences to method/intent pairs, with `0` excluding that pair.
+
+```ts
+import { Mppx, inflow } from '@inflowpayai/mpp-buyer';
+import { Fetch } from 'mppx/client';
+
+const buyer = Mppx.create({
+  methods: [inflow({ apiKey: 'YOUR_API_KEY', environment: 'sandbox' })],
+  polyfill: false,
+  maxPaymentRetries: 1,
+});
+
+// Inspect the response without creating a payment or approval.
+const preview = await buyer.fetch('https://seller.example/report', Fetch.withoutPayment());
+await preview.text();
+
+// This separate request allows payment; the opt-out did not change the client.
+const result = await buyer.fetch('https://seller.example/report', {
+  orderChallenges: (offers) => offers.filter(({ challenge }) => challenge.request.currency === 'USD'),
+});
+await result.text();
+```
+
+`Fetch.withoutPayment` returns the first response, including a `402`, without automatic credential creation or a paid
+retry. Custom fetch forwarding layers must preserve the returned object's symbol properties. The
+[manual buyer example](../../examples/mpp-buyer-manual) accepts `--inspect` to demonstrate this path.
+
+`maxPaymentRetries: 1` permits one paid attempt after the initial response. A failed paid request is not proof that
+payment failed. For a disconnected paid request, `fetch` throws the original transport error, while `onPaymentFailed`
+receives a native `Errors.PaymentOutcomeUnknownError` containing the challenge and credential. A paid `5xx` response is
+returned to the caller and also reports that uncertain outcome to the registered failure observer. Reconcile that
+payment before starting another one; do not log the credential. These paths do not automatically start another payment.
+
 ## InFlow Account
 
 This package calls authenticated buyer transaction endpoints. For a buyer-only API-key integration, create a Developer
@@ -59,7 +127,7 @@ import { Mppx, inflow } from '@inflowpayai/mpp-buyer';
 Mppx.create({ methods: [inflow({ apiKey, environment: 'sandbox' })] });
 
 const res = await fetch('https://api.example.com/widgets');
-// 402 → InFlow fulfils the challenge → request is replayed with `Authorization: Payment …`
+// 402 → InFlow fulfils the challenge → request is replayed with the advertised payment header.
 ```
 
 For MCP tools, install the optional SDK and use the same InFlow method with the foundation wrapper:
@@ -188,6 +256,22 @@ Cancelling a pending approval can stop issuance. Once approval has completed, `c
 does not revoke an issued credential or reverse a payment.
 
 ## Lifecycle, cancellation, and orphans
+
+For per-request cancellation, pass the same `AbortSignal` as both `signal` and `context.signal`:
+
+```ts
+const controller = new AbortController();
+const response = await buyer.fetch('https://seller.example/report', {
+  signal: controller.signal,
+  context: { signal: controller.signal },
+});
+```
+
+The fetch signal cancels the seller request. The context signal cancels InFlow credential creation and approval polling
+for that request; mppx does not pass the fetch signal to custom methods automatically. It is supported by the InFlow,
+Tempo, CARD, and InFlow subscription buyer methods and is never included in the payment request body. Aborting one
+request does not cancel other requests on the same client. Cancelling a known pending approval is best-effort; aborting
+does not reverse a payment or cancel an existing subscription. An interrupted request can have an unknown outcome.
 
 `POST /v1/transactions/mpp` returns `ready` (credential available) for synchronous methods, or `pending` when the payer
 must approve out-of-band. On `pending` the SDK polls `GET /v1/transactions/{id}/mpp`, driving cadence from the

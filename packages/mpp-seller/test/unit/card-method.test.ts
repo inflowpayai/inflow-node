@@ -1,7 +1,7 @@
 import { generateKeyPairSync } from 'node:crypto';
 import { once } from 'node:events';
 
-import { decode, decodeReceipt, encode } from '@inflowpayai/mpp';
+import { decode, decodeReceipt, parseChallengeHeader } from '@inflowpayai/mpp';
 import type { CardChargeRequest, MppConfigResponse, MppCredential } from '@inflowpayai/mpp';
 import { Challenge, Credential } from 'mppx';
 import { Mppx } from 'mppx/server';
@@ -258,7 +258,7 @@ describe('CARD seller', () => {
       });
       expect(calls.map((call) => call.operation)).toEqual(['validate', 'broadcast']);
       expect(calls[1]?.credential).toEqual({
-        challenge: { ...challenge, request: encode(challenge.request) },
+        challenge: parseChallengeHeader(Challenge.serialize(challenge)),
         payload: completePayload,
         source: source ?? '',
       });

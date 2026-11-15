@@ -43,6 +43,22 @@ describe('InflowHttpClient construction', () => {
 });
 
 describe('InflowHttpClient happy path', () => {
+  it('returns request-local status, headers and body without changing body-only methods', async () => {
+    server.use(
+      http.get(`${PROD_BASE}/:id`, ({ params }) =>
+        HttpResponse.json({ id: params['id'] }, { status: 201, headers: { 'x-result': String(params['id']) } }),
+      ),
+    );
+    const client = makeClient();
+    const results = await Promise.all(
+      ['first', 'second'].map((id) => client.requestWithResponse<{ id: string }>('GET', `/${id}`, undefined)),
+    );
+    expect(results.map(({ status, headers, body }) => ({ status, header: headers.get('x-result'), body }))).toEqual([
+      { status: 201, header: 'first', body: { id: 'first' } },
+      { status: 201, header: 'second', body: { id: 'second' } },
+    ]);
+    expect(await client.get('/first')).toEqual({ id: 'first' });
+  });
   it('GETs and parses JSON', async () => {
     server.use(http.get(`${PROD_BASE}/v1/x402/config`, () => HttpResponse.json({ ok: true, n: 1 })));
     const body = await makeClient().get<{ ok: boolean; n: number }>('/v1/x402/config');

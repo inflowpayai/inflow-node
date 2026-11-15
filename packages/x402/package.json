@@ -16,6 +16,14 @@
       },
       "default": "./dist/index.js"
     },
+    "./http": {
+      "types": "./dist/http/index.d.ts",
+      "node": {
+        "import": "./dist/http/index.js",
+        "require": "./dist/http/index.cjs"
+      },
+      "default": "./dist/http/index.js"
+    },
     "./security": {
       "types": "./dist/security/index.d.ts",
       "node": {
@@ -61,7 +69,7 @@
   },
   "license": "MIT",
   "peerDependencies": {
-    "@x402/core": "^2.27.0"
+    "@x402/core": "^2.31.0"
   },
   "peerDependenciesMeta": {
     "@x402/core": {
@@ -69,8 +77,8 @@
     }
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^5.0.0",
-    "@x402/core": "^2.27.0",
+    "@vitest/coverage-v8": "^5.1.0",
+    "@x402/core": "^2.31.0",
     "msw": "^2.15.0"
   },
   "publishConfig": {

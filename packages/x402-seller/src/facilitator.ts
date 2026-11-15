@@ -10,6 +10,7 @@ import type {
 } from '@inflowpayai/x402';
 import { EXTENSION_PAYMENT_IDENTIFIER, PAYMENT_IDENTIFIER, validatePaymentId } from '@inflowpayai/x402/extensions';
 import type { FacilitatorClient } from '@x402/core/server';
+import { safeBase64Decode } from '@x402/core/utils';
 
 import type { InflowFacilitatorOptions, InflowUnauthenticatedFacilitatorOptions } from './types.js';
 
@@ -144,7 +145,8 @@ function buildFacilitator(
       // X402PaymentIdCache). A 5xx-burst retry without an identifier could
       // re-debit or re-broadcast.
       try {
-        return await http.post<VerifyResponse>(
+        const response = await http.requestWithResponse<VerifyResponse>(
+          'POST',
           VERIFY_PATH,
           {
             x402Version: X402_VERSION,
@@ -153,6 +155,7 @@ function buildFacilitator(
           },
           { retries: 0 },
         );
+        return attachExtensionResponses(response.body, response.headers.get('EXTENSION-RESPONSES'));
       } catch (err) {
         // The facilitator emits HTTP 412 with the standard VerifyResponse
         // body when Permit2 reports an allowance gap
@@ -165,7 +168,7 @@ function buildFacilitator(
           err.httpStatus === PERMIT2_ALLOWANCE_REQUIRED_HTTP_STATUS &&
           isAllowanceRequiredResponse(err.body)
         ) {
-          return err.body;
+          return attachExtensionResponses(err.body, err.headers?.['extension-responses']);
         }
         throw err;
       }
@@ -178,7 +181,8 @@ function buildFacilitator(
       };
       for (let attempt = 1; ; attempt += 1) {
         try {
-          return await http.post<SettleResponse>(SETTLE_PATH, request, { retries: 0 });
+          const response = await http.requestWithResponse<SettleResponse>('POST', SETTLE_PATH, request, { retries: 0 });
+          return attachExtensionResponses(response.body, response.headers.get('EXTENSION-RESPONSES'));
         } catch (error) {
           if (!isPendingSettlementError(error) || attempt === SETTLE_PENDING_MAX_ATTEMPTS) throw error;
           await wait(retryDelayMilliseconds(error.headers?.['retry-after']));
@@ -189,11 +193,23 @@ function buildFacilitator(
   return asFacilitatorClient(shape);
 }
 
-/**
- * Structural check for the body the InFlow facilitator returns alongside a 412 verify response. Defensive — if the
- * runtime ever emits a different 412 body shape, the caller sees the original {@link InflowApiError} instead of a
- * misleading verify-style result.
- */
+function attachExtensionResponses<T extends VerifyResponse | SettleResponse>(
+  result: T,
+  header: string | null | undefined,
+): T {
+  if (!header) return result;
+  try {
+    const decoded: unknown = JSON.parse(safeBase64Decode(header));
+    if (decoded !== null && typeof decoded === 'object' && !Array.isArray(decoded)) {
+      return { ...result, extensionResponses: decoded };
+    }
+  } catch {
+    // Optional metadata must not turn a completed settlement into a retry.
+  }
+  return result;
+}
+
+/** Structural check before normalizing a non-success HTTP response into a verification result. */
 function isAllowanceRequiredResponse(body: unknown): body is VerifyResponse {
   return (
     typeof body === 'object' &&

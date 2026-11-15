@@ -93,47 +93,54 @@ describe('cancellation while HTTP is in progress', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it.each(['create', 'poll', 'authorize'] as const)(
-    'cleanup aborts %s with the public cancellation error',
-    async (stage) => {
-      const started = vi.fn();
-      const requests: string[] = [];
-      const fetchImpl: typeof fetch = async (input, init) => {
-        const url = input instanceof Request ? input.url : String(input);
-        requests.push(url);
-        if (url.endsWith('/cancel')) return new Response(null, { status: 204 });
-        if (stage === 'poll' && url.endsWith('/transactions/mpp')) return pending();
-        started();
-        return blockedRequest(init?.signal);
-      };
-      const subscription = inflow.subscription({ apiKey: 'key', fetch: fetchImpl });
-      const charge = inflow({ apiKey: 'key', fetch: fetchImpl });
-      const method = stage === 'authorize' ? subscription : charge;
-      const payment =
-        stage === 'authorize'
-          ? subscription.createCredential({
-              challenge: {
-                ...challenge,
-                intent: 'subscription',
-                request: {
-                  ...challenge.request,
-                  periodUnit: 'month',
-                  periodCount: 1,
-                  subscriptionExpires: '2999-01-01T00:00:00Z',
-                },
+  it.each([
+    ['create', 'cleanup'],
+    ['poll', 'cleanup'],
+    ['authorize', 'cleanup'],
+    ['create', 'context'],
+    ['poll', 'context'],
+    ['authorize', 'context'],
+  ] as const)('%s is aborted by %s with the public cancellation error', async (stage, cancellation) => {
+    const controller = new AbortController();
+    const context = cancellation === 'context' ? { signal: controller.signal } : {};
+    const started = vi.fn();
+    const requests: string[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      requests.push(url);
+      if (url.endsWith('/cancel')) return new Response(null, { status: 204 });
+      if (stage === 'poll' && url.endsWith('/transactions/mpp')) return pending();
+      started();
+      return blockedRequest(init?.signal);
+    };
+    const subscription = inflow.subscription({ apiKey: 'key', fetch: fetchImpl });
+    const charge = inflow({ apiKey: 'key', fetch: fetchImpl });
+    const method = stage === 'authorize' ? subscription : charge;
+    const payment =
+      stage === 'authorize'
+        ? subscription.createCredential({
+            challenge: {
+              ...challenge,
+              intent: 'subscription',
+              request: {
+                ...challenge.request,
+                periodUnit: 'month',
+                periodCount: 1,
+                subscriptionExpires: '2999-01-01T00:00:00Z',
               },
-              context: { subscriptionId: '00000000-0000-0000-0000-000000000001' },
-            })
-          : charge.createCredential({ challenge, context: {} });
-      const result = payment.catch((error: unknown) => error);
-      await vi.waitFor(() => expect(started).toHaveBeenCalledOnce());
-      method.cleanup();
-      expect(await result).toBeInstanceOf(MppPaymentCancelledError);
-      if (stage === 'poll')
-        await vi.waitFor(() => expect(requests.some((url) => url.endsWith('/approvals/approval/cancel'))).toBe(true));
-      else expect(requests).toHaveLength(1);
-    },
-  );
+            },
+            context: { ...context, subscriptionId: '00000000-0000-0000-0000-000000000001' },
+          })
+        : charge.createCredential({ challenge, context });
+    const result = payment.catch((error: unknown) => error);
+    await vi.waitFor(() => expect(started).toHaveBeenCalledOnce());
+    if (cancellation === 'context') controller.abort();
+    else method.cleanup();
+    expect(await result).toBeInstanceOf(MppPaymentCancelledError);
+    if (stage === 'poll')
+      await vi.waitFor(() => expect(requests.some((url) => url.endsWith('/approvals/approval/cancel'))).toBe(true));
+    else expect(requests).toHaveLength(1);
+  });
 
   it('bounds a stalled poll by the pending budget', async () => {
     vi.useFakeTimers();

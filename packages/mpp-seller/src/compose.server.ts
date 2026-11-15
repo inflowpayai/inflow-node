@@ -1,5 +1,5 @@
 import { Mppx } from 'mppx/server';
-import type { IncomingMessage } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 
 /**
  * One accepted price for a multi-currency route: an `amount` denominated in `currency`. The rail is not specified here
@@ -110,7 +110,7 @@ export function inflowCharges(
 export function inflowChargesNodeListener(
   mppx: InflowComposable<InflowFetchHandler>,
   prices: readonly InflowChargePrice[] | InflowChargePrices<IncomingMessage>,
-): ReturnType<typeof Mppx.toNodeListener> {
+): InflowNodeListener {
   if (typeof prices === 'function') {
     return async (request, response) => {
       const handler = inflowCharges(mppx, await prices(request));
@@ -247,7 +247,7 @@ export function inflowSubscriptions<Handler>(
 export function inflowSubscriptionsNodeListener(
   mppx: InflowSubscriptionComposable<InflowFetchHandler>,
   plans: readonly InflowSubscriptionPlan[],
-): ReturnType<typeof Mppx.toNodeListener> {
+): InflowNodeListener {
   return Mppx.toNodeListener(inflowSubscriptions(mppx, plans));
 }
 
@@ -255,4 +255,5 @@ export function inflowSubscriptionsNodeListener(
  * The Web-fetch handler shape `Mppx.toNodeListener` accepts (and that `compose` returns), derived without naming
  * internals.
  */
-type InflowFetchHandler = Parameters<typeof Mppx.toNodeListener>[0];
+type InflowFetchHandler = (input: Request) => ReturnType<ReturnType<typeof Mppx.compose>>;
+type InflowNodeListener = (request: IncomingMessage, response: ServerResponse) => ReturnType<InflowFetchHandler>;

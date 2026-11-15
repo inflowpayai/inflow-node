@@ -1,3 +1,4 @@
+import { Challenge } from 'mppx';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -79,6 +80,38 @@ const challenge: MppChallenge = {
 };
 
 describe('WWW-Authenticate: Payment render/parse', () => {
+  it('rejects duplicate or injected credential-header parameters', () => {
+    const rendered = renderChallengeHeader({ ...challenge, header: 'X-Payment' });
+    expect(() => parseChallengeHeader(`${rendered}, header="Other"`)).toThrow(MppCodecError);
+    expect(() => renderChallengeHeader({ ...challenge, header: 'X-Payment\r\nInjected: value' })).toThrow(
+      MppCodecError,
+    );
+    expect(() => parseChallengeHeader(rendered.replace('X-Payment', 'X-Payment\r\nInjected: value'))).toThrow(
+      MppCodecError,
+    );
+  });
+  it.each([undefined, 'Authorization', 'Payment-Authorization', 'X-Payment'])(
+    'preserves the native binding for credential header %s',
+    (header) => {
+      const secretKey = 'synthetic-challenge-secret';
+      const native = Challenge.from({
+        realm: 'seller.test',
+        method: 'inflow',
+        intent: 'charge',
+        request: { amount: '1', currency: 'USD' },
+        opaque: 'binding',
+        secretKey,
+        ...(header === undefined ? {} : { header }),
+      });
+      const parsed = parseChallengeHeader(Challenge.serialize(native));
+      expect(parsed.header).toBe(native.header);
+      const roundTrip = Challenge.deserialize(renderChallengeHeader(parsed));
+      expect(Challenge.verify(roundTrip, { secretKey })).toBe(true);
+      expect(Challenge.verify({ ...roundTrip, header: 'X-Tampered' }, { secretKey })).toBe(false);
+      const credential = { challenge: parsed, payload: { transactionId: 'test' }, source: 'did:inflow:test' };
+      expect(decodeCredential(encodeCredential(credential))).toEqual(credential);
+    },
+  );
   const fields = ['id', 'realm', 'method', 'intent', 'request', 'expires', 'description', 'digest', 'opaque'] as const;
 
   it.each(fields)('preserves quoted pairs in %s', (field) => {

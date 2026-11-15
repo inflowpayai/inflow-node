@@ -2,7 +2,13 @@
 
 export { card, cardContextSchema, inflow, inflowContextSchema, tempo, tempoContextSchema } from './methods.client.js';
 
-export type { FulfilOptions, InflowBuyerParameters } from './types.js';
+export type {
+  CardBuyerParameters,
+  FulfilOptions,
+  InflowBuyerParameters,
+  InflowChargeBuyerParameters,
+  TempoBuyerParameters,
+} from './types.js';
 
 export {
   MppMalformedCredentialError,

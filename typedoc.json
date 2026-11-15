@@ -2,6 +2,7 @@
   "$schema": "https://typedoc.org/schema.json",
   "entryPoints": [
     "packages/x402/src/index.ts",
+    "packages/x402/src/http/index.ts",
     "packages/x402/src/extensions/index.ts",
     "packages/x402/src/extras/index.ts",
     "packages/x402/src/security/index.ts",

@@ -117,6 +117,60 @@ the merchant. See the [buyer guide](../../packages/x402-buyer/README.md#eip-7702
 signing, consent, dependency requirements and persistent-delegation risks. The standard EIP-2612 and managed-buyer paths
 are independent.
 
+## Native wallet authentication with SIWX
+
+SIWX lets a buyer prove ownership of a wallet, for example to reopen a resource that wallet already paid for. Register
+`createSIWxClientExtension` from `@x402/extensions/sign-in-with-x` on `InflowClient`, supplying the external wallet
+signer. The native `x402HTTPClient.handlePaymentRequired` runs its HTTP authentication hook. A returned header map is an
+authentication attempt, not a payment: retry the request with those headers and inspect the response. A missing or
+rejected proof must still pass the application's payment policy before any payment is created.
+
+On the seller, register `createSIWxResourceServerExtension` on the resource server and use `declareSIWxExtension` on the
+route. Configure the public origin explicitly and give challenges a finite expiration. Do not derive the trusted origin
+from an unchecked request header. Supply storage that records paid access and used nonces. The upstream
+`InMemorySIWxStorage` stores paid access but does not provide nonce replay tracking or persistence across restarts. Paid
+access is recorded after settlement, which can precede successful application execution for an upfront route.
+
+These hooks use an external wallet's signature. They do not make the InFlow-managed wallet a SIWX signer or enroll a
+caller with AEP. Applications decide what a wallet proof grants access to.
+
+## Bazaar operation descriptions
+
+Use `declareDiscoveryExtension` from `@x402/extensions/bazaar` in a route's `extensions` field to describe its input and
+output. The [Express example](../../examples/x402-seller-express/src/index.ts) declares the widget operation this way.
+Native middleware enriches the description with the request method, route template and path parameters; the InFlow HTTP
+server also supports this enrichment for request-priced routes.
+
+Bazaar describes the protected HTTP operation. It does not publish a Service to the InFlow Directory, generate an ODP
+Service Document, or keep two independently authored catalogs synchronized. Keep its examples consistent with the actual
+handler, including optional query parameters and response shape.
+
+## Signed offers and settlement receipts
+
+Register `createOfferReceiptExtension` from `@x402/extensions/offer-receipt` with an issuer controlled by the seller,
+then declare it on the relevant routes with `declareOfferReceiptExtension`. InFlow does not supply the seller's
+receipt-signing private key. Set an offer validity period appropriate to the price and resource.
+
+The upstream extraction helpers decode offers and receipts; extraction alone does not verify a signature.
+`verifyOfferSignatureEIP712` and `verifyReceiptSignatureEIP712` verify the signature and recover its signer. The buyer
+must also establish that this signer is trusted for the seller and check the resource, payment terms and expiration. A
+cryptographically valid signature from an unknown key is not a trusted seller statement.
+
+The receipt is produced after successful settlement. With upfront payment, that occurs before the protected handler
+runs. A handler can therefore return an error together with a valid signed settlement receipt. Treat that receipt as
+evidence of the signed settlement result, not proof that the requested work completed. It does not authorize another
+charge, promise a refund, or provide application-level fulfillment deduplication.
+
+## Builder attribution
+
+For external-wallet payments, register `BuilderCodeClientExtension` from `@x402/extensions/builder-code` on
+`InflowClient` with the application's own codes. Sellers can explicitly declare their codes with
+`declareBuilderCodeExtension`. The SDK does not inject an InFlow attribution code.
+
+The extension adds attribution data to the payment payload. A compatible facilitator and settlement implementation must
+consume it to create on-chain attribution; metadata in a payload alone does not establish that attribution occurred.
+Registration does not add attribution to an InFlow-managed wallet's server-created payment payload.
+
 ## Reading and writing extension entries
 
 Use the typed accessors in `@inflowpayai/x402/extensions`:

@@ -25,6 +25,7 @@ export type {
   InflowAnonymousClientOptions,
   InflowBearerClientOptions,
   InflowClientOptions,
+  InflowHttpResponse,
   RequestOptions,
 } from './http-client.js';
 

@@ -21,6 +21,9 @@ pnpm start
 
 Default target is `http://localhost:3000/api/widgets`. Override with `TARGET_URL=...` in `.env`.
 
+To fetch the resource without creating a payment or approval, run `pnpm start --inspect`. It prints the initial
+response, including a `402`, and does not submit a payment credential. A later run without `--inspect` permits payment.
+
 ## Pay the USD linked-card example
 
 Start `pnpm start:instrument` in `examples/mpp-seller-express`. In your sandbox buyer dashboard, link a test card and

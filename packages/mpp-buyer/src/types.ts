@@ -4,6 +4,33 @@ import type {
   InflowClientOptions,
   MppCredential,
 } from '@inflowpayai/mpp';
+import type { Currency } from 'mppx';
+
+export type InflowChargeBuyerParameters = InflowBuyerParameters & {
+  currencies?: readonly string[];
+  /** Maximum decimal amount in the selected currency; requires currencies. */
+  maxAmount?: string;
+  expectedRecipients?: readonly string[];
+};
+
+export type CardBuyerParameters = InflowBuyerParameters & {
+  /** Maximum USD amount, expressed in dollars. */
+  maxAmount?: string;
+  /** Maximum USD amount, expressed in integer cents. */
+  maxAtomicAmount?: string;
+};
+
+export type TempoBuyerParameters = InflowBuyerParameters & {
+  currencies?: readonly Currency.Currency[];
+  /** Token decimals for address-only currencies. */
+  decimals?: number;
+  /** Maximum display-unit amount; requires currencies and their decimals. */
+  maxAmount?: string;
+  /** Maximum raw token amount; requires currencies. */
+  maxAtomicAmount?: string;
+  allowedChainIds?: readonly number[];
+  expectedRecipients?: readonly `0x${string}`[];
+};
 
 /**
  * Construction parameters for the {@link inflow} client method factory. Inherits the three auth shapes accepted by
@@ -43,7 +70,11 @@ export interface FulfilOptions {
  * @internal
  */
 export interface Fulfiller {
-  authorizeSubscription(subscriptionId: string, challenge: FulfilChallenge): Promise<MppCredential>;
+  authorizeSubscription(
+    subscriptionId: string,
+    challenge: FulfilChallenge,
+    callOptions?: FulfilOptions,
+  ): Promise<MppCredential>;
   /**
    * Drive a parsed challenge through `POST /v1/transactions/mpp` → poll `GET /v1/transactions/{id}/mpp` and return the
    * server-produced credential when the transaction reaches `ready`.
@@ -76,5 +107,6 @@ export interface FulfilChallenge {
   expires?: string;
   description?: string;
   digest?: string;
+  header?: string;
   opaque?: string;
 }

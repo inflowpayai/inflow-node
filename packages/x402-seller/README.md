@@ -6,9 +6,8 @@ into the adapter's `facilitatorClients` argument.
 
 ## Foundation compatibility
 
-Use foundation 2.27.0 for Express, Hono, and Next.js. The published Fastify adapter is 2.26.0 and depends on core
-`~2.26.0`; it does not include the 2.27.0 encoded-path route fix. Its upgrade remains outstanding until a compatible
-adapter is published. Installing core 2.27.0 alongside Fastify does not replace Fastify's nested core dependency.
+Install foundation packages within the peer dependency ranges declared in `package.json`, including a compatible
+framework adapter. Upgrade those packages together.
 
 Eager middleware initialization terminates the process for permanent capability or route-configuration failures.
 Register every advertised scheme/network with `inflowSchemeRegistrations`; temporary facilitator timeouts remain
@@ -23,6 +22,13 @@ pnpm add @inflowpayai/x402-seller @x402/express @x402/core @x402/extensions
 
 `@inflowpayai/x402` is a runtime dependency; `@x402/core` and `@x402/extensions` are peer dependencies.
 
+Facilitator `EXTENSION-RESPONSES` headers carry metadata for the seller, such as an extension's processing result. The
+facilitator client decodes these headers into `result.extensionResponses` for the foundation's verification and
+settlement hooks. Missing or malformed headers do not change the payment result or cause another settlement attempt.
+This metadata is separate from `result.extensions`, which can contain buyer-facing receipt data. The foundation's
+payment-response encoder excludes `extensionResponses` from the buyer's receipt. Metadata is available only when the
+facilitator emits it; enabling the SDK does not enable an extension on the facilitator.
+
 ## Payment response caching
 
 The foundation middleware owns payment response headers. The supported adapters emit `Cache-Control: no-store` for
@@ -31,7 +37,7 @@ unpaid challenges, Permit2 allowance responses, and settlement failures. Success
 handler cache directives. The Next.js proxy marks the settled `NextResponse.next()` continuation as `private`; Next.js
 owns the subsequent merge with the route response.
 
-In `@x402/core` 2.27.0, the cache helper can mistake `private` inside a quoted extension value (for example,
+The `@x402/core` cache helper can mistake `private` inside a quoted extension value (for example,
 `example="a, private, b"`) for a real directive and omit the required `private` addition. This upstream limitation is
 tracked in [issue #3747](https://github.com/x402-foundation/x402/issues/3747). For affected handler responses,
 explicitly include an unqualified `private` directive in `Cache-Control`. InFlow uses the upstream helper without
@@ -251,7 +257,7 @@ buffers the response, so irreversible fulfillment must not rely on handler execu
 
 ## Metered EVM payments
 
-Install the optional `@x402/evm@^2.27.0` peer and pass the same `schemes: ['upto']` selection to `inflowAccepts` and
+Install the optional `@x402/evm` peer and pass the same `schemes: ['upto']` selection to `inflowAccepts` and
 `inflowSchemeRegistrations`. The price is the maximum the external blockchain buyer authorizes. Both helpers omit `upto`
 unless explicitly selected; fixed-price exact and balance routes need no EVM peer.
 
@@ -308,7 +314,7 @@ Pass the matching InFlow facilitator first in the middleware's facilitator list 
 that client's capabilities, not the middleware's final routing: an earlier facilitator claiming the same pair takes
 precedence even if it cannot sponsor approval.
 
-External buyers register the foundation `@x402/evm/exact/client` scheme. Foundation 2.27.0 signs the permit when the
+External buyers register the foundation `@x402/evm/exact/client` scheme. The foundation signs the permit when the
 declaration is present and allowance is insufficient. Supply the matching chain's `schemeOptions.rpcUrl` for nonce and
 allowance reads. Do not attach external permit signatures to an InFlow-generated treasury payload.
 

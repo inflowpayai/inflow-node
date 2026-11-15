@@ -106,11 +106,13 @@ export interface RequestOptions {
   signal?: AbortSignal;
 }
 
-interface ParsedResponse {
+export interface InflowHttpResponse<T> {
   status: number;
   headers: Headers;
-  body: unknown;
+  body: T;
 }
+
+type ParsedResponse = InflowHttpResponse<unknown>;
 
 /**
  * HTTP client used by every other package in this monorepo to talk to `api.inflowpay.ai`. Carries auth-header injection
@@ -226,6 +228,16 @@ export class InflowHttpClient {
    * @returns Parsed JSON body cast to `T`.
    */
   async request<T>(method: string, path: string, body: unknown, options: RequestOptions = {}): Promise<T> {
+    return (await this.requestWithResponse<T>(method, path, body, options)).body;
+  }
+
+  /** The body is parsed but not validated against `T`. Headers belong to this response only. */
+  async requestWithResponse<T>(
+    method: string,
+    path: string,
+    body: unknown,
+    options: RequestOptions = {},
+  ): Promise<InflowHttpResponse<T>> {
     const url = `${this.baseUrl}${path}`;
     const maxRetries = Math.min(options.retries ?? MAX_RETRIES, MAX_RETRIES);
     const timeoutMs = options.timeoutMs ?? this.defaultTimeoutMs;
@@ -250,7 +262,7 @@ export class InflowHttpClient {
         );
         options.signal?.throwIfAborted();
         if (response.status >= 200 && response.status < 300) {
-          return response.body as T;
+          return { ...response, body: response.body as T };
         }
         throw buildApiError(path, response);
       } catch (err) {

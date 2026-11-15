@@ -16,8 +16,8 @@
     "@aep-foundation/service": "^0.3.4",
     "@inflowpayai/mpp-seller": "workspace:^",
     "dotenv": "^16.6.1",
-    "express": "^5.2.1",
-    "mppx": "^0.8.17"
+    "express": "^5.3.0",
+    "mppx": "^0.18.1"
   },
   "devDependencies": {
     "@inflowpayai/mpp": "workspace:^",
@@ -25,6 +25,6 @@
     "@types/node": "^24.13.3",
     "tsx": "^4.23.13",
     "typescript": "^5.9.3",
-    "vitest": "^5.0.0"
+    "vitest": "^5.1.0"
   }
 }

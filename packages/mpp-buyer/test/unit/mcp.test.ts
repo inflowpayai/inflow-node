@@ -16,7 +16,11 @@ describe('MCP client entrypoint', () => {
     const result = await wrapped.callTool({ name: 'free-tool' });
 
     expect(wrapped).toBe(client);
-    expect(callTool).toHaveBeenCalledWith({ name: 'free-tool' }, undefined, undefined);
+    expect(callTool).toHaveBeenCalledWith(
+      { name: 'free-tool', _meta: { 'mppx/payment-client': true } },
+      undefined,
+      undefined,
+    );
     expect(result).toMatchObject({ content: [], receipt: undefined });
   });
 });
