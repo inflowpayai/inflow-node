@@ -4,7 +4,7 @@ import { Credential, Method } from 'mppx';
 import { accepts, cardControls, inflowControls, tempoControls } from './controls.js';
 
 import { MppMalformedCredentialError } from './errors.js';
-import { createFulfiller, toWireChallenge } from './fulfilment.js';
+import { createFulfiller, supportsCredentialHeader, toWireChallenge } from './fulfilment.js';
 import type {
   CardBuyerParameters,
   FulfilChallenge,
@@ -25,6 +25,7 @@ export function card(parameters: CardBuyerParameters) {
   const method = Method.toClient(Methods.cardCharge, {
     context: cardContextSchema,
     canHandleChallenge: ({ challenge }) =>
+      supportsCredentialHeader(challenge.header) &&
       accepts(() => check(Methods.cardChargeRequestSchema.parse(challenge.request))),
     async createCredential({ challenge, context }) {
       const { signal, ...options } = cardContextSchema.parse(context);
@@ -100,6 +101,7 @@ function inflowChargeClient(parameters: InflowChargeBuyerParameters) {
   const method = Method.toClient(Methods.charge, {
     context: inflowContextSchema,
     canHandleChallenge: ({ challenge }) =>
+      supportsCredentialHeader(challenge.header) &&
       accepts(() => check(Methods.inflowChargeRequestSchema.parse(challenge.request))),
     async createCredential({ challenge, context = {} }) {
       check(challenge.request);
@@ -148,6 +150,7 @@ function inflowSubscriptionClient(parameters: InflowBuyerParameters) {
 
   const method = Method.toClient(Methods.subscription, {
     context: inflowSubscriptionContextSchema,
+    canHandleChallenge: ({ challenge }) => supportsCredentialHeader(challenge.header),
     async createCredential({ challenge, context = {} }) {
       const parsed = challenge as FulfilChallenge;
       const callOptions = context.signal === undefined ? undefined : { signal: context.signal };
@@ -215,6 +218,7 @@ export function tempo(parameters: TempoBuyerParameters) {
   const method = Method.toClient(Methods.tempoCharge, {
     context: tempoContextSchema,
     canHandleChallenge: ({ challenge }) =>
+      supportsCredentialHeader(challenge.header) &&
       accepts(() => check(Methods.tempoChargeRequestSchema.parse(challenge.request))),
     async createCredential({ challenge, context = {} }) {
       check(challenge.request);

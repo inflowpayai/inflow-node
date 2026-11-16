@@ -16,6 +16,14 @@ pnpm add @inflowpayai/mpp-buyer mppx
 [`mppx`](https://github.com/wevm/mppx) is a peer dependency — co-install it so package managers warn loudly when it's
 missing. `@inflowpayai/mpp` comes along as a normal dependency.
 
+## Credential header validation
+
+Payment challenges select `Authorization` by omitting `header`, or select `Payment-Authorization` explicitly. The buyer
+rejects other explicit values before requesting a payment. The native mppx parser erases explicit
+`header="Authorization"` before the buyer sees it, so automatic HTTP calls cannot reject that value here.
+[Upstream issue #1306](https://github.com/wevm/mppx/issues/1306) tracks that remaining parser limitation. Custom fields
+such as `X-Payment` are rejected by the buyer.
+
 ## Optional payment limits
 
 Limits belong to the configured method and apply before requesting a payment credential. Offers outside those limits are
