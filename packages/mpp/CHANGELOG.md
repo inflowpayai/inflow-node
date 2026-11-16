@@ -1,5 +1,14 @@
 # @inflowpayai/mpp
 
+## 0.13.1
+
+### Patch Changes
+
+- [#122](https://github.com/inflowpayai/inflow-node/pull/122)
+  [`8830d04`](https://github.com/inflowpayai/inflow-node/commit/8830d04b656051d6df0c143b0ba1169a49856f32) Thanks
+  [@nkavian](https://github.com/nkavian)! - Expose shared payment amount interpretation for CARD and Stripe USD
+  summaries in decimal dollars, preserving protocol requests and exact precision.
+
 ## 0.13.0
 
 ### Minor Changes
