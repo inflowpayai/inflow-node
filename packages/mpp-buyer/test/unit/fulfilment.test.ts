@@ -1,4 +1,4 @@
-import { encode, encodeCredential } from '@inflowpayai/mpp';
+import { encode, encodeCredential, MppCodecError } from '@inflowpayai/mpp';
 import type { InflowClientOptions, MppChallenge, MppCredential } from '@inflowpayai/mpp';
 import { Credential } from 'mppx';
 import { http, HttpResponse } from 'msw';
@@ -53,12 +53,25 @@ function method(overrides: Partial<InflowClientOptions & { pollIntervalMs?: numb
 }
 
 describe('fulfilment lifecycle', () => {
+  it.each(['Authorization', 'authorization', '', 'X-Payment'])(
+    'rejects header %j before transaction creation or subscription authorization',
+    async (header) => {
+      const getAccessToken = vi.fn(() => Promise.resolve('token'));
+      const fulfiller = createFulfiller({ getAccessToken, baseUrl: BASE });
+      const input = { ...challenge(), header };
+      await expect(fulfiller.fulfil(input, {})).rejects.toBeInstanceOf(MppCodecError);
+      await expect(fulfiller.authorizeSubscription('subscription', input)).rejects.toBeInstanceOf(MppCodecError);
+      expect(getAccessToken).not.toHaveBeenCalled();
+      fulfiller.cleanup();
+    },
+  );
+
   it('preserves every optional challenge field and leaves caller data unchanged', async () => {
     const input = {
       ...challenge(),
       description: 'Buy a report',
       digest: 'sha-256=:digest:',
-      header: 'X-Payment',
+      header: 'Payment-Authorization',
       opaque: 'binding',
     };
     const options = { instrumentId: RECIPIENT };

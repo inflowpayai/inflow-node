@@ -1,4 +1,4 @@
-import { decodeCredential, encode, InflowApiError, MppClient } from '@inflowpayai/mpp';
+import { decodeCredential, encode, InflowApiError, MppClient, MppCodecError } from '@inflowpayai/mpp';
 import type { MppChallenge, MppCredential, MppTransactionResponse } from '@inflowpayai/mpp';
 
 import {
@@ -204,6 +204,9 @@ function decodeReady(response: MppTransactionResponse): MppCredential {
  * @internal
  */
 export function toWireChallenge(challenge: FulfilChallenge): MppChallenge {
+  if (!supportsCredentialHeader(challenge.header)) {
+    throw new MppCodecError('challenge', 'header must be omitted or Payment-Authorization');
+  }
   return {
     id: challenge.id,
     realm: challenge.realm,
@@ -216,6 +219,12 @@ export function toWireChallenge(challenge: FulfilChallenge): MppChallenge {
     ...(challenge.header !== undefined ? { header: challenge.header } : {}),
     ...(challenge.opaque !== undefined ? { opaque: challenge.opaque } : {}),
   };
+}
+
+/** @internal */
+export function supportsCredentialHeader(header: string | undefined): boolean {
+  // mppx #1306 can erase explicit Authorization before this boundary; the README tracks that limitation.
+  return header === undefined || header.toLowerCase() === 'payment-authorization';
 }
 
 /** Abortable delay. Resolves early (does not reject) when `signal` aborts; the caller re-checks `signal.aborted`. */

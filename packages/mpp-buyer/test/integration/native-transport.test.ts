@@ -81,7 +81,7 @@ async function fixture(outcome: 'success' | 'error' | 'disconnect' | 'reject' | 
   };
 }
 
-it.each(['Payment-Authorization', 'X-Payment'])(
+it.each(['Payment-Authorization', 'payment-authorization'])(
   'pays through %s without replacing application authorization',
   async (header) => {
     const f = await fixture('success', header);
@@ -98,6 +98,18 @@ it.each(['Payment-Authorization', 'X-Payment'])(
     }
   },
 );
+
+it('rejects a custom credential header through the native transport before payment', async () => {
+  const f = await fixture('success', 'X-Payment');
+  try {
+    const buyer = Mppx.create(f.config);
+    await expect(buyer.fetch(f.url)).rejects.toThrow('No method found for challenges');
+    expect(f.platform).not.toHaveBeenCalled();
+    expect(f.paths).toHaveLength(1);
+  } finally {
+    await f.close();
+  }
+});
 
 it('opts out for one request without disabling subsequent payments on the same client', async () => {
   const f = await fixture();
