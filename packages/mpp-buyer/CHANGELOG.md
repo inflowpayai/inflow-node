@@ -1,5 +1,18 @@
 # @inflowpayai/mpp-buyer
 
+## 0.9.1
+
+### Patch Changes
+
+- [#124](https://github.com/inflowpayai/inflow-node/pull/124)
+  [`4563c51`](https://github.com/inflowpayai/inflow-node/commit/4563c51794c1c94b526c52951a5764269ca22833) Thanks
+  [@nkavian](https://github.com/nkavian)! - Reject unsupported explicit MPP credential header selections before payment
+  creation or subscription authorization.
+
+- Updated dependencies
+  [[`8830d04`](https://github.com/inflowpayai/inflow-node/commit/8830d04b656051d6df0c143b0ba1169a49856f32)]:
+  - @inflowpayai/mpp@0.13.1
+
 ## 0.9.0
 
 ### Minor Changes
