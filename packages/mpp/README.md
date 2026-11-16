@@ -51,6 +51,19 @@ buyer.
 
 ## Example
 
+### Read an advertised price
+
+Use `readMppPaymentAmount(method, decodedRequest)` for payment summaries. For CARD and Stripe USD charges,
+`{ amount: '100', currency: 'usd' }` returns `{ amount: '1.00', currency: 'USD' }`. The conversion uses exact decimal
+strings, not floating-point arithmetic, and leaves the request unchanged. Malformed USD amounts are omitted instead of
+being presented as dollars. This helper does not validate whether a payment is supported or permitted.
+
+InFlow amounts already use human units and pass through unchanged. Other currencies and methods, including Tempo token
+amounts, retain their advertised values; the helper does not guess a token's symbol or decimal precision. Keep the
+original challenge for creating transactions and verifying credentials, not the summarized amount.
+
+### Create a transaction
+
 API redirects are returned as `InflowApiError` responses; credentials and request bodies are not forwarded to redirect
 destinations. Caller cancellation stops the request and retry waits, reported as `NETWORK_ERROR`.
 

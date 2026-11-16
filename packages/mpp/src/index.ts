@@ -43,6 +43,7 @@ export {
 } from './codec.js';
 
 export { InflowHttpClient, MppClient } from './http-client.js';
+export { readMppPaymentAmount, type MppPaymentAmount } from './payment-amount.js';
 export type {
   InflowAnonymousClientOptions,
   InflowBearerClientOptions,
