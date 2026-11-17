@@ -70,10 +70,7 @@ export interface SigningContext {
   resource: ResourceInfo;
   /** From `PaymentRequired.x402Version`. Should be `2`. */
   x402Version: number;
-  /**
-   * From `PaymentRequired.extensions`. The signer dispatches handlers registered in the core extensions registry for
-   * the names it sees here.
-   */
+  /** From `PaymentRequired.extensions`; the managed signer forwards builder attribution to the payment service. */
   extensions?: Record<string, unknown>;
 }
 

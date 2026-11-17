@@ -167,6 +167,9 @@ export async function createInflowSigner(options: SignerOptions): Promise<Inflow
       accept: requirement,
       resource: context.resource,
       x402Version: context.x402Version,
+      ...(context.extensions?.['builder-code'] !== undefined
+        ? { extensions: { 'builder-code': context.extensions['builder-code'] } }
+        : {}),
       ...(requirement.scheme === SCHEMES.INSTRUMENT && options.instrument?.id !== undefined
         ? { instrumentId: options.instrument.id }
         : {}),
