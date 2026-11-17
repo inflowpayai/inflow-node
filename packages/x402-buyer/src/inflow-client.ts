@@ -102,7 +102,8 @@ export class InflowClient extends x402Client {
         ...(paymentRequired.extensions !== undefined ? { extensions: paymentRequired.extensions } : {}),
       };
       try {
-        const result = await this.inflowSigner.sign(inflowMatch, context);
+        const extensions = await this.managedPaymentExtensions(inflowMatch, structuredClone(paymentRequired));
+        const result = await this.inflowSigner.sign(inflowMatch, { ...context, extensions });
         const paymentPayload = toFoundationPayload(result.paymentPayload);
         const createdContext = { ...hookContext, paymentPayload };
         for (const hook of this.afterHooks(paymentRequired)) {
@@ -163,7 +164,8 @@ export class InflowClient extends x402Client {
       const result = await hook(structuredClone(hookContext));
       if (result?.abort) throw new Error(`Payment creation aborted: ${result.reason}`);
     }
-    const prepared = await this.inflowSigner.prepare(selectedRequirements, paymentRequired, options);
+    const extensions = await this.managedPaymentExtensions(selectedRequirements, paymentRequired);
+    const prepared = await this.inflowSigner.prepare(selectedRequirements, { ...paymentRequired, extensions }, options);
     // This handle belongs to the approval and transaction already created by the server.
     // A recovery hook could return a different payment without its corresponding IDs,
     // so this flow does not accept replacement payments.
@@ -188,6 +190,7 @@ export class InflowClient extends x402Client {
           try {
             const result = await prepared.awaitPayload(callOptions);
             received = true;
+            if (isCancelled()) throw new X402ApprovalCancelledError(prepared.approvalId);
             for (const hook of this.afterHooks(structuredClone(paymentRequired))) {
               if (isCancelled()) throw new X402ApprovalCancelledError(prepared.approvalId);
               await hook({
@@ -317,6 +320,41 @@ export class InflowClient extends x402Client {
   override onPaymentResponse(hook: OnPaymentResponseHook): this {
     super.onPaymentResponse(hook);
     return this;
+  }
+
+  private async managedPaymentExtensions(
+    requirement: PaymentRequirements,
+    required: PaymentRequired,
+  ): Promise<Record<string, unknown>> {
+    const extension = this.inflowExtensions.get('builder-code');
+    const declaration = required.extensions?.['builder-code'];
+    if (extension?.enrichPaymentPayload === undefined && declaration === undefined) return {};
+
+    // Use the native merger before creating an approval. The server must retain attribution
+    // so a later retrieval returns the same payload; this metadata-only scheme never signs or pays.
+    const attribution = new x402Client().setSpendControls(false);
+    const snapshot: PaymentPayload = {
+      x402Version: required.x402Version,
+      accepted: toFoundationRequirement(structuredClone(requirement)),
+      payload: {},
+    };
+    attribution.register(snapshot.accepted.network, {
+      scheme: snapshot.accepted.scheme,
+      createPaymentPayload: () => Promise.resolve(snapshot),
+    });
+    if (extension?.enrichPaymentPayload !== undefined) {
+      attribution.registerExtension({
+        key: extension.key,
+        enrichPaymentPayload: extension.enrichPaymentPayload.bind(extension),
+      });
+    }
+    const enriched = await attribution.createPaymentPayload({
+      ...structuredClone(required),
+      accepts: [snapshot.accepted],
+      extensions: declaration === undefined ? {} : { 'builder-code': structuredClone(declaration) },
+    });
+    const builder = enriched.extensions?.['builder-code'];
+    return builder === undefined ? {} : { 'builder-code': builder };
   }
 
   private beforeHooks(required: PaymentRequired): BeforePaymentCreationHook[] {

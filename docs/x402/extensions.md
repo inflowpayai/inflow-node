@@ -163,13 +163,33 @@ charge, promise a refund, or provide application-level fulfillment deduplication
 
 ## Builder attribution
 
-For external-wallet payments, register `BuilderCodeClientExtension` from `@x402/extensions/builder-code` on
+For managed or external-wallet payments, register `BuilderCodeClientExtension` from `@x402/extensions/builder-code` on
 `InflowClient` with the application's own codes. Sellers can explicitly declare their codes with
 `declareBuilderCodeExtension`. The SDK does not inject an InFlow attribution code.
 
 The extension adds attribution data to the payment payload. A compatible facilitator and settlement implementation must
 consume it to create on-chain attribution; metadata in a payload alone does not establish that attribution occurred.
-Registration does not add attribution to an InFlow-managed wallet's server-created payment payload.
+Managed payments preserve the seller's declaration and combine it with the explicitly registered buyer codes using
+native x402 merging. This applies to `createPaymentPayload` and `prepareInflowPayment`. Attribution is sent when the
+approval is created. The payment service stores it and returns the canonical `paymentPayload` and `encodedPayload`,
+including when a fresh client retrieves the transaction later. An attribution-construction failure occurs before an
+approval is created. Direct `createInflowSigner` calls forward builder metadata from the signing context without
+client-extension processing.
+
+Managed attribution requires a payment service that accepts and persists the transaction request's `extensions` field.
+An older service that ignores that field can still process payments, but will not retain builder attribution.
+
+```ts
+import { createInflowClient } from '@inflowpayai/x402-buyer';
+import { BuilderCodeClientExtension } from '@x402/extensions/builder-code';
+
+const client = await createInflowClient({ apiKey });
+client.registerExtension(new BuilderCodeClientExtension('your_app'));
+```
+
+The buyer contributes service codes (`s`), not the facilitator-owned wallet code (`w`). This does not change the signed
+payment authorization or payment identifier. Managed processing applies builder attribution only; registering another
+extension does not enable its payment-enrichment behavior on managed payments.
 
 ## Reading and writing extension entries
 
