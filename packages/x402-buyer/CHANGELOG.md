@@ -1,5 +1,16 @@
 # @inflowpayai/x402-buyer
 
+## 0.13.0
+
+### Minor Changes
+
+- [#126](https://github.com/inflowpayai/inflow-node/pull/126)
+  [`dc39e41`](https://github.com/inflowpayai/inflow-node/commit/dc39e41950337ee22de90fd3bc87bc7f55c65492) Thanks
+  [@nkavian](https://github.com/nkavian)! - Support explicit builder attribution for managed payments, including
+  prepared payments. Preserve seller and buyer codes using native x402 merging and submit them before approval creation
+  so the payment service can persist the canonical payload for later retrieval. Retain payment identifiers and keep
+  encoded headers consistent with attributed payloads.
+
 ## 0.12.0
 
 ### Minor Changes
